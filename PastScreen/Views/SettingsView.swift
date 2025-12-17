@@ -205,7 +205,7 @@ struct GeneralSettingsView: View {
                             Spacer()
 
                             Button("查看完整隐私政策") {
-                                if let url = URL(string: "https://github.com/augiefra/PastScreen/blob/main/PRIVACY.md") {
+                                if let url = URL(string: "https://github.com/iSoldLeo/PastScreen-CN/blob/main/PRIVACY.md") {
                                     NSWorkspace.shared.open(url)
                                 }
                             }
