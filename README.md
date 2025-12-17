@@ -88,6 +88,7 @@ open PastScreen-CN.xcodeproj
 
 ## 🙌 致谢与许可
 
-项目基于 [GPL-3.0 license](LICENSE) 开源。
+项目基于 [GPL-3.0 license](LICENSE/GPL-3.0%20license) 开源。
+本仓库为对上游项目的派生与再分发。上游代码按 MIT License 授权并保留其版权声明；本 fork 的整体分发采用 GPL-3.0 条款。详见 LICENSE/GPL-3.0 license（GPL）与 LICENSE/MIT.md（MIT）。
 
 欢迎提 Issue、讨论想法或提交 PR。祝你截图愉快！⚡️
