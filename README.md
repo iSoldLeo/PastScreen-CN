@@ -11,7 +11,7 @@
 
 ## 📥 获取 PastScreen-CN
 
-### 📦 GitHub Releases（未签名）
+### 📦 GitHub Releases
 
 你可以从 GitHub Releases 下载最新版本：
 
@@ -20,21 +20,7 @@ https://github.com/iSoldLeo/PastScreen-CN/releases
 首次打开时若被系统拦截，请使用以下任一方式放行：
 
 - 右键 App -> 打开（首次）
-- 执行：`xattr -dr com.apple.quarantine /path/to/PastScreen-CN.app`
-
-### 🛠 源码构建
-
-PastScreen-CN **完全开源**，你也可以自己构建：
-
-```bash
-git clone https://github.com/iSoldLeo/PastScreen-CN.git
-cd PastScreen-CN
-open PastScreen-CN.xcodeproj
-```
-
-然后在 Xcode 中 `Cmd + R` 运行，或 Archive 打包发布。
-
----
+- 执行：`xattr -dr com.apple.quarantine /Applications/PastScreen-CN.app`
 
 ## 🆕 近期更新
 
@@ -81,12 +67,27 @@ open PastScreen-CN.xcodeproj
 | 辅助功能 | 全局热键触发 |
 | 通知 | 截图完成通知 |
 
-**隐私**：PastScreen 不上传、不联网，所有操作都在本地完成。
+**隐私**：PastScreen-CN 不上传、不联网，所有操作都在本地完成。
 
 ---
 
+### 🛠 源码构建
+
+PastScreen-CN **完全开源**，你也可以自己构建：
+
+```bash
+git clone https://github.com/iSoldLeo/PastScreen-CN.git
+cd PastScreen-CN
+open PastScreen-CN.xcodeproj
+```
+
+然后在 Xcode 中 `Cmd + R` 运行。
+
+---
+
+
 ## 🙌 致谢与许可
 
-项目基于 [GPL-3.0 license](LICENSE) 开源，可自由使用、修改与分发。
+项目基于 [GPL-3.0 license](LICENSE) 开源。
 
 欢迎提 Issue、讨论想法或提交 PR。祝你截图愉快！⚡️
