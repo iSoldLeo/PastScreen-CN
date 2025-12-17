@@ -11,7 +11,16 @@
 
 ## 📥 获取 PastScreen-CN
 
-### 
+### 📦 GitHub Releases（未签名）
+
+你可以从 GitHub Releases 下载最新版本：
+
+https://github.com/iSoldLeo/PastScreen-CN/releases
+
+首次打开时若被系统拦截，请使用以下任一方式放行：
+
+- 右键 App -> 打开（首次）
+- 执行：`xattr -dr com.apple.quarantine /path/to/PastScreen-CN.app`
 
 ### 🛠 源码构建
 

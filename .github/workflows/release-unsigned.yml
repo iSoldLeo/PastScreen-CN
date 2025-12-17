@@ -1,0 +1,43 @@
+name: Release (Unsigned)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild \
+            -project PastScreen-CN.xcodeproj \
+            -scheme PastScreen-CN \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package zip
+        run: |
+          APP_PATH="build/Build/Products/Release/PastScreen-CN.app"
+          VERSION_TAG="${GITHUB_REF_NAME}"
+          ZIP_NAME="PastScreen-CN-${VERSION_TAG}-macOS.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
+          shasum -a 256 "$ZIP_NAME" > "${ZIP_NAME}.sha256"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            PastScreen-CN-*-macOS.zip
+            PastScreen-CN-*-macOS.zip.sha256
+          generate_release_notes: true
