@@ -47,6 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var preferencesWindowDelegate: PreferencesWindowDelegate?  // Strong reference
     private var hasPromptedAccessibility = false
     private var hasPromptedScreenRecording = false
+    private var hotKeyObserver: AnyCancellable?
 
     // Services
     var permissionManager = PermissionManager.shared
@@ -100,16 +101,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             // Utiliser l'icône personnalisée depuis Assets.xcassets
             if let icon = NSImage(named: "MenuBarIcon") {
                 icon.isTemplate = true  // Adaptation automatique au thème clair/sombre
-                button.image = icon
-            } else {
-                // Fallback vers SF Symbol
-                button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "PastScreen")
-            }
-
-            button.action = #selector(handleButtonClick)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "PastScreen - Raccourci: ⌥⌘S"
+            button.image = icon
+        } else {
+            // Fallback vers SF Symbol
+            button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "PastScreen")
         }
+
+        button.action = #selector(handleButtonClick)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        updateHotKeyUI()
+    }
 
         // Initialize services
         screenshotService = ScreenshotService()
@@ -126,6 +127,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Start monitoring for the global hotkey. The manager will handle settings changes internally.
         hotKeyManager.startMonitoring()
+
+        hotKeyObserver = settings.$globalHotkey
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateHotKeyUI()
+            }
 
         // Observe when the hotkey is pressed
         NotificationCenter.default.addObserver(
@@ -189,10 +196,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func createMenu() -> NSMenu {
         let menu = NSMenu()
 
-        let screenshotItem = NSMenuItem(title: NSLocalizedString("menu.capture_area", comment: ""), action: #selector(takeScreenshot), keyEquivalent: "")
+        let captureTitle = NSLocalizedString("menu.capture_area", comment: "")
+        let hotkeyTitle = "\(captureTitle) \(settings.globalHotkey.symbolDisplayString)"
+        let screenshotItem = NSMenuItem(title: hotkeyTitle, action: #selector(takeScreenshot), keyEquivalent: "")
         screenshotItem.target = self
-        screenshotItem.keyEquivalent = "s"
-        screenshotItem.keyEquivalentModifierMask = [.option, .command]
+        screenshotItem.keyEquivalent = settings.globalHotkey.keyEquivalent
+        screenshotItem.keyEquivalentModifierMask = settings.globalHotkey.modifierFlags
         menu.addItem(screenshotItem)
 
         let fullScreenItem = NSMenuItem(title: NSLocalizedString("menu.capture_fullscreen", comment: ""), action: #selector(captureFullScreen), keyEquivalent: "")
@@ -256,6 +265,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    private func updateHotKeyUI() {
+        let hotkeyDisplay = settings.globalHotkey.symbolDisplayString
+        statusItem?.button?.toolTip = "PastScreen - Raccourci: \(hotkeyDisplay)"
     }
 
     @objc func takeScreenshot() {

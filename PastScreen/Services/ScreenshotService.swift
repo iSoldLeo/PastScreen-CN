@@ -207,9 +207,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func handleSuccessfulCapture(cgImage: CGImage, selectionRect: CGRect) {
         // Play capture sound if enabled
         if AppSettings.shared.playSoundOnCapture {
-            if let sound = NSSound(named: NSSound.Name("Glass")) {
+            let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+            if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
                 sound.play()
-            } else if let fallback = NSSound(named: NSSound.Name("Pop")) {
+            } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
                 fallback.play()
             }
         }

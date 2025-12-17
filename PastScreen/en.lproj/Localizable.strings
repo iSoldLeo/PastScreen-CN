@@ -1,6 +1,6 @@
 /* Menu Items */
 "menu.tooltip" = "PastScreen - Quick Screenshots";
-"menu.capture_area" = "Capture Area ⌥⌘S";
+"menu.capture_area" = "Capture Area";
 "menu.capture_fullscreen" = "Capture Full Screen";
 "menu.show_last" = "Show Last Screenshot";
 "menu.history" = "History";
@@ -75,7 +75,7 @@
 "onboarding.workflow.note" = "Capture → Paste → Continue coding";
 "onboarding.customizable" = "⚙️ Customizable";
 "onboarding.customizable.desc" = "Configure everything: hotkeys, formats, storage";
-"onboarding.vs_native" = "Unlike native macOS screenshot (⌥⌘S): No preview delay, direct clipboard";
+"onboarding.vs_native" = "Unlike native macOS screenshot: No preview delay, direct clipboard";
 "onboarding.vs_other" = "Unlike other tools: No complex workflows or file management";
 "onboarding.dont_show" = "Don't show this again";
 "onboarding.got_it" = "Got it, let's go!";
@@ -110,7 +110,7 @@
 "onboarding.button.start" = "Get Started";
 
 "onboarding.page1.title" = "Ultra Fast";
-"onboarding.page1.description" = "Capture and paste in seconds.\n⌥⌘S → Capture → ⌘V in your IDE";
+"onboarding.page1.description" = "Capture and paste in seconds.\nYour hotkey → Capture → ⌘V in your IDE";
 
 "onboarding.page2.title" = "Storage Location";
 "onboarding.page2.description" = "Choose where PastScreen saves your screenshots.";
@@ -134,7 +134,7 @@
 "onboarding.permissions.screen_recording.title" = "Screen Recording";
 "onboarding.permissions.screen_recording.description" = "Required to capture your screen.\nClick below to grant permission.";
 "onboarding.permissions.accessibility.title" = "Keyboard Shortcut";
-"onboarding.permissions.accessibility.description" = "Required for global hotkey ⌥⌘S.\nClick below to grant permission.";
+"onboarding.permissions.accessibility.description" = "Required for global hotkey.\nClick below to grant permission.";
 "onboarding.permissions.grant" = "Grant Permission";
 "onboarding.permissions.granted" = "Permission Granted";
 

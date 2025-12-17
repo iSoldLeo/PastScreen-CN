@@ -16,8 +16,10 @@ class HotKeyManager {
     static let shared = HotKeyManager()
 
     private var globalEventMonitor: Any?
+    private var localEventMonitor: Any?
     private let settings = AppSettings.shared
     private var settingsObserver: AnyCancellable?
+    private var isRecordingHotKey = false
 
     private init() {
         // Observe changes to the hotkey enabled setting.
@@ -55,25 +57,15 @@ class HotKeyManager {
         }
 
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            // Define the hotkey combination (Option + Command + S).
-            // This logic will be updated later to support customizable hotkeys.
-            let hasOption = event.modifierFlags.contains(.option)
-            let hasCommand = event.modifierFlags.contains(.command)
-            let hasShift = event.modifierFlags.contains(.shift)
-            let hasControl = event.modifierFlags.contains(.control)
+            _ = self.handleHotKeyEvent(event)
+        }
 
-            // The desired combination is Option + Command, without Shift or Control.
-            let isCorrectModifiers = hasOption && hasCommand && !hasShift && !hasControl
-
-            // The 'S' key has a keycode of 1 on QWERTY layouts. We also check the character
-            // for compatibility with other layouts.
-            let isSKey = event.keyCode == 1 || event.characters?.lowercased() == "s"
-
-            if isCorrectModifiers && isSKey {
-                // Post a notification to decouple the hotkey detection from the action.
-                // The AppDelegate will listen for this notification to trigger a screenshot.
-                NotificationCenter.default.post(name: .hotKeyPressed, object: nil)
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            if self.handleHotKeyEvent(event) {
+                return nil
             }
+            return event
         }
 
 
@@ -85,5 +77,41 @@ class HotKeyManager {
             NSEvent.removeMonitor(monitor)
             globalEventMonitor = nil
         }
+        if let monitor = localEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            localEventMonitor = nil
+        }
+    }
+
+    func setRecordingHotKey(_ recording: Bool) {
+        isRecordingHotKey = recording
+    }
+
+    @discardableResult
+    private func handleHotKeyEvent(_ event: NSEvent) -> Bool {
+        guard !isRecordingHotKey else { return false }
+
+        let hotkey = settings.globalHotkey
+        let requiredModifiers = hotkey.modifierFlags
+        let eventModifiers = HotKey.normalizedModifiers(event.modifierFlags)
+
+        let matchesModifiers = eventModifiers == requiredModifiers
+        let matchesKeyCode = event.keyCode == hotkey.keyCode
+        let matchesCharacters = {
+            guard let expected = hotkey.characters?.lowercased(),
+                  let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                return false
+            }
+            return expected == actual
+        }()
+
+        if matchesModifiers && (matchesKeyCode || matchesCharacters) {
+            // Post a notification to decouple the hotkey detection from the action.
+            // The AppDelegate will listen for this notification to trigger a screenshot.
+            NotificationCenter.default.post(name: .hotKeyPressed, object: nil)
+            return true
+        }
+
+        return false
     }
 }

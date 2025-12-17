@@ -105,3 +105,5 @@ gha-creds-*.json
 # Build logs and temporary files
 build_log*.txt
 *.log
+PastScreen.xcodeproj/project.pbxproj
+PastScreen.xcodeproj/project.pbxproj

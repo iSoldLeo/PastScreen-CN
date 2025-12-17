@@ -298,6 +298,17 @@ class SelectionOverlayView: NSView {
         }
     }
 
+    override func rightMouseDown(with event: NSEvent) {
+        isDragging = false
+        startPoint = nil
+        endPoint = nil
+        needsDisplay = true
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onCancel?()
+        }
+    }
+
     /// Convert local selection rect to global screen coordinates before sending
     private func emitSelection(rect: CGRect) {
         guard let window = self.window else {

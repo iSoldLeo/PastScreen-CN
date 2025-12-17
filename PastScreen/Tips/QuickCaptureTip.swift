@@ -9,7 +9,7 @@ struct QuickCaptureTip: Tip {
     }
 
     var message: Text? {
-        Text("Use ⌥⌘S or Apple Shortcuts for instant capture.")
+        Text("Use your hotkey or Apple Shortcuts for instant capture.")
     }
 
     var image: Image? {

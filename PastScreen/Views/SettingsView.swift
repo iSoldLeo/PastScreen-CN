@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 #if canImport(TipKit)
 import TipKit
@@ -265,7 +266,7 @@ struct CaptureSettingsView: View {
                             HStack {
                                 Text("Capture Area")
                                 Spacer()
-                                KeyboardShortcutView(keys: ["⌥", "⌘", "S"])
+                                HotKeyRecorderView(hotkey: $settings.globalHotkey)
                             }
                         }
                     }
@@ -490,6 +491,76 @@ struct KeyboardShortcutView: View {
                     )
             }
         }
+    }
+}
+
+struct HotKeyRecorderView: View {
+    @Binding var hotkey: HotKey
+    @State private var isRecording = false
+    @State private var localMonitor: Any?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if isRecording {
+                Text("Press keys...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                KeyboardShortcutView(keys: hotkey.symbolDisplayParts)
+            }
+
+            Button(isRecording ? "Cancel" : "Change") {
+                if isRecording {
+                    stopRecording()
+                } else {
+                    startRecording()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .onDisappear {
+            stopRecording()
+        }
+    }
+
+    private func startRecording() {
+        guard localMonitor == nil else { return }
+
+        isRecording = true
+        HotKeyManager.shared.setRecordingHotKey(true)
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let modifiers = HotKey.normalizedModifiers(event.modifierFlags)
+            let characters = event.charactersIgnoringModifiers?.lowercased()
+            hotkey = HotKey(keyCode: event.keyCode, modifiers: modifiers.rawValue, characters: characters)
+            stopRecording()
+            return nil
+        }
+    }
+
+    private func stopRecording() {
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
+        }
+        isRecording = false
+        HotKeyManager.shared.setRecordingHotKey(false)
+    }
+}
+
+extension HotKey {
+    var symbolDisplayParts: [String] {
+        var parts: [String] = []
+        if modifierFlags.contains(.control) { parts.append("⌃") }
+        if modifierFlags.contains(.option) { parts.append("⌥") }
+        if modifierFlags.contains(.shift) { parts.append("⇧") }
+        if modifierFlags.contains(.command) { parts.append("⌘") }
+        parts.append(displayKey)
+        return parts
+    }
+
+    var symbolDisplayString: String {
+        symbolDisplayParts.joined()
     }
 }
 
