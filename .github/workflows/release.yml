@@ -15,29 +15,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build app
+      - name: Build app (arm64)
         run: |
           xcodebuild \
             -project PastScreen-CN.xcodeproj \
             -scheme PastScreen-CN \
             -configuration Release \
             -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CONFIGURATION_BUILD_DIR=build/Release-arm64 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-      - name: Package zip
+      - name: Build app (x86_64)
         run: |
-          APP_PATH="build/Build/Products/Release/PastScreen-CN.app"
+          xcodebuild \
+            -project PastScreen-CN.xcodeproj \
+            -scheme PastScreen-CN \
+            -configuration Release \
+            -derivedDataPath build \
+            ARCHS=x86_64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CONFIGURATION_BUILD_DIR=build/Release-x86_64 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package zips
+        run: |
           VERSION_TAG="${GITHUB_REF_NAME}"
-          ZIP_NAME="PastScreen-CN-${VERSION_TAG}-macOS.zip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
-          shasum -a 256 "$ZIP_NAME" > "${ZIP_NAME}.sha256"
+          APP_PATH_ARM64="build/Release-arm64/PastScreen-CN.app"
+          ZIP_NAME_ARM64="PastScreen-CN-${VERSION_TAG}-macOS-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH_ARM64" "$ZIP_NAME_ARM64"
+          shasum -a 256 "$ZIP_NAME_ARM64" > "${ZIP_NAME_ARM64}.sha256"
+
+          APP_PATH_X64="build/Release-x86_64/PastScreen-CN.app"
+          ZIP_NAME_X64="PastScreen-CN-${VERSION_TAG}-macOS-x86_64.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH_X64" "$ZIP_NAME_X64"
+          shasum -a 256 "$ZIP_NAME_X64" > "${ZIP_NAME_X64}.sha256"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            PastScreen-CN-*-macOS.zip
-            PastScreen-CN-*-macOS.zip.sha256
+            PastScreen-CN-*-macOS-*.zip
+            PastScreen-CN-*-macOS-*.zip.sha256
           generate_release_notes: true
