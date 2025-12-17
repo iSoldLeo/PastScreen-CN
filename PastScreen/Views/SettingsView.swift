@@ -148,7 +148,7 @@ struct GeneralSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("开机启动", isOn: $settings.launchAtLogin)
                         Divider()
-                        Toggle("在 Dock 中显示", isOn: $settings.showInDock)
+                        Toggle("在 Dock 栏里显示", isOn: $settings.showInDock)
                         Divider()
                         Toggle("播放截图音效", isOn: $settings.playSoundOnCapture)
                     }

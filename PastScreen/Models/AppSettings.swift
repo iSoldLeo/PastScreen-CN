@@ -238,7 +238,7 @@ class AppSettings: ObservableObject {
             self.globalHotkey = .defaultCapture
         }
 
-        self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true
+        self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? false
         self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? false  // Default: disabled
 
         self.captureHistory = UserDefaults.standard.stringArray(forKey: "captureHistory") ?? []
