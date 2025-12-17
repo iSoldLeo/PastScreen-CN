@@ -40,7 +40,6 @@ playground.xcworkspace
 Packages/
 Package.pins
 Package.resolved
-*.xcodeproj
 #
 # Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
 # hence it is not needed unless you have added a package configuration file to your project
@@ -105,5 +104,3 @@ gha-creds-*.json
 # Build logs and temporary files
 build_log*.txt
 *.log
-PastScreen-CN.xcodeproj/project.pbxproj
-PastScreen-CN.xcodeproj/project.pbxproj
