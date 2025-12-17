@@ -1,4 +1,4 @@
-name: Release (Unsigned)
+name: Release
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build app (unsigned)
+      - name: Build app
         run: |
           xcodebuild \
             -project PastScreen-CN.xcodeproj \
