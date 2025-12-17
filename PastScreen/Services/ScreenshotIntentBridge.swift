@@ -11,7 +11,7 @@ final class ScreenshotIntentBridge {
         var errorDescription: String? {
             switch self {
             case .appUnavailable:
-                return "PastScreen must be running to perform this action."
+                return NSLocalizedString("intent.error.app_unavailable", comment: "")
             }
         }
     }

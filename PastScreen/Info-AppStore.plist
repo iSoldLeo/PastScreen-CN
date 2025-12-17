@@ -13,7 +13,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
-	<string>PastScreen</string>
+	<string>PastScreen-CN</string>
+	<key>CFBundleDisplayName</key>
+	<string>PastScreen-CN</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,10 +27,10 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>PastScreen uses Apple Events for global keyboard shortcuts.</string>
+	<string>PastScreen-CN 需要使用 Apple 事件来注册全局快捷键。</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>PastScreen requires screen recording access to capture screenshots.</string>
+	<string>PastScreen-CN 需要屏幕录制权限来进行截图。</string>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>PastScreen displays notifications to confirm screenshot captures.</string>
+	<string>PastScreen-CN 会显示通知来确认截图完成。</string>
 </dict>
 </plist>

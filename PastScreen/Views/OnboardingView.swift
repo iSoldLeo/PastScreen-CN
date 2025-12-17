@@ -265,7 +265,7 @@ struct OnboardingContentView: View {
                             )
                         )
 
-                    Text("PastScreen")
+                    Text("PastScreen-CN")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(.primary)
 
@@ -427,7 +427,7 @@ struct OnboardingContentView: View {
                     // ONLY user-selected folder option (Apple guideline 2.4.5(i) compliance)
                     storageOption(
                         title: NSLocalizedString("onboarding.storage.default.title", comment: ""),
-                        description: "Select a folder accessible in Finder.\nYour screenshots will be saved there.",
+                        description: "选择一个在 Finder 可访问的文件夹。\n你的截图将保存在这里。",
                         icon: "folder.circle.fill",
                         color: .blue,
                         isSelected: settings.hasValidBookmark,

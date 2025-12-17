@@ -153,7 +153,7 @@ struct CustomNotificationContentView: View {
                             .frame(width: 24, height: 24)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .help("Reveal in Finder")
+                    .help("在 Finder 中显示")
                 }
 
                 Button(action: {
@@ -165,7 +165,7 @@ struct CustomNotificationContentView: View {
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("Dismiss")
+                .help("关闭")
             }
         }
         .padding(16)
@@ -196,8 +196,8 @@ struct CustomNotificationContentView: View {
 struct CustomNotificationContentView_Previews: PreviewProvider {
     static var previews: some View {
         CustomNotificationContentView(
-            title: "📸 Screenshot Ready",
-            message: "Click to reveal in Finder",
+            title: "📸 截图已完成",
+            message: "点击在 Finder 中显示",
             filePath: "/tmp/test.png",
             onDismiss: {}
         )

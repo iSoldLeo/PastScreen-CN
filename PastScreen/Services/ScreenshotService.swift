@@ -150,7 +150,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     /// Affiche une notification macOS native (toujours UNUserNotification)
     private func showSuccessNotification(filePath: String?) {
         let content = UNMutableNotificationContent()
-        content.title = "PastScreen"
+        content.title = "PastScreen-CN"
         content.body = NSLocalizedString("notification.screenshot_saved", comment: "")
         content.sound = nil  // conserver uniquement le son "Glass" joué avant la notification
 
@@ -168,14 +168,14 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // (avoids Dock icon flash that confuses users)
         UNUserNotificationCenter.current().add(request) { _ in }
 
-        DynamicIslandManager.shared.show(message: "Saved", duration: 3.0)
+        DynamicIslandManager.shared.show(message: "已保存", duration: 3.0)
     }
 
     private func performCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
         // Vérifier que le rectangle est valide
         guard rect.width > 0 && rect.height > 0 else {
             DispatchQueue.main.async { [weak self] in
-                self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid selection rectangle"]))
+                self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
             }
             return
         }
@@ -250,7 +250,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // Vérification de base du rectangle
         guard rect.width > 0 && rect.height > 0 else {
             throw NSError(domain: "ScreenshotService", code: -1, userInfo: [
-                NSLocalizedDescriptionKey: "Rectangle invalide: \(rect)"
+                NSLocalizedDescriptionKey: "无效选区：\(rect)"
             ])
         }
 
@@ -259,11 +259,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             let content = try await SCShareableContent.current
 
             // 2. Find NSScreen that contains the selection rect
-            guard let nsScreen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) else {
-                throw NSError(domain: "ScreenshotService", code: -2, userInfo: [
-                    NSLocalizedDescriptionKey: "No screen found for selected area"
-                ])
-            }
+                guard let nsScreen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) else {
+                    throw NSError(domain: "ScreenshotService", code: -2, userInfo: [
+                        NSLocalizedDescriptionKey: "未找到包含所选区域的屏幕"
+                    ])
+                }
 
             // 3. Match NSScreen to SCDisplay by displayID
             let displayID = nsScreen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
@@ -272,10 +272,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 targetDisplay = matchedDisplay
             } else {
                 guard let fallbackDisplay = content.displays.first else {
-                    throw NSError(domain: "ScreenshotService", code: -3, userInfo: [
-                        NSLocalizedDescriptionKey: "No display found"
-                    ])
-                }
+                        throw NSError(domain: "ScreenshotService", code: -3, userInfo: [
+                            NSLocalizedDescriptionKey: "未找到可用显示器"
+                        ])
+                    }
                 targetDisplay = fallbackDisplay
             }
 
@@ -302,7 +302,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 relativeRect = rectInScreenPoints.intersection(screenBounds)
                 guard !relativeRect.isNull else {
                     throw NSError(domain: "ScreenshotService", code: -4, userInfo: [
-                        NSLocalizedDescriptionKey: "Selection is entirely outside screen bounds"
+                        NSLocalizedDescriptionKey: "选区完全位于屏幕范围之外"
                     ])
                 }
             }
@@ -341,21 +341,21 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             switch error.code {
             case .userDeclined:
                 throw NSError(domain: "ScreenshotService", code: -10, userInfo: [
-                    NSLocalizedDescriptionKey: "Screen recording permission denied. Go to System Settings > Privacy & Security > Screen Recording."
+                    NSLocalizedDescriptionKey: "屏幕录制权限被拒绝。请前往“系统设置 → 隐私与安全性 → 屏幕录制”。"
                 ])
             case .systemStoppedStream:
                 throw NSError(domain: "ScreenshotService", code: -11, userInfo: [
-                    NSLocalizedDescriptionKey: "Capture interrupted by system"
+                    NSLocalizedDescriptionKey: "截图被系统中断"
                 ])
             default:
                 throw NSError(domain: "ScreenshotService", code: -12, userInfo: [
-                    NSLocalizedDescriptionKey: "Capture error: \(error.localizedDescription)"
+                    NSLocalizedDescriptionKey: "截图错误：\(error.localizedDescription)"
                 ])
             }
 
         } catch {
             throw NSError(domain: "ScreenshotService", code: -13, userInfo: [
-                NSLocalizedDescriptionKey: "Screenshot capture failed: \(error.localizedDescription)"
+                NSLocalizedDescriptionKey: "截图失败：\(error.localizedDescription)"
             ])
         }
     }
@@ -479,10 +479,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // For errors, show a proper alert dialog
         DispatchQueue.main.async {
             let alert = NSAlert()
-            alert.messageText = "Screenshot Error"
+            alert.messageText = "截图错误"
             alert.informativeText = error.localizedDescription
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "确定")
             alert.runModal()
         }
     }

@@ -11,9 +11,9 @@ import UserNotifications
 import Combine
 
 enum PermissionType: String, CaseIterable {
-    case screenRecording = "Screen Recording"
-    case accessibility = "Accessibility"
-    case notifications = "Notifications"
+    case screenRecording = "屏幕录制"
+    case accessibility = "辅助功能"
+    case notifications = "通知"
 
     var icon: String {
         switch self {
@@ -179,16 +179,16 @@ class PermissionManager: ObservableObject {
 
     func showPermissionAlert(for permissions: [PermissionType]) {
         let alert = NSAlert()
-        alert.messageText = NSLocalizedString("error.permission_denied", value: "Permissions Required", comment: "")
+        alert.messageText = NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
 
-        let header = NSLocalizedString("permission.request.header", value: "PastScreen needs the following permissions to work properly:", comment: "")
-        let footer = NSLocalizedString("permission.request.footer", value: "Please enable them in System Preferences > Privacy & Security.", comment: "")
+        let header = NSLocalizedString("permission.request.header", value: "PastScreen-CN 需要以下权限才能正常工作：", comment: "")
+        let footer = NSLocalizedString("permission.request.footer", value: "请在“系统设置 → 隐私与安全性”中开启。", comment: "")
         let permissionsList = permissions.map { "\($0.icon) \($0.rawValue)" }.joined(separator: "\n")
 
         alert.informativeText = "\(header)\n\n\(permissionsList)\n\n\(footer)"
         alert.alertStyle = .warning
-        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "Open System Preferences", comment: ""))
-        alert.addButton(withTitle: NSLocalizedString("error.later", value: "Later", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "打开系统设置", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("error.later", value: "稍后", comment: ""))
 
         if alert.runModal() == .alertFirstButtonReturn {
             openSystemPreferences()
@@ -197,17 +197,17 @@ class PermissionManager: ObservableObject {
 
     private func showMaxRetriesAlert(for type: PermissionType) {
         let alert = NSAlert()
-        alert.messageText = "\(type.icon) \(type.rawValue) " + NSLocalizedString("error.permission_denied", value: "Permission Required", comment: "")
+        alert.messageText = "\(type.icon) \(type.rawValue) " + NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
 
-        let message = NSLocalizedString("permission.max_retries.message", value: "PastScreen has reached the maximum number of permission requests.\n\nPlease manually enable", comment: "")
+        let message = NSLocalizedString("permission.max_retries.message", value: "PastScreen-CN 已达到权限请求次数上限。\n\n请手动开启", comment: "")
 
         alert.informativeText = """
         \(message) \(type.rawValue):
-        System Preferences > Privacy & Security > \(type.rawValue)
+        系统设置 → 隐私与安全性 → \(type.rawValue)
         """
         alert.alertStyle = .critical
-        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "Open System Preferences", comment: ""))
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "打开系统设置", comment: ""))
+        alert.addButton(withTitle: "确定")
 
         if alert.runModal() == .alertFirstButtonReturn {
             openSystemPreferences()

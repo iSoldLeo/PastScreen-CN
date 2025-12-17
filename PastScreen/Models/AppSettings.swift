@@ -61,31 +61,31 @@ struct HotKey: Codable, Equatable {
         }
 
         guard let chars = characters, !chars.isEmpty else {
-            return "Key \(keyCode)"
+            return String(format: NSLocalizedString("hotkey.key.code", comment: ""), keyCode)
         }
 
         if chars == " " {
-            return "Space"
+            return NSLocalizedString("hotkey.key.space", comment: "")
         }
 
         return chars.uppercased()
     }
 
     private static let specialKeyDisplay: [UInt16: String] = [
-        36: "Return",
-        48: "Tab",
-        49: "Space",
-        51: "Delete",
-        53: "Esc",
-        117: "Forward Delete",
-        115: "Home",
-        119: "End",
-        116: "Page Up",
-        121: "Page Down",
-        123: "Left",
-        124: "Right",
-        125: "Down",
-        126: "Up",
+        36: NSLocalizedString("hotkey.key.return", comment: ""),
+        48: NSLocalizedString("hotkey.key.tab", comment: ""),
+        49: NSLocalizedString("hotkey.key.space", comment: ""),
+        51: NSLocalizedString("hotkey.key.delete", comment: ""),
+        53: NSLocalizedString("hotkey.key.escape", comment: ""),
+        117: NSLocalizedString("hotkey.key.forward_delete", comment: ""),
+        115: NSLocalizedString("hotkey.key.home", comment: ""),
+        119: NSLocalizedString("hotkey.key.end", comment: ""),
+        116: NSLocalizedString("hotkey.key.page_up", comment: ""),
+        121: NSLocalizedString("hotkey.key.page_down", comment: ""),
+        123: NSLocalizedString("hotkey.key.left", comment: ""),
+        124: NSLocalizedString("hotkey.key.right", comment: ""),
+        125: NSLocalizedString("hotkey.key.down", comment: ""),
+        126: NSLocalizedString("hotkey.key.up", comment: ""),
         122: "F1",
         120: "F2",
         99: "F3",
@@ -271,8 +271,8 @@ class AppSettings: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Select"
-        panel.message = "Please select a folder to save screenshots"
+        panel.prompt = NSLocalizedString("settings.select_folder.prompt", comment: "")
+        panel.message = NSLocalizedString("settings.select_folder.message", comment: "")
 
         if panel.runModal() == .OK {
             if let url = panel.url {

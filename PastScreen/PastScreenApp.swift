@@ -104,7 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             button.image = icon
         } else {
             // Fallback vers SF Symbol
-            button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "PastScreen")
+                button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "PastScreen-CN")
         }
 
         button.action = #selector(handleButtonClick)
@@ -269,7 +269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private func updateHotKeyUI() {
         let hotkeyDisplay = settings.globalHotkey.symbolDisplayString
-        statusItem?.button?.toolTip = "PastScreen - Raccourci: \(hotkeyDisplay)"
+        statusItem?.button?.toolTip = "PastScreen-CN - 快捷键：\(hotkeyDisplay)"
     }
 
     @objc func takeScreenshot() {
@@ -327,7 +327,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         // Show small notification/feedback
-        DynamicIslandManager.shared.show(message: "Copied", duration: 1.5)
+        DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
     }
 
     @objc func clearHistory() {
@@ -443,8 +443,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 #if DEBUG
     func testNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "PastScreen - Test"
-        content.body = "App started successfully"
+        content.title = "PastScreen-CN - 测试"
+        content.body = "应用已启动"
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

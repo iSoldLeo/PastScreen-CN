@@ -1,10 +1,11 @@
 #if canImport(AppIntents)
+import Foundation
 import AppIntents
 
 @available(macOS 13.0, *)
 struct CaptureAreaIntent: AppIntent {
-    static var title: LocalizedStringResource = "Capture area"
-    static var description = IntentDescription("Capture a custom area with PastScreen and copy the image.")
+    static var title: LocalizedStringResource = "选区截图"
+    static var description = IntentDescription("使用 PastScreen-CN 截取自定义区域并复制图片。")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
@@ -15,8 +16,8 @@ struct CaptureAreaIntent: AppIntent {
 
 @available(macOS 13.0, *)
 struct CaptureFullScreenIntent: AppIntent {
-    static var title: LocalizedStringResource = "Capture full screen"
-    static var description = IntentDescription("Capture the full screen with PastScreen and copy the result.")
+    static var title: LocalizedStringResource = "全屏截图"
+    static var description = IntentDescription("使用 PastScreen-CN 截取全屏并复制结果。")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
@@ -33,14 +34,20 @@ struct PastScreenShortcuts: AppShortcutsProvider {
         return [
             AppShortcut(
                 intent: CaptureAreaIntent(),
-                phrases: ["Capture area with \(.applicationName)", "Selection with \(.applicationName)"],
-                shortTitle: "Capture area",
+                phrases: [
+                    "用 \(.applicationName) 选区截图",
+                    "使用 \(.applicationName) 截取选区"
+                ],
+                shortTitle: "选区截图",
                 systemImageName: "selection.pin.in.out"
             ),
             AppShortcut(
                 intent: CaptureFullScreenIntent(),
-                phrases: ["Capture full screen with \(.applicationName)", "Full screen via \(.applicationName)"],
-                shortTitle: "Full screen",
+                phrases: [
+                    "用 \(.applicationName) 全屏截图",
+                    "使用 \(.applicationName) 截取全屏"
+                ],
+                shortTitle: "全屏截图",
                 systemImageName: "rectangle.inset.filled"
             )
         ]

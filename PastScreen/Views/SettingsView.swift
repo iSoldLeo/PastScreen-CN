@@ -17,10 +17,10 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
 
     enum SettingsTab: String, CaseIterable {
-        case general = "General"
-        case capture = "Capture"
-        case storage = "Storage"
-        case apps = "Apps"
+        case general = "通用"
+        case capture = "截图"
+        case storage = "存储"
+        case apps = "应用"
 
         var icon: String {
             switch self {
@@ -140,34 +140,34 @@ struct GeneralSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Options", systemImage: "gearshape")
+                Label("选项", systemImage: "gearshape")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+                        Toggle("开机启动", isOn: $settings.launchAtLogin)
                         Divider()
-                        Toggle("Show in Dock", isOn: $settings.showInDock)
+                        Toggle("在 Dock 中显示", isOn: $settings.showInDock)
                         Divider()
-                        Toggle("Play capture sound", isOn: $settings.playSoundOnCapture)
+                        Toggle("播放截图音效", isOn: $settings.playSoundOnCapture)
                     }
                     .padding(12)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("Help", systemImage: "questionmark.circle")
+                Label("帮助", systemImage: "questionmark.circle")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     HStack {
-                        Text("Need help getting started?")
+                        Text("需要入门帮助？")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Button("Show Tutorial") {
+                        Button("查看教程") {
                             OnboardingManager.shared.show()
                         }
                     }
@@ -176,7 +176,7 @@ struct GeneralSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("Privacy", systemImage: "hand.raised.fill")
+                Label("隐私", systemImage: "hand.raised.fill")
                     .font(.headline)
                     .padding(.leading, 2)
 
@@ -184,11 +184,11 @@ struct GeneralSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Your Privacy Matters")
+                                Text("你的隐私很重要")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
 
-                                Text("PastScreen collects zero data. Everything stays on your Mac.")
+                                Text("PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -198,13 +198,13 @@ struct GeneralSettingsView: View {
                         Divider()
 
                         HStack {
-                            Text("• No analytics or tracking\n• No cloud uploads\n• No third-party services\n• Local-only operation")
+                            Text("• 无分析或追踪\n• 无云端上传\n• 无第三方服务\n• 仅本地运行")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             Spacer()
 
-                            Button("View Full Policy") {
+                            Button("查看完整隐私政策") {
                                 if let url = URL(string: "https://github.com/augiefra/PastScreen/blob/main/PRIVACY.md") {
                                     NSWorkspace.shared.open(url)
                                 }
@@ -226,21 +226,21 @@ struct CaptureSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Format", systemImage: "photo")
+                Label("格式", systemImage: "photo")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Picker("Image Format", selection: $settings.imageFormat) {
-                            Text("PNG (Lossless)").tag("png")
-                            Text("JPEG (Compressed)").tag("jpeg")
+                        Picker("图片格式", selection: $settings.imageFormat) {
+                            Text("PNG（无损）").tag("png")
+                            Text("JPEG（压缩）").tag("jpeg")
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
 
                         HStack {
-                            Text("Format:")
+                            Text("格式：")
                                 .foregroundStyle(.secondary)
                             Text(settings.imageFormat.uppercased())
                                 .fontWeight(.medium)
@@ -253,18 +253,18 @@ struct CaptureSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("Shortcuts", systemImage: "keyboard")
+                Label("快捷键", systemImage: "keyboard")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Enable global hotkey", isOn: $settings.globalHotkeyEnabled)
+                        Toggle("启用全局快捷键", isOn: $settings.globalHotkeyEnabled)
 
                         if settings.globalHotkeyEnabled {
                             Divider()
                             HStack {
-                                Text("Capture Area")
+                                Text("区域截图")
                                 Spacer()
                                 HotKeyRecorderView(hotkey: $settings.globalHotkey)
                             }
@@ -285,13 +285,13 @@ struct StorageSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Destination", systemImage: "externaldrive")
+                Label("保存位置", systemImage: "externaldrive")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Save to Disk", isOn: $settings.saveToFile)
+                        Toggle("保存到磁盘", isOn: $settings.saveToFile)
                             .onChange(of: settings.saveToFile) { _, newValue in
                                 if newValue {
                                     // ALWAYS require valid bookmark (user-selected folder)
@@ -319,7 +319,7 @@ struct StorageSettingsView: View {
 
                                 Spacer()
 
-                                Button("Change...") {
+                                Button("更改...") {
                                     if let newPath = settings.selectFolder() {
                                         settings.saveFolderPath = newPath
                                     }
@@ -330,13 +330,13 @@ struct StorageSettingsView: View {
                             .cornerRadius(6)
 
                             HStack {
-                                Button("Open Folder") {
+                                Button("打开文件夹") {
                                     NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
                                 }
 
                                 Spacer()
 
-                                Button("Clear Folder") {
+                                Button("清空文件夹") {
                                     settings.clearSaveFolder()
                                 }
                                 .foregroundColor(.red)
@@ -362,12 +362,12 @@ struct AppsSettingsView: View {
                     HStack {
                         Image(systemName: "info.circle.fill")
                             .foregroundColor(.blue)
-                        Text("Default: Image is copied to clipboard")
+                        Text("默认：复制图片到剪贴板")
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
 
-                    Text("Add an app below and set it to **Path** if you want the file path copied instead (useful for terminals).")
+                    Text("在下面添加应用，如果需要复制文件路径，请将其设置为“路径”（适用于终端）。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -377,7 +377,7 @@ struct AppsSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("Overrides", systemImage: "list.bullet")
+                Label("规则", systemImage: "list.bullet")
                     .font(.headline)
                     .padding(.leading, 2)
 
@@ -388,10 +388,10 @@ struct AppsSettingsView: View {
                                 .font(.system(size: 48))
                                 .foregroundStyle(.secondary.opacity(0.3))
 
-                            Text("No application rules")
+                            Text("暂无应用规则")
                                 .font(.headline)
 
-                            Text("Add apps to change clipboard behavior.\nUse 'Path' for terminals that need the file path.")
+                            Text("添加应用以改变剪贴板行为。\n终端需要文件路径时使用“路径”。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -418,8 +418,8 @@ struct AppsSettingsView: View {
                                     Spacer()
 
                                     Picker("", selection: $override.format) {
-                                        Text("Image").tag(ClipboardFormat.image)
-                                        Text("Path").tag(ClipboardFormat.path)
+                                        Text("图片").tag(ClipboardFormat.image)
+                                        Text("路径").tag(ClipboardFormat.path)
                                     }
                                     .frame(width: 90)
                                     .labelsHidden()
@@ -440,7 +440,7 @@ struct AppsSettingsView: View {
             }
 
             Button(action: addApp) {
-                Label("Add Application Rule", systemImage: "plus")
+                Label("添加应用规则", systemImage: "plus")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
@@ -456,8 +456,8 @@ struct AppsSettingsView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = "Select"
-        panel.message = "Select an application"
+        panel.prompt = "选择"
+        panel.message = "选择一个应用"
 
         if panel.runModal() == .OK, let url = panel.url {
             if let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier {
@@ -502,14 +502,14 @@ struct HotKeyRecorderView: View {
     var body: some View {
         HStack(spacing: 8) {
             if isRecording {
-                Text("Press keys...")
+                Text("请按下快捷键...")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 KeyboardShortcutView(keys: hotkey.symbolDisplayParts)
             }
 
-            Button(isRecording ? "Cancel" : "Change") {
+            Button(isRecording ? "取消" : "更改") {
                 if isRecording {
                     stopRecording()
                 } else {
