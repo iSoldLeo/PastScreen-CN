@@ -1,0 +1,24 @@
+changelog:
+  categories:
+    - title: "新增"
+      labels:
+        - "feature"
+        - "enhancement"
+    - title: "修复"
+      labels:
+        - "bug"
+        - "fix"
+    - title: "改进"
+      labels:
+        - "perf"
+        - "refactor"
+        - "chore"
+    - title: "文档"
+      labels:
+        - "docs"
+    - title: "其他"
+      labels:
+        - "*"
+  template: |
+    ## 更新说明
+    $CHANGES
