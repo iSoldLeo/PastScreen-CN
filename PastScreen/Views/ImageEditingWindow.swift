@@ -138,12 +138,14 @@ struct ImageEditingView: View {
                 HStack(spacing: 6) {
                     ForEach(DrawingTool.allCases, id: \.self) { tool in
                         Button(action: { 
-                            selectedTool = tool
+                            let previousTool = selectedTool
+                            let newTool = tool
+                            
                             // Reset stroke width when switching between text and drawing tools
-                            if tool == .text && selectedTool != .text {
+                            if newTool == .text && previousTool != .text {
                                 // Switching to text, adjust for text sizing (current value might be too small)
                                 strokeWidth = max(strokeWidth, 2)
-                            } else if tool != .text && selectedTool == .text {
+                            } else if newTool != .text && previousTool == .text {
                                 // Switching from text to another tool
                                 // Close text input dialog if open
                                 if showTextInput {
@@ -157,11 +159,14 @@ struct ImageEditingView: View {
                                 }
                                 // Clamp to drawing limits (all non-text tools have max 10)
                                 strokeWidth = min(strokeWidth, 10)
-                            } else if tool != .text {
+                            } else if newTool != .text {
                                 // Switching between non-text tools, ensure it doesn't exceed 10
                                 strokeWidth = min(strokeWidth, 10)
                             }
-                            if tool == .text {
+                            
+                            selectedTool = newTool
+                            
+                            if newTool == .text {
                                 showTextInput = true
                                 waitingForTextPlacement = false
                                 previewTextPosition = nil
