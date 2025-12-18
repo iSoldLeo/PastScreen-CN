@@ -19,6 +19,7 @@ class HotKeyManager {
     private var localEventMonitor: Any?
     private let settings = AppSettings.shared
     private var settingsObserver: AnyCancellable?
+    private var advancedHotkeyObserver: AnyCancellable?
     private var isRecordingHotKey = false
 
     private init() {
@@ -34,11 +35,21 @@ class HotKeyManager {
                 }
             }
         }
+        
+        // Also observe changes to the advanced hotkey enabled setting
+        advancedHotkeyObserver = settings.$advancedHotkeyEnabled.sink { [weak self] _ in
+            DispatchQueue.main.async {
+                if self?.settings.globalHotkeyEnabled == true {
+                    self?.startMonitoring()
+                }
+            }
+        }
     }
 
     deinit {
         stopMonitoring()
         settingsObserver?.cancel()
+        advancedHotkeyObserver?.cancel()
     }
 
     /// Starts listening for the global hotkey if it's enabled in settings.

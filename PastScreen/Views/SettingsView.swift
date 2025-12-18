@@ -272,7 +272,10 @@ struct CaptureSettingsView: View {
                             HStack {
                                 Text("高级截图")
                                 Spacer()
+                                Toggle("", isOn: $settings.advancedHotkeyEnabled)
+                                    .labelsHidden()
                                 HotKeyRecorderView(hotkey: $settings.advancedHotkey)
+                                    .disabled(!settings.advancedHotkeyEnabled)
                             }
                         }
                     }

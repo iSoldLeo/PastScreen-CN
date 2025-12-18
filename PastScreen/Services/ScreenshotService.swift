@@ -242,7 +242,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
 
             } catch {
-                DispatchQueue.main.async { [weak self] in
+                await MainActor.run { [weak self] in
+                    // Reset the advanced capture flag on error
+                    self?.isAdvancedCapture = false
                     self?.showErrorNotification(error: error)
                 }
             }
@@ -272,8 +274,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
             },
             onCancel: { [weak self] in
-                // Just close editing window, no further action
-                self?.showSuccessNotification(filePath: nil)
+                // Just close editing window, no further action - user cancelled
             }
         )
         

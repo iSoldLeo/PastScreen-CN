@@ -108,6 +108,9 @@ struct ImageEditingView: View {
     @State private var redoStack: [EditAction] = []
     @State private var undoManager = UndoManager()
     
+    // Keyboard monitor for cleanup
+    @State private var keyboardMonitor: Any? = nil
+    
     init(image: NSImage, onCompletion: @escaping (NSImage) -> Void, onCancel: @escaping () -> Void) {
         self.image = image
         self.onCompletion = onCompletion
@@ -136,6 +139,28 @@ struct ImageEditingView: View {
                     ForEach(DrawingTool.allCases, id: \.self) { tool in
                         Button(action: { 
                             selectedTool = tool
+                            // Reset stroke width when switching between text and drawing tools
+                            if tool == .text && selectedTool != .text {
+                                // Switching to text, adjust for text sizing (current value might be too small)
+                                strokeWidth = max(strokeWidth, 2)
+                            } else if tool != .text && selectedTool == .text {
+                                // Switching from text to another tool
+                                // Close text input dialog if open
+                                if showTextInput {
+                                    showTextInput = false
+                                    currentText = ""
+                                }
+                                // If user has entered text but not placed it, cancel placement
+                                if waitingForTextPlacement {
+                                    print("Cancelling waitingForTextPlacement from \(waitingForTextPlacement) to false")
+                                    waitingForTextPlacement = false
+                                }
+                                // Clamp to drawing limits (all non-text tools have max 10)
+                                strokeWidth = min(strokeWidth, 10)
+                            } else if tool != .text {
+                                // Switching between non-text tools, ensure it doesn't exceed 10
+                                strokeWidth = min(strokeWidth, 10)
+                            }
                             if tool == .text {
                                 showTextInput = true
                                 waitingForTextPlacement = false
@@ -251,6 +276,8 @@ struct ImageEditingView: View {
                                 // 如果之前选择了文字工具，切换回画笔工具
                                 if selectedTool == .text {
                                     selectedTool = .pen
+                                    // 确保画笔粗细在合理范围内
+                                    strokeWidth = min(strokeWidth, 10)
                                 }
                             }
                             .padding()
@@ -331,7 +358,7 @@ struct ImageEditingView: View {
                     }
                     
                     // Preview text for placement
-                    if waitingForTextPlacement && !currentText.isEmpty {
+                    if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
                         Text(currentText)
                             .font(.system(size: strokeWidth * 4))
                             .foregroundColor(selectedColor.opacity(0.5))
@@ -376,7 +403,7 @@ struct ImageEditingView: View {
                 )
                 .onAppear {
                     // Setup keyboard shortcuts for undo/redo
-                    NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                    keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                         if event.modifierFlags.contains(.command) {
                             switch event.charactersIgnoringModifiers {
                             case "z":
@@ -394,6 +421,13 @@ struct ImageEditingView: View {
                             }
                         }
                         return event
+                    }
+                }
+                .onDisappear {
+                    // Clean up keyboard monitor to prevent memory leak
+                    if let monitor = keyboardMonitor {
+                        NSEvent.removeMonitor(monitor)
+                        keyboardMonitor = nil
                     }
                 }
             }
@@ -604,6 +638,8 @@ struct ImageEditingView: View {
             waitingForTextPlacement = false
             // 如果没有输入文字，切换回画笔工具
             selectedTool = .pen
+            // 确保画笔粗细在合理范围内
+            strokeWidth = min(strokeWidth, 10)
         }
     }
     
@@ -643,10 +679,11 @@ struct ImageEditingView: View {
         // Reset state
         currentText = ""
         waitingForTextPlacement = false
-        previewTextPosition = nil
         
         // Switch back to pen tool after text placement
         selectedTool = .pen
+        // 确保画笔粗细在合理范围内
+        strokeWidth = min(strokeWidth, 10)
     }
     
     private func addTextAtLocation() {
