@@ -16,11 +16,24 @@ struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var selectedTab: SettingsTab = .general
 
-    enum SettingsTab: String, CaseIterable {
-        case general = "通用"
-        case capture = "截图"
-        case storage = "存储"
-        case apps = "应用"
+    enum SettingsTab: CaseIterable {
+        case general
+        case capture
+        case storage
+        case apps
+
+        var title: String {
+            switch self {
+            case .general:
+                return NSLocalizedString("settings.tab.general", value: "通用", comment: "")
+            case .capture:
+                return NSLocalizedString("settings.tab.capture", value: "截图", comment: "")
+            case .storage:
+                return NSLocalizedString("settings.tab.storage", value: "存储", comment: "")
+            case .apps:
+                return NSLocalizedString("settings.tab.apps", value: "应用", comment: "")
+            }
+        }
 
         var icon: String {
             switch self {
@@ -69,7 +82,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text(selectedTab.rawValue)
+                    Text(selectedTab.title)
                         .font(.title)
                         .fontWeight(.bold)
                     Spacer()
@@ -115,7 +128,7 @@ struct SidebarButton: View {
                         .foregroundColor(.white)
                 }
 
-                Text(tab.rawValue)
+                Text(tab.title)
                     .font(.system(size: 13))
                     .fontWeight(isSelected ? .medium : .regular)
                     .foregroundColor(isSelected ? .white : .primary)
@@ -140,34 +153,49 @@ struct GeneralSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("选项", systemImage: "gearshape")
+                Label(NSLocalizedString("settings.general.options", value: "选项", comment: ""), systemImage: "gearshape")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("开机启动", isOn: $settings.launchAtLogin)
+                        Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $settings.launchAtLogin)
                         Divider()
-                        Toggle("在 Dock 栏里显示", isOn: $settings.showInDock)
+                        Toggle(NSLocalizedString("settings.general.show_in_dock", value: "在 Dock 栏里显示", comment: ""), isOn: $settings.showInDock)
                         Divider()
-                        Toggle("播放截图音效", isOn: $settings.playSoundOnCapture)
+                        Toggle(NSLocalizedString("settings.general.play_sound", comment: ""), isOn: $settings.playSoundOnCapture)
+                        Divider()
+                        HStack {
+                            Text(NSLocalizedString("settings.general.language", value: "语言", comment: ""))
+                            Spacer()
+                            Picker("", selection: $settings.appLanguage) {
+                                ForEach(AppLanguage.allCases) { lang in
+                                    Text(lang.displayName).tag(lang)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 140)
+                        }
+                        Text(NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(12)
                 }
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("帮助", systemImage: "questionmark.circle")
+                Label(NSLocalizedString("settings.general.help_section", value: "帮助", comment: ""), systemImage: "questionmark.circle")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     HStack {
-                        Text("需要入门帮助？")
+                        Text(NSLocalizedString("settings.general.help.prompt", value: "需要入门帮助？", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Button("查看教程") {
+                        Button(NSLocalizedString("settings.general.help.view_tutorial", value: "查看教程", comment: "")) {
                             OnboardingManager.shared.show()
                         }
                     }
@@ -176,7 +204,7 @@ struct GeneralSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("隐私", systemImage: "hand.raised.fill")
+                Label(NSLocalizedString("settings.general.privacy_section", value: "隐私", comment: ""), systemImage: "hand.raised.fill")
                     .font(.headline)
                     .padding(.leading, 2)
 
@@ -184,11 +212,11 @@ struct GeneralSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("你的隐私很重要")
+                                Text(NSLocalizedString("settings.general.privacy.title", value: "你的隐私很重要", comment: ""))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
 
-                                Text("PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。")
+                                Text(NSLocalizedString("settings.general.privacy.description", value: "PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。", comment: ""))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -198,13 +226,13 @@ struct GeneralSettingsView: View {
                         Divider()
 
                         HStack {
-                            Text("• 无分析或追踪\n• 无云端上传\n• 无第三方服务\n• 仅本地运行")
+                            Text(NSLocalizedString("settings.general.privacy.bullets", value: "• 无分析或追踪\n• 无云端上传\n• 无第三方服务\n• 仅本地运行", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             Spacer()
 
-                            Button("查看完整隐私政策") {
+                            Button(NSLocalizedString("settings.general.privacy.view_policy", value: "查看完整隐私政策", comment: "")) {
                                 if let url = URL(string: "https://github.com/iSoldLeo/PastScreen-CN/blob/main/PRIVACY.md") {
                                     NSWorkspace.shared.open(url)
                                 }
@@ -226,21 +254,21 @@ struct CaptureSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("格式", systemImage: "photo")
+                Label(NSLocalizedString("settings.capture.format_section", comment: ""), systemImage: "photo")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Picker("图片格式", selection: $settings.imageFormat) {
-                            Text("PNG（无损）").tag("png")
-                            Text("JPEG（压缩）").tag("jpeg")
+                        Picker(NSLocalizedString("settings.capture.image_format", comment: ""), selection: $settings.imageFormat) {
+                            Text(NSLocalizedString("settings.capture.format_png", comment: "")).tag("png")
+                            Text(NSLocalizedString("settings.capture.format_jpeg", comment: "")).tag("jpeg")
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
 
                         HStack {
-                            Text("格式：")
+                            Text(NSLocalizedString("settings.capture.image_format", comment: ""))
                                 .foregroundStyle(.secondary)
                             Text(settings.imageFormat.uppercased())
                                 .fontWeight(.medium)
@@ -253,24 +281,24 @@ struct CaptureSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("快捷键", systemImage: "keyboard")
+                Label(NSLocalizedString("settings.capture.shortcuts_section", comment: ""), systemImage: "keyboard")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("启用全局快捷键", isOn: $settings.globalHotkeyEnabled)
+                        Toggle(NSLocalizedString("settings.capture.enable_hotkey", comment: ""), isOn: $settings.globalHotkeyEnabled)
 
                         if settings.globalHotkeyEnabled {
                             Divider()
                             HStack {
-                                Text("快速截图")
+                                Text(NSLocalizedString("settings.capture.quick_screenshot", value: "快速截图", comment: ""))
                                 Spacer()
                                 HotKeyRecorderView(hotkey: $settings.globalHotkey)
                             }
                             Divider()
                             HStack {
-                                Text("高级截图")
+                                Text(NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: ""))
                                 Spacer()
                                 Toggle("", isOn: $settings.advancedHotkeyEnabled)
                                     .labelsHidden()
@@ -294,13 +322,13 @@ struct StorageSettingsView: View {
     var body: some View {
         VStack(spacing: 32) {
             VStack(alignment: .leading, spacing: 8) {
-                Label("保存位置", systemImage: "externaldrive")
+                Label(NSLocalizedString("settings.storage.section_title", comment: ""), systemImage: "externaldrive")
                     .font(.headline)
                     .padding(.leading, 2)
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("保存到磁盘", isOn: $settings.saveToFile)
+                        Toggle(NSLocalizedString("settings.storage.save_to_disk", comment: ""), isOn: $settings.saveToFile)
                             .onChange(of: settings.saveToFile) { _, newValue in
                                 if newValue {
                                     // ALWAYS require valid bookmark (user-selected folder)
@@ -328,7 +356,7 @@ struct StorageSettingsView: View {
 
                                 Spacer()
 
-                                Button("更改...") {
+                                Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
                                     if let newPath = settings.selectFolder() {
                                         settings.saveFolderPath = newPath
                                     }
@@ -339,13 +367,13 @@ struct StorageSettingsView: View {
                             .cornerRadius(6)
 
                             HStack {
-                                Button("打开文件夹") {
+                                Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
                                     NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
                                 }
 
                                 Spacer()
 
-                                Button("清空文件夹") {
+                                Button(NSLocalizedString("settings.storage.clear_folder", comment: "")) {
                                     settings.clearSaveFolder()
                                 }
                                 .foregroundColor(.red)
@@ -371,12 +399,12 @@ struct AppsSettingsView: View {
                     HStack {
                         Image(systemName: "info.circle.fill")
                             .foregroundColor(.blue)
-                        Text("默认：复制图片到剪贴板")
+                        Text(NSLocalizedString("settings.apps.default_behavior", value: "默认：复制图片到剪贴板", comment: ""))
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
 
-                    Text("在下面添加应用，如果需要复制文件路径，请将其设置为“路径”（适用于终端）。")
+                    Text(NSLocalizedString("settings.apps.instructions", value: "在下面添加应用，如果需要复制文件路径，请将其设置为“路径”（适用于终端）。", comment: ""))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -386,7 +414,7 @@ struct AppsSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Label("规则", systemImage: "list.bullet")
+                Label(NSLocalizedString("settings.apps.rules", value: "规则", comment: ""), systemImage: "list.bullet")
                     .font(.headline)
                     .padding(.leading, 2)
 
@@ -397,10 +425,10 @@ struct AppsSettingsView: View {
                                 .font(.system(size: 48))
                                 .foregroundStyle(.secondary.opacity(0.3))
 
-                            Text("暂无应用规则")
+                            Text(NSLocalizedString("settings.apps.empty_title", value: "暂无应用规则", comment: ""))
                                 .font(.headline)
 
-                            Text("添加应用以改变剪贴板行为。\n终端需要文件路径时使用“路径”。")
+                            Text(NSLocalizedString("settings.apps.empty_description", value: "添加应用以改变剪贴板行为。\n终端需要文件路径时使用“路径”。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -427,8 +455,8 @@ struct AppsSettingsView: View {
                                     Spacer()
 
                                     Picker("", selection: $override.format) {
-                                        Text("图片").tag(ClipboardFormat.image)
-                                        Text("路径").tag(ClipboardFormat.path)
+                                        Text(NSLocalizedString("settings.apps.clipboard.image", value: "图片", comment: "")).tag(ClipboardFormat.image)
+                                        Text(NSLocalizedString("settings.apps.clipboard.path", value: "路径", comment: "")).tag(ClipboardFormat.path)
                                     }
                                     .frame(width: 90)
                                     .labelsHidden()
@@ -449,7 +477,7 @@ struct AppsSettingsView: View {
             }
 
             Button(action: addApp) {
-                Label("添加应用规则", systemImage: "plus")
+                Label(NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""), systemImage: "plus")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
@@ -465,8 +493,8 @@ struct AppsSettingsView: View {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
-        panel.prompt = "选择"
-        panel.message = "选择一个应用"
+        panel.prompt = NSLocalizedString("settings.select_folder.prompt", comment: "")
+        panel.message = NSLocalizedString("settings.apps.select_app_message", value: "选择一个应用", comment: "")
 
         if panel.runModal() == .OK, let url = panel.url {
             if let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier {
@@ -511,14 +539,14 @@ struct HotKeyRecorderView: View {
     var body: some View {
         HStack(spacing: 8) {
             if isRecording {
-                Text("请按下快捷键...")
+                Text(NSLocalizedString("hotkey.prompt.press", value: "请按下快捷键...", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 KeyboardShortcutView(keys: hotkey.symbolDisplayParts)
             }
 
-            Button(isRecording ? "取消" : "更改") {
+            Button(isRecording ? NSLocalizedString("common.cancel", comment: "") : NSLocalizedString("common.change", value: "更改", comment: "")) {
                 if isRecording {
                     stopRecording()
                 } else {

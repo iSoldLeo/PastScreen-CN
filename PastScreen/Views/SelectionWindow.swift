@@ -154,6 +154,8 @@ class SelectionWindow: NSWindow {
 class SelectionOverlayView: NSView {
     var onComplete: ((CGRect) -> Void)?
     var onCancel: (() -> Void)?
+    
+    private let overlayOpacity: CGFloat = 0.2
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
@@ -167,7 +169,8 @@ class SelectionOverlayView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         self.wantsLayer = true
-        self.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        // Keep layer clear; dimming is drawn in draw(_:) to allow full transparency in the selection hole
+        self.layer?.backgroundColor = NSColor.clear.cgColor
     }
 
     required init?(coder: NSCoder) {
@@ -326,7 +329,7 @@ class SelectionOverlayView: NSView {
         super.draw(dirtyRect)
 
         // Fond semi-transparent plus marqué
-        NSColor.black.withAlphaComponent(0.2).setFill()
+        NSColor.black.withAlphaComponent(overlayOpacity).setFill()
         bounds.fill()
 
         guard let start = startPoint, let end = endPoint else { return }

@@ -1,0 +1,8 @@
+/* Bundle names */
+"CFBundleDisplayName" = "PastScreen-CN";
+"CFBundleName" = "PastScreen-CN";
+
+/* Permission descriptions */
+"NSAppleEventsUsageDescription" = "PastScreen-CN 需要使用 Apple 事件來註冊全局快捷鍵。";
+"NSScreenCaptureUsageDescription" = "PastScreen-CN 需要螢幕錄製權限來進行截圖。";
+"NSUserNotificationsUsageDescription" = "PastScreen-CN 會顯示通知來確認截圖完成。";

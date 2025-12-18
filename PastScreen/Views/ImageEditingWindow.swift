@@ -33,7 +33,7 @@ class ImageEditingWindow: NSWindow {
     }
     
     private func setupWindow() {
-        title = "编辑截图"
+        title = NSLocalizedString("editor.window.title", comment: "")
         center()
         isReleasedWhenClosed = false
         
@@ -199,7 +199,7 @@ struct ImageEditingView: View {
                     
                     // Stroke width/Text size
                     VStack(spacing: 2) {
-                        Text(selectedTool == .text ? "大小" : "粗细")
+                        Text(selectedTool == .text ? NSLocalizedString("editor.text.size", comment: "") : NSLocalizedString("editor.stroke.width", comment: ""))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                         HStack(spacing: 4) {
@@ -227,7 +227,7 @@ struct ImageEditingView: View {
                                 .foregroundColor(canUndo ? .primary : .secondary)
                         }
                         .disabled(!canUndo)
-                        .help("撤销")
+                        .help(NSLocalizedString("common.undo", comment: ""))
                         
                         Button(action: redo) {
                             Image(systemName: "arrow.uturn.forward")
@@ -235,20 +235,20 @@ struct ImageEditingView: View {
                                 .foregroundColor(canRedo ? .primary : .secondary)
                         }
                         .disabled(!canRedo)
-                        .help("重做")
+                        .help(NSLocalizedString("common.redo", comment: ""))
                     }
                     
                     Divider()
                         .frame(height: 28)
                     
                     Group {
-                        Button("取消") {
+                        Button(NSLocalizedString("common.cancel", comment: "")) {
                             onCancel()
                         }
                         .keyboardShortcut(.escape)
                         .controlSize(.small)
                         
-                        Button("完成") {
+                        Button(NSLocalizedString("common.done", comment: "")) {
                             saveEditedImage()
                         }
                         .keyboardShortcut(.return)
@@ -262,11 +262,11 @@ struct ImageEditingView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .sheet(isPresented: $showTextInput) {
                 VStack {
-                        Text("输入文字")
+                        Text(NSLocalizedString("editor.text.title", comment: ""))
                             .font(.headline)
                             .padding()
                         
-                        TextField("请输入文字", text: $currentText)
+                        TextField(NSLocalizedString("editor.text.placeholder", comment: ""), text: $currentText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal)
                             .onSubmit {
@@ -274,7 +274,7 @@ struct ImageEditingView: View {
                             }
                         
                         HStack {
-                            Button("取消") {
+                            Button(NSLocalizedString("common.cancel", comment: "")) {
                                 showTextInput = false
                                 currentText = ""
                                 waitingForTextPlacement = false
@@ -287,7 +287,7 @@ struct ImageEditingView: View {
                             }
                             .padding()
                             
-                            Button("确定") {
+                            Button(NSLocalizedString("common.confirm", comment: "")) {
                                 confirmTextAndPreparePlacement()
                             }
                             .buttonStyle(.borderedProminent)
@@ -711,12 +711,12 @@ struct ImageEditingView: View {
     
     private func toolName(for tool: DrawingTool) -> String {
         switch tool {
-        case .pen: return "画笔"
-        case .line: return "直线"
-        case .rectangle: return "矩形"
-        case .circle: return "圆形"
-        case .arrow: return "箭头"
-        case .text: return "文字"
+        case .pen: return NSLocalizedString("tool.pen", comment: "")
+        case .line: return NSLocalizedString("tool.line", comment: "")
+        case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
+        case .circle: return NSLocalizedString("tool.circle", comment: "")
+        case .arrow: return NSLocalizedString("tool.arrow", comment: "")
+        case .text: return NSLocalizedString("tool.text", comment: "")
         }
     }
     

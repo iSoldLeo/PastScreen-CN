@@ -213,9 +213,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         screenshotItem.keyEquivalentModifierMask = settings.globalHotkey.modifierFlags
         menu.addItem(screenshotItem)
 
-        let fullScreenItem = NSMenuItem(title: NSLocalizedString("menu.capture_fullscreen", comment: ""), action: #selector(captureFullScreen), keyEquivalent: "")
-        fullScreenItem.target = self
-        menu.addItem(fullScreenItem)
+        let advancedItem = NSMenuItem(title: NSLocalizedString("menu.capture_advanced", comment: ""), action: #selector(captureAdvanced), keyEquivalent: "")
+        advancedItem.target = self
+        menu.addItem(advancedItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -229,10 +229,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let historyMenu = NSMenu()
         let historyItem = NSMenuItem(title: NSLocalizedString("menu.history", comment: ""), action: nil, keyEquivalent: "")
         historyItem.submenu = historyMenu
-
-        if #available(macOS 11.0, *) {
-            historyItem.image = NSImage(systemSymbolName: "clock", accessibilityDescription: nil)
-        }
 
         let history = AppSettings.shared.captureHistory
 
@@ -302,6 +298,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @objc func handleAdvancedHotKeyPressed() {
         requestScreenRecordingIfNeeded { [weak self] in
             self?.performAdvancedAreaCapture(source: .hotkey)
+        }
+    }
+    
+    @objc func captureAdvanced() {
+        requestScreenRecordingIfNeeded { [weak self] in
+            self?.performAdvancedAreaCapture(source: .menuBar)
         }
     }
 

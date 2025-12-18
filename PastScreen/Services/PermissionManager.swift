@@ -10,16 +10,27 @@ import AppKit
 import UserNotifications
 import Combine
 
-enum PermissionType: String, CaseIterable {
-    case screenRecording = "屏幕录制"
-    case accessibility = "辅助功能"
-    case notifications = "通知"
+enum PermissionType: CaseIterable {
+    case screenRecording
+    case accessibility
+    case notifications
 
     var icon: String {
         switch self {
         case .screenRecording: return "📱"
         case .accessibility: return "♿️"
         case .notifications: return "🔔"
+        }
+    }
+
+    var localizedName: String {
+        switch self {
+        case .screenRecording:
+            return NSLocalizedString("permission.type.screen_recording", value: "屏幕录制", comment: "")
+        case .accessibility:
+            return NSLocalizedString("permission.type.accessibility", value: "辅助功能", comment: "")
+        case .notifications:
+            return NSLocalizedString("permission.type.notifications", value: "通知", comment: "")
         }
     }
 }
@@ -183,7 +194,7 @@ class PermissionManager: ObservableObject {
 
         let header = NSLocalizedString("permission.request.header", value: "PastScreen-CN 需要以下权限才能正常工作：", comment: "")
         let footer = NSLocalizedString("permission.request.footer", value: "请在“系统设置 → 隐私与安全性”中开启。", comment: "")
-        let permissionsList = permissions.map { "\($0.icon) \($0.rawValue)" }.joined(separator: "\n")
+        let permissionsList = permissions.map { "\($0.icon) \($0.localizedName)" }.joined(separator: "\n")
 
         alert.informativeText = "\(header)\n\n\(permissionsList)\n\n\(footer)"
         alert.alertStyle = .warning
@@ -197,17 +208,17 @@ class PermissionManager: ObservableObject {
 
     private func showMaxRetriesAlert(for type: PermissionType) {
         let alert = NSAlert()
-        alert.messageText = "\(type.icon) \(type.rawValue) " + NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
+        alert.messageText = "\(type.icon) \(type.localizedName) " + NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
 
         let message = NSLocalizedString("permission.max_retries.message", value: "PastScreen-CN 已达到权限请求次数上限。\n\n请手动开启", comment: "")
 
         alert.informativeText = """
-        \(message) \(type.rawValue):
-        系统设置 → 隐私与安全性 → \(type.rawValue)
+        \(message) \(type.localizedName):
+        系统设置 → 隐私与安全性 → \(type.localizedName)
         """
         alert.alertStyle = .critical
         alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "打开系统设置", comment: ""))
-        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: NSLocalizedString("common.ok", comment: ""))
 
         if alert.runModal() == .alertFirstButtonReturn {
             openSystemPreferences()

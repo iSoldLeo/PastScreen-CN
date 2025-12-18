@@ -130,6 +130,25 @@ struct AppOverride: Codable, Identifiable, Equatable {
     var format: ClipboardFormat
 }
 
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system = "system"
+    case simplifiedChinese = "zh-Hans"
+    case english = "en"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system:
+            return NSLocalizedString("settings.general.language.system", value: "跟随系统", comment: "")
+        case .simplifiedChinese:
+            return NSLocalizedString("settings.general.language.zh_hans", value: "简体中文", comment: "")
+        case .english:
+            return NSLocalizedString("settings.general.language.english", value: "English", comment: "")
+        }
+    }
+}
+
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
@@ -222,6 +241,13 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var appLanguage: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(appLanguage.rawValue, forKey: "appLanguage")
+            applyAppLanguage()
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
         get { UserDefaults.standard.data(forKey: "saveFolderBookmark") }
@@ -281,6 +307,14 @@ class AppSettings: ObservableObject {
         } else {
             self.appOverrides = []
         }
+
+        if let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage"),
+           let language = AppLanguage(rawValue: savedLanguage) {
+            self.appLanguage = language
+        } else {
+            self.appLanguage = .system
+        }
+        applyAppLanguage()
 
         restoreFolderAccess()
         ensureFolderExists()
@@ -393,5 +427,15 @@ class AppSettings: ObservableObject {
 
     func getOverride(for bundleIdentifier: String) -> ClipboardFormat? {
         return appOverrides.first(where: { $0.bundleIdentifier == bundleIdentifier })?.format
+    }
+
+    private func applyAppLanguage() {
+        switch appLanguage {
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        case .simplifiedChinese, .english:
+            UserDefaults.standard.set([appLanguage.rawValue], forKey: "AppleLanguages")
+        }
+        UserDefaults.standard.synchronize()
     }
 }
