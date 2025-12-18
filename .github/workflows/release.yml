@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: macos-latest
     env:
-      APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'com.iSold.PastScreen-CN' }}
+      APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'com.iSoldLeo.PastScreen-CN' }}
       DEVELOPMENT_TEAM: ${{ vars.DEVELOPMENT_TEAM || '' }}
     steps:
       - name: Checkout
