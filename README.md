@@ -1,94 +1,86 @@
-# 📸 PastScreen-CN
-
-**面向 macOS 开发者的超快截图工具，截图即刻进入剪贴板。**
-
-[![Platform](https://img.shields.io/badge/platform-macOS%2014+-lightgrey.svg)](https://www.apple.com/macos/)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org/)
-
-> 选区截图只需毫秒级，复制到剪贴板后继续写代码。
-
----
-
-## 📥 获取 PastScreen-CN
-
-### 📦 GitHub Releases
-
-你可以从 GitHub Releases 下载最新版本：
-
-https://github.com/iSoldLeo/PastScreen-CN/releases
-
-首次打开时若被系统拦截，请使用以下任一方式放行：
-
-- 右键 App -> 打开（首次）
-- 执行：`xattr -dr com.apple.quarantine /Applications/PastScreen-CN.app`
-
-## 🆕 近期更新
-
-- **全局热键可自定义**：在设置里录制任意按键组合，默认是 ⌥+⌘+S
-- **前台也能触发热键**：设置窗口打开时也可以截图
-- **右键取消截图**：进入选区后右键即可取消
-- **使用 macOS 原生截图音效**
+<p align="center">
+  <img src="./PastScreen/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="PastScreen-CN icon" width="160" height="160">
+</p>
+<h1 align="center">📸 PastScreen-CN</h1>
+<p align="center">极速截图，自动进剪贴板。原生应用，小而快。</p>
+<p align="center">
+  <a href="https://www.apple.com/macos/">
+    <img src="https://img.shields.io/badge/platform-macOS%2026+-blue.svg" alt="Platform macOS 26+">
+  </a>
+  <a href="https://swift.org/">
+    <img src="https://img.shields.io/badge/Swift-5.9-orange.svg" alt="Swift 5.9">
+  </a>
+</p>
 
 ---
 
-## ✨ 核心特性
+## 立即开始（用户指南）
 
-- **即时剪贴板**：截图直接写入剪贴板，粘贴即可用
-- **可配置热键**：任意组合键都可以作为截图触发
-- **应用级规则**：为特定应用强制“仅路径 / 仅图片”
-- **菜单栏原生体验**：原生、轻量、无需 Dock
-- **液态玻璃选区**：半透明叠层 + HUD 选区
-- **Apple 原生通知**：截图完成后通知并可在 Finder 中定位
-- **快捷指令支持**：App Intents / 自动化 / Spotlight
-
----
-
-## 🧭 使用方式
-
-1) 按热键进入选区（默认 ⌥+⌘+S）  
-2) 拖拽选择区域，或右键取消  
-3) 在设置中可修改热键、保存路径、图片格式与应用规则
+1. **下载**：从 Releases 获取最新版本  
+   https://github.com/iSoldLeo/PastScreen-CN/releases
+2. **放行首次启动**：右键 App -> 打开（一次即可），或执行  
+   `xattr -dr com.apple.quarantine /Applications/PastScreen-CN.app`
+3. **授权**：按提示允许 *屏幕录制*、*辅助功能*、*通知*。
+4. **截图**：
+   - 选区截图：默认 ⌥⌘S（可在设置中修改）  
+   - 高级截图：默认 ⌥⌘⇧S（内置标注器）  
+   - 全屏截图：菜单栏「全屏截图」
+5. **取消/查看**：选区中右键取消；完成后菜单栏可「查看最后一次截图」或从历史复制。
 
 ---
 
-## 🧩 技术栈
-
-- **Swift 5.9**，AppKit + SwiftUI 混合 UI
-- **ScreenCaptureKit** 高质量截图
-- **TipKit & AppIntents**（macOS 14+）
-
----
-
-## 🔐 权限说明
-
-| 权限 | 用途 |
-|------|------|
-| 屏幕录制 | ScreenCaptureKit 截图所需 |
-| 辅助功能 | 全局热键触发 |
-| 通知 | 截图完成通知 |
-
-**隐私**：PastScreen-CN 不上传、不联网，所有操作都在本地完成。
+## 核心特性
+- 极速选区，原生剪贴板，无中间弹窗
+- 可录制任意组合的全局/高级热键
+- 菜单栏应用，不占 Dock
+- 应用规则：为特定 App 强制「仅路径」或「仅图片」
+- 内置标注器（高级截图）
 
 ---
 
-### 🛠 源码构建
+## 设置要点
+- **热键**：在设置 > 截图中录制；支持高级截图独立热键
+- **保存**：默认只剪贴板；如需落盘，在设置 > 存储里选目录并开启保存
+- **格式**：PNG 或 JPEG
+- **应用规则**：为终端/IDE 等指定「仅路径」或「仅图片」
+- **语言**：跟随系统 / 简体中文 / English
 
-PastScreen-CN **完全开源**，你也可以自己构建：
+---
+
+## 权限与隐私
+
+| 权限       | 用途                          |
+|------------|------------------------------|
+| 屏幕录制   | ScreenCaptureKit 截图        |
+| 辅助功能   | 全局快捷键                   |
+| 通知       | 完成提示与「在 Finder 中显示」 |
+
+PastScreen-CN 离线运行，不上传、不联网。
+
+---
+
+## 常见问题
+- **热键不生效**：确认辅助功能已授权；在设置里重新录制后再试。
+- **首次打开被拦截**：右键打开一次，或执行上方 `xattr` 命令。
+
+---
+
+## 开发者信息
+
+- 技术栈：Swift 5.9，AppKit + SwiftUI，ScreenCaptureKit，TipKit & AppIntents（macOS 26+）
+- 本地构建：
 
 ```bash
 git clone https://github.com/iSoldLeo/PastScreen-CN.git
 cd PastScreen-CN
-open PastScreen-CN.xcodeproj
+open PastScreen-CN.xcodeproj   
 ```
-
-然后在 Xcode 中 `Cmd + R` 运行。
 
 ---
 
+## 许可证与致谢
 
-## 🙌 致谢与许可
+- 本仓库整体采用 [GPL-3.0 license](LICENSE/GPL-3.0%20license) 分发。
+- 上游代码按 MIT License 授权，保留其版权声明（见 LICENSE/MIT.md）。
 
-项目基于 [GPL-3.0 license](LICENSE/GPL-3.0%20license) 开源。
-本仓库为对上游项目的派生与再分发。上游代码按 MIT License 授权并保留其版权声明；本 fork 的整体分发采用 GPL-3.0 条款。详见 LICENSE/GPL-3.0 license（GPL）与 LICENSE/MIT.md（MIT）。
-
-欢迎提 Issue、讨论想法或提交 PR。祝你截图愉快！⚡️
+欢迎提 Issue / PR，一起把体验做得更好。 🎯
