@@ -1,0 +1,89 @@
+name: Beta
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build (default: current)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'com.iSoldLeo.PastScreen-CN' }}
+      DEVELOPMENT_TEAM: ${{ vars.DEVELOPMENT_TEAM || '' }}
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Decode signing certificate
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+        run: echo "$P12_BASE64" | base64 --decode > dev.p12
+
+      - name: Import certificate into temp keychain
+        env:
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import dev.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Build ${{ matrix.arch }}
+        shell: bash
+        run: |
+          EXTRA_ARGS=()
+          if [[ -n "${DEVELOPMENT_TEAM}" ]]; then
+            EXTRA_ARGS+=("DEVELOPMENT_TEAM=${DEVELOPMENT_TEAM}")
+          fi
+          if [[ -n "${APP_BUNDLE_ID}" ]]; then
+            EXTRA_ARGS+=("PRODUCT_BUNDLE_IDENTIFIER=${APP_BUNDLE_ID}")
+          fi
+
+          xcodebuild \
+            -project PastScreen-CN.xcodeproj \
+            -scheme PastScreen-CN \
+            -configuration Release \
+            -derivedDataPath build \
+            ARCHS=${{ matrix.arch }} \
+            ONLY_ACTIVE_ARCH=NO \
+            CONFIGURATION_BUILD_DIR=build/Release-${{ matrix.arch }} \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Development" \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Package ${{ matrix.arch }} zip
+        shell: bash
+        run: |
+          APP_PATH="build/Release-${{ matrix.arch }}/PastScreen-CN.app"
+          VERSION="${GITHUB_SHA::7}"
+          ZIP_NAME="PastScreen-CN-beta-${VERSION}-macOS-${{ matrix.arch }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
+          shasum -a 256 "$ZIP_NAME" > "${ZIP_NAME}.sha256"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload artifact ${{ matrix.arch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: PastScreen-CN-beta-${{ matrix.arch }}
+          path: |
+            PastScreen-CN-beta-*-macOS-${{ matrix.arch }}.zip
+            PastScreen-CN-beta-*-macOS-${{ matrix.arch }}.zip.sha256
+          if-no-files-found: error
