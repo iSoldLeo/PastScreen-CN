@@ -1,6 +1,6 @@
 /* Menu Items */
 "menu.tooltip" = "PastScreen-CN - 快速截图";
-"menu.capture_area" = "区域截图";
+"menu.capture_area" = "快速截图";
 "menu.capture_fullscreen" = "全屏截图";
 "menu.show_last" = "显示最近截图";
 "menu.history" = "历史记录";
