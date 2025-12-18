@@ -99,6 +99,9 @@ struct ImageEditingView: View {
     @State private var showTextInput = false
     @State private var textLocation: CGPoint = .zero
     @State private var currentText = ""
+    @State private var waitingForTextPlacement = false
+    @State private var previewTextPosition: CGPoint? = nil
+    @State private var mousePosition: CGPoint = .zero
     
     // Undo/Redo state
     @State private var undoStack: [EditAction] = []
@@ -127,68 +130,101 @@ struct ImageEditingView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Toolbar
-            HStack {
+            HStack(spacing: 16) {
                 // Drawing tools
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     ForEach(DrawingTool.allCases, id: \.self) { tool in
-                        Button(action: { selectedTool = tool }) {
+                        Button(action: { 
+                            selectedTool = tool
+                            if tool == .text {
+                                showTextInput = true
+                                waitingForTextPlacement = false
+                                previewTextPosition = nil
+                            }
+                        }) {
                             Image(systemName: tool.systemImage)
-                                .font(.title2)
-                                .foregroundColor(selectedTool == tool ? .blue : .primary)
+                                .font(.system(size: 16))
+                                .foregroundColor(selectedTool == tool ? .white : .primary)
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(selectedTool == tool ? Color.accentColor : Color.clear)
+                                )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .frame(width: 32, height: 32)
+                        .help(toolName(for: tool))
                     }
                 }
+                .padding(.leading, 4)
                 
                 Divider()
-                    .frame(height: 40)
+                    .frame(height: 36)
                 
-                // Color picker
-                ColorPicker("", selection: $selectedColor)
-                    .labelsHidden()
-                    .frame(width: 32, height: 32)
-                
-                // Stroke width
-                VStack {
-                    Text("粗细")
-                        .font(.caption)
-                    Slider(value: $strokeWidth, in: 1...10, step: 1)
-                        .frame(width: 80)
+                // Color picker and stroke controls
+                HStack(spacing: 20) {
+                    // Color picker
+                    ColorPicker("", selection: $selectedColor)
+                        .labelsHidden()
+                        .frame(width: 28, height: 28)
+                    
+                    // Stroke width/Text size
+                    VStack(spacing: 2) {
+                        Text(selectedTool == .text ? "大小" : "粗细")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Text("1")
+                                .font(.system(size: 9))
+                                .foregroundColor(Color.secondary.opacity(0.6))
+                            Slider(value: $strokeWidth, in: 1...(selectedTool == .text ? 50 : 10), step: 1)
+                                .frame(width: 100)
+                            Text(selectedTool == .text ? "50" : "10")
+                                .font(.system(size: 9))
+                                .foregroundColor(Color.secondary.opacity(0.6))
+                        }
+                    }
                 }
                 
                 Spacer()
                 
                 // Action buttons
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     // Undo/Redo buttons
-                    Button(action: undo) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.title2)
-                            .foregroundColor(canUndo ? .primary : .secondary)
+                    Group {
+                        Button(action: undo) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 14))
+                                .foregroundColor(canUndo ? .primary : .secondary)
+                        }
+                        .disabled(!canUndo)
+                        .help("撤销")
+                        
+                        Button(action: redo) {
+                            Image(systemName: "arrow.uturn.forward")
+                                .font(.system(size: 14))
+                                .foregroundColor(canRedo ? .primary : .secondary)
+                        }
+                        .disabled(!canRedo)
+                        .help("重做")
                     }
-                    .disabled(!canUndo)
-                    
-                    Button(action: redo) {
-                        Image(systemName: "arrow.uturn.forward")
-                            .font(.title2)
-                            .foregroundColor(canRedo ? .primary : .secondary)
-                    }
-                    .disabled(!canRedo)
                     
                     Divider()
-                        .frame(height: 40)
+                        .frame(height: 28)
                     
-                    Button("取消") {
-                        onCancel()
+                    Group {
+                        Button("取消") {
+                            onCancel()
+                        }
+                        .keyboardShortcut(.escape)
+                        .controlSize(.small)
+                        
+                        Button("完成") {
+                            saveEditedImage()
+                        }
+                        .keyboardShortcut(.return)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
-                    .keyboardShortcut(.escape)
-                    
-                    Button("完成") {
-                        saveEditedImage()
-                    }
-                    .keyboardShortcut(.return)
-                    .buttonStyle(.borderedProminent)
                 }
             }
             .padding(.horizontal, 16)
@@ -196,32 +232,37 @@ struct ImageEditingView: View {
             .background(Color(NSColor.controlBackgroundColor))
             .sheet(isPresented: $showTextInput) {
                 VStack {
-                    Text("输入文字")
-                        .font(.headline)
-                        .padding()
-                    
-                    TextField("请输入文字", text: $currentText)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding(.horizontal)
-                        .onSubmit {
-                            addTextAtLocation()
-                        }
-                    
-                    HStack {
-                        Button("取消") {
-                            showTextInput = false
-                            currentText = ""
-                        }
-                        .padding()
+                        Text("输入文字")
+                            .font(.headline)
+                            .padding()
                         
-                        Button("确定") {
-                            addTextAtLocation()
+                        TextField("请输入文字", text: $currentText)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal)
+                            .onSubmit {
+                                confirmTextAndPreparePlacement()
+                            }
+                        
+                        HStack {
+                            Button("取消") {
+                                showTextInput = false
+                                currentText = ""
+                                waitingForTextPlacement = false
+                                // 如果之前选择了文字工具，切换回画笔工具
+                                if selectedTool == .text {
+                                    selectedTool = .pen
+                                }
+                            }
+                            .padding()
+                            
+                            Button("确定") {
+                                confirmTextAndPreparePlacement()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .padding()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .padding()
                     }
-                }
-                .frame(width: 300, height: 200)
+                    .frame(width: 300, height: 200)
             }
             
             Divider()
@@ -284,21 +325,53 @@ struct ImageEditingView: View {
                         )
                         
                         Text(textInput.text)
-                            .font(.system(size: 16))
+                            .font(.system(size: textInput.fontSize))
                             .foregroundColor(textInput.color)
                             .position(x: textPositionView.x, y: textPositionView.y)
+                    }
+                    
+                    // Preview text for placement
+                    if waitingForTextPlacement && !currentText.isEmpty {
+                        Text(currentText)
+                            .font(.system(size: strokeWidth * 4))
+                            .foregroundColor(selectedColor.opacity(0.5))
+                            .position(x: mousePosition.x, y: mousePosition.y)
                     }
                 }
                 .clipped()
                 .contentShape(Rectangle()) // Prevent window dragging in this area
+                .onTapGesture { location in
+                    // Handle tap for text placement
+                    if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
+                        placeTextAt(location: location, in: geometry)
+                    }
+                }
+                .onHover { isHovering in
+                    if isHovering && selectedTool == .text && waitingForTextPlacement {
+                        // We'll handle position tracking in the gesture below
+                    }
+                }
                 .gesture(
-                    // Drawing gesture
+                    // Track mouse movement for text preview
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            handleDragChanged(value: value, in: geometry)
+                            // Always track mouse position when using text tool
+                            if selectedTool == .text && waitingForTextPlacement {
+                                mousePosition = value.location
+                                previewTextPosition = value.location
+                            }
+                            // Handle drawing for other tools
+                            if selectedTool != .text {
+                                handleDragChanged(value: value, in: geometry)
+                            }
                         }
                         .onEnded { value in
-                            handleDragEnded(value: value, in: geometry)
+                            // Handle text placement on click
+                            if selectedTool == .text && waitingForTextPlacement {
+                                placeTextAt(location: value.location, in: geometry)
+                            } else if selectedTool != .text {
+                                handleDragEnded(value: value, in: geometry)
+                            }
                         }
                 )
                 .onAppear {
@@ -361,7 +434,10 @@ struct ImageEditingView: View {
         
         // Handle text tool separately
         if selectedTool == .text {
-            // For text tool, we don't draw but set the location for text input
+            // For text tool, update preview position if waiting for placement
+            if waitingForTextPlacement {
+                previewTextPosition = location
+            }
             return
         }
         
@@ -493,15 +569,16 @@ struct ImageEditingView: View {
         let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
         
         // Transform screen coordinates to original image coordinates
-        let imageLocation = CGPoint(
+        let _ = CGPoint(
             x: (location.x - offsetX) / imageToDisplayScale,
             y: (location.y - offsetY) / imageToDisplayScale
         )
         
         if selectedTool == .text {
-            // For text tool, show text input dialog at the clicked location
-            textLocation = imageLocation
-            showTextInput = true
+            // For text tool, if we're waiting for placement, place the text
+            if waitingForTextPlacement {
+                placeTextAt(location: location, in: geometry)
+            }
             return
         }
         
@@ -514,12 +591,73 @@ struct ImageEditingView: View {
         isDrawing = false
     }
     
+    private func confirmTextAndPreparePlacement() {
+        if !currentText.isEmpty {
+            waitingForTextPlacement = true
+            showTextInput = false
+            // Initialize mouse position to center if not set yet
+            mousePosition = CGPoint(x: 400, y: 300) // Default center position
+            // 保持文字工具选中状态，但改为放置模式
+            // 不需要改变 selectedTool，因为用户已经在使用文字工具
+        } else {
+            showTextInput = false
+            waitingForTextPlacement = false
+            // 如果没有输入文字，切换回画笔工具
+            selectedTool = .pen
+        }
+    }
+    
+    private func placeTextAt(location: CGPoint, in geometry: GeometryProxy) {
+        // Convert screen coordinates to image coordinates
+        let size = geometry.size
+        let imageSize = editedImage.size
+        let aspectRatio = imageSize.width / imageSize.height
+        let canvasAspectRatio = size.width / size.height
+        
+        let displaySize: CGSize
+        if aspectRatio > canvasAspectRatio {
+            displaySize = CGSize(width: size.width, height: size.width / aspectRatio)
+        } else {
+            displaySize = CGSize(width: size.height * aspectRatio, height: size.height)
+        }
+        
+        let offsetX = (size.width - displaySize.width) / 2
+        let offsetY = (size.height - displaySize.height) / 2
+        let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
+        
+        let imageLocation = CGPoint(
+            x: (location.x - offsetX) / imageToDisplayScale,
+            y: (location.y - offsetY) / imageToDisplayScale
+        )
+        
+        let newText = TextInput(
+            text: currentText,
+            location: imageLocation,
+            color: selectedColor,
+            fontSize: strokeWidth * 4
+        )
+        textInputs.append(newText)
+        undoStack.append(.addText(newText))
+        saveState()
+        
+        // Reset state
+        currentText = ""
+        waitingForTextPlacement = false
+        previewTextPosition = nil
+        
+        // Switch back to pen tool after text placement
+        selectedTool = .pen
+    }
+    
     private func addTextAtLocation() {
+        // This method is kept for backward compatibility but no longer used
+        // New text placement is handled by placeTextAt method
         if !currentText.isEmpty {
             let newText = TextInput(
                 text: currentText,
                 location: textLocation,
-                color: selectedColor
+                color: selectedColor,
+                fontSize: 16
             )
             textInputs.append(newText)
             undoStack.append(.addText(newText))
@@ -527,6 +665,17 @@ struct ImageEditingView: View {
         }
         showTextInput = false
         currentText = ""
+    }
+    
+    private func toolName(for tool: DrawingTool) -> String {
+        switch tool {
+        case .pen: return "画笔"
+        case .line: return "直线"
+        case .rectangle: return "矩形"
+        case .circle: return "圆形"
+        case .arrow: return "箭头"
+        case .text: return "文字"
+        }
     }
     
     private func saveEditedImage() {
@@ -546,7 +695,7 @@ struct ImageEditingView: View {
                 // Render text inputs
                 ForEach(Array(textInputs.enumerated()), id: \.element.id) { index, textInput in
                     Text(textInput.text)
-                        .font(.system(size: 16))
+                        .font(.system(size: textInput.fontSize))
                         .foregroundColor(textInput.color)
                         .position(textInput.location)
                 }
@@ -673,4 +822,5 @@ struct TextInput: Identifiable {
     let text: String
     let location: CGPoint
     let color: Color
+    let fontSize: CGFloat
 }
