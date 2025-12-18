@@ -21,6 +21,12 @@ struct HotKey: Codable, Equatable {
         modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
         characters: "s"
     )
+    
+    static let defaultAdvancedCapture = HotKey(
+        keyCode: 1,
+        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
+        characters: "s"
+    )
 
     var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
@@ -165,6 +171,20 @@ class AppSettings: ObservableObject {
             }
         }
     }
+    
+    @Published var advancedHotkey: HotKey {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(advancedHotkey) {
+                UserDefaults.standard.set(encoded, forKey: "advancedHotkey")
+            }
+        }
+    }
+    
+    @Published var advancedHotkeyEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
+        }
+    }
 
     @Published var showInDock: Bool {
         didSet {
@@ -237,6 +257,15 @@ class AppSettings: ObservableObject {
         } else {
             self.globalHotkey = .defaultCapture
         }
+        
+        if let data = UserDefaults.standard.data(forKey: "advancedHotkey"),
+           let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
+            self.advancedHotkey = decoded
+        } else {
+            self.advancedHotkey = .defaultAdvancedCapture
+        }
+        
+        self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
 
         self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? false
         self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? false  // Default: disabled

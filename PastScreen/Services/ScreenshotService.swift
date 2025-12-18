@@ -25,6 +25,7 @@ enum AppCategory {
 class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var previousApp: NSRunningApplication? // Store app that was active before capture
     private var selectionWindow: SelectionWindow? // Custom selection window
+    private var isAdvancedCapture: Bool = false // Flag to distinguish advanced capture
 
     // Bundle IDs of known applications
     private let appCategoryMap: [String: AppCategory] = [
@@ -97,6 +98,22 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         selectionWindow?.selectionDelegate = self
         selectionWindow?.show()
     }
+    
+    func captureAdvancedScreenshot() {
+        // CRITICAL: Force cleanup of any existing selection window before creating new one
+        if let existingWindow = selectionWindow {
+            existingWindow.hide()
+            selectionWindow = nil
+        }
+        
+        // Set flag for advanced capture
+        isAdvancedCapture = true
+
+        // Create and show custom selection window for advanced capture
+        selectionWindow = SelectionWindow()
+        selectionWindow?.selectionDelegate = self
+        selectionWindow?.show()
+    }
 
     // NEW: Full screen capture using ScreenCaptureKit
     func captureFullScreen() {
@@ -120,7 +137,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             guard let self = self else { return }
 
             // Now perform capture with overlay windows excluded
-            self.performCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+            if self.isAdvancedCapture {
+                self.performAdvancedCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+            } else {
+                self.performCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+            }
 
             // Cleanup window reference
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -132,6 +153,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     func selectionWindowDidCancel(_ window: SelectionWindow) {
         // Hide all selection windows
         window.hide()
+        
+        // Reset advanced capture flag
+        isAdvancedCapture = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             self?.selectionWindow = nil
@@ -197,10 +221,107 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             }
         }
     }
+    
+    private func performAdvancedCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+        // Vérifier que le rectangle est valide
+        guard rect.width > 0 && rect.height > 0 else {
+            DispatchQueue.main.async { [weak self] in
+                self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
+            }
+            return
+        }
+
+        Task { [weak self] in
+            guard let self = self else { return }
+
+            do {
+                // Capture screenshot with ScreenCaptureKit
+                let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
+                await MainActor.run {
+                    self.handleAdvancedCapture(cgImage: cgImage, selectionRect: rect)
+                }
+
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showErrorNotification(error: error)
+                }
+            }
+        }
+    }
 
     // Nouvelle méthode avec ScreenCaptureKit
     private func captureWithScreenCaptureKit(rect: CGRect, excludeWindowIDs: [CGWindowID]) async throws -> CGImage {
         return try await captureScreenRegion(rect: rect, excludeWindowIDs: excludeWindowIDs)
+    }
+
+    // Handle successful advanced capture - show editing window
+    private func handleAdvancedCapture(cgImage: CGImage, selectionRect: CGRect) {
+        // Create NSImage from CGImage
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        rep.size = selectionRect.size
+        let nsImage = NSImage(size: selectionRect.size)
+        nsImage.addRepresentation(rep)
+        
+        // Reset the advanced capture flag
+        isAdvancedCapture = false
+        
+        // Show editing window
+        let editingWindow = ImageEditingWindow(
+            image: nsImage,
+            onCompletion: { [weak self] editedImage in
+                self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
+            },
+            onCancel: { [weak self] in
+                // Just close editing window, no further action
+                self?.showSuccessNotification(filePath: nil)
+            }
+        )
+        
+        editingWindow.show()
+    }
+    
+    // Handle the edited image from the editing window
+    private func handleEditedImage(editedImage: NSImage, selectionRect: CGRect) {
+        // Play capture sound if enabled
+        if AppSettings.shared.playSoundOnCapture {
+            let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+            if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
+                sound.play()
+            } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
+                fallback.play()
+            }
+        }
+
+        // Convert NSImage back to CGImage for clipboard operations
+        guard let cgImage = editedImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法处理编辑后的图片"]))
+            return
+        }
+
+        let clipboardFilePath = self.copyToClipboard(
+            image: editedImage,
+            cgImage: cgImage,
+            pointSize: selectionRect.size
+        )
+
+        // Save to file if enabled (or reuse path already created for clipboard)
+        var filePath: String? = clipboardFilePath
+        if AppSettings.shared.saveToFile {
+            if filePath == nil {
+                filePath = self.saveToFileAndGetPath(
+                    cgImage: cgImage,
+                    pointSize: selectionRect.size
+                )
+            }
+        }
+
+        if let filePath = filePath {
+            NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
+            AppSettings.shared.addToHistory(filePath)
+        }
+
+        // Show notification and visual feedback
+        self.showSuccessNotification(filePath: filePath)
     }
 
     // Gestion commune du succès

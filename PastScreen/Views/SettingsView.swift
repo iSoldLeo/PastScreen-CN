@@ -264,9 +264,15 @@ struct CaptureSettingsView: View {
                         if settings.globalHotkeyEnabled {
                             Divider()
                             HStack {
-                                Text("区域截图")
+                                Text("快速截图")
                                 Spacer()
                                 HotKeyRecorderView(hotkey: $settings.globalHotkey)
+                            }
+                            Divider()
+                            HStack {
+                                Text("高级截图")
+                                Spacer()
+                                HotKeyRecorderView(hotkey: $settings.advancedHotkey)
                             }
                         }
                     }

@@ -91,6 +91,7 @@ class HotKeyManager {
     private func handleHotKeyEvent(_ event: NSEvent) -> Bool {
         guard !isRecordingHotKey else { return false }
 
+        // Check for regular screenshot hotkey
         let hotkey = settings.globalHotkey
         let requiredModifiers = hotkey.modifierFlags
         let eventModifiers = HotKey.normalizedModifiers(event.modifierFlags)
@@ -110,6 +111,28 @@ class HotKeyManager {
             // The AppDelegate will listen for this notification to trigger a screenshot.
             NotificationCenter.default.post(name: .hotKeyPressed, object: nil)
             return true
+        }
+        
+        // Check for advanced screenshot hotkey
+        if settings.advancedHotkeyEnabled {
+            let advancedHotkey = settings.advancedHotkey
+            let advancedModifiers = advancedHotkey.modifierFlags
+            
+            let matchesAdvancedModifiers = eventModifiers == advancedModifiers
+            let matchesAdvancedKeyCode = event.keyCode == advancedHotkey.keyCode
+            let matchesAdvancedCharacters = {
+                guard let expected = advancedHotkey.characters?.lowercased(),
+                      let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                    return false
+                }
+                return expected == actual
+            }()
+            
+            if matchesAdvancedModifiers && (matchesAdvancedKeyCode || matchesAdvancedCharacters) {
+                // Post notification for advanced screenshot
+                NotificationCenter.default.post(name: .advancedHotKeyPressed, object: nil)
+                return true
+            }
         }
 
         return false

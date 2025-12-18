@@ -18,6 +18,7 @@ extension Notification.Name {
     static let screenshotCaptured = Notification.Name("screenshotCaptured")
     static let showInDockChanged = Notification.Name("showInDockChanged")
     static let hotKeyPressed = Notification.Name("hotKeyPressed")
+    static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
 }
 
 @main
@@ -160,6 +161,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             name: .showInDockChanged,
             object: nil
         )
+        
+        // Observer for advanced hotkey
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAdvancedHotKeyPressed),
+            name: .advancedHotKeyPressed,
+            object: nil
+        )
 
         // Configurer le mode initial (Dock ou menu bar seulement)
         updateActivationPolicy()
@@ -287,6 +296,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @objc func handleHotKeyPressed() {
         requestScreenRecordingIfNeeded { [weak self] in
             self?.performAreaCapture(source: .hotkey)
+        }
+    }
+    
+    @objc func handleAdvancedHotKeyPressed() {
+        requestScreenRecordingIfNeeded { [weak self] in
+            self?.performAdvancedAreaCapture(source: .hotkey)
         }
     }
 
@@ -501,6 +516,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
             screenshotService?.captureScreenshot()
+        }
+    }
+
+    func performAdvancedAreaCapture(source: CaptureTrigger = .menuBar) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureAdvancedScreenshot()
         }
     }
 
