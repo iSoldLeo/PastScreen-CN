@@ -206,8 +206,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let menu = NSMenu()
 
         let captureTitle = NSLocalizedString("menu.capture_area", comment: "")
-        let hotkeyTitle = "\(captureTitle) \(settings.globalHotkey.symbolDisplayString)"
-        let screenshotItem = NSMenuItem(title: hotkeyTitle, action: #selector(takeScreenshot), keyEquivalent: "")
+        let screenshotItem = NSMenuItem(title: captureTitle, action: #selector(takeScreenshot), keyEquivalent: "")
         screenshotItem.target = self
         screenshotItem.keyEquivalent = settings.globalHotkey.keyEquivalent
         screenshotItem.keyEquivalentModifierMask = settings.globalHotkey.modifierFlags
@@ -215,7 +214,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let advancedItem = NSMenuItem(title: NSLocalizedString("menu.capture_advanced", comment: ""), action: #selector(captureAdvanced), keyEquivalent: "")
         advancedItem.target = self
+        advancedItem.keyEquivalent = settings.advancedHotkey.keyEquivalent
+        advancedItem.keyEquivalentModifierMask = settings.advancedHotkey.modifierFlags
         menu.addItem(advancedItem)
+
+        let fullScreenItem = NSMenuItem(title: NSLocalizedString("menu.capture_fullscreen", comment: ""), action: #selector(captureFullScreen), keyEquivalent: "")
+        fullScreenItem.target = self
+        menu.addItem(fullScreenItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -259,13 +264,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         destinationItem.target = self
         menu.addItem(destinationItem)
 
-        let prefsItem = NSMenuItem(title: NSLocalizedString("menu.preferences", comment: ""), action: #selector(openPreferences), keyEquivalent: ",")
+        let prefsItem = NSMenuItem(title: NSLocalizedString("menu.preferences", comment: ""), action: #selector(openPreferences), keyEquivalent: "")
         prefsItem.target = self
         menu.addItem(prefsItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: ""), action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: ""), action: #selector(quit), keyEquivalent: "")
         quitItem.target = self
         menu.addItem(quitItem)
 

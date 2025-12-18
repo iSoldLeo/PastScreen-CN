@@ -36,7 +36,6 @@ class SelectionWindow: NSWindow {
 
     // Multi-screen support: one window per screen
     private var overlayWindows: [NSWindow] = []
-    private var sharedOverlayView: SelectionOverlayView!
 
     init() {
         // Create main window (first screen) for NSWindow inheritance
@@ -53,20 +52,6 @@ class SelectionWindow: NSWindow {
     }
 
     private func setupMultiScreenOverlays() {
-        // Calculate combined frame for shared overlay view
-        let combinedFrame = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
-
-        // Create shared overlay view that spans all screens
-        sharedOverlayView = SelectionOverlayView(frame: combinedFrame)
-        sharedOverlayView.onComplete = { [weak self] rect in
-            guard let self = self else { return }
-            self.selectionDelegate?.selectionWindow(self, didSelectRect: rect)
-        }
-        sharedOverlayView.onCancel = { [weak self] in
-            guard let self = self else { return }
-            self.selectionDelegate?.selectionWindowDidCancel(self)
-        }
-
         // Create one window per screen
         for screen in NSScreen.screens {
             // Create window WITHOUT screen parameter to avoid auto-repositioning
@@ -161,11 +146,6 @@ class SelectionOverlayView: NSView {
     private var endPoint: NSPoint?
     private var isDragging = false
 
-    // Global event monitors for capturing clicks even when app is not active
-    private var mouseDownMonitor: Any?
-    private var mouseDraggedMonitor: Any?
-    private var mouseUpMonitor: Any?
-
     override init(frame: NSRect) {
         super.init(frame: frame)
         self.wantsLayer = true
@@ -175,75 +155,6 @@ class SelectionOverlayView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not implemented")
-    }
-
-    private func setupGlobalEventMonitors() {
-        // Monitor pour mouseDown global (fonctionne même si l'app n'est pas active)
-        mouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self = self, let window = self.window, window.isVisible else { return }
-            let locationInWindow = window.convertPoint(fromScreen: NSPoint(x: event.locationInWindow.x, y: NSScreen.main!.frame.height - event.locationInWindow.y))
-            let locationInView = self.convert(locationInWindow, from: nil)
-
-            if self.bounds.contains(locationInView) {
-                self.startPoint = locationInView
-                self.endPoint = locationInView
-                self.isDragging = true
-                self.needsDisplay = true
-            }
-        }
-
-        // Monitor pour mouseDragged global
-        mouseDraggedMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
-            guard let self = self, self.isDragging else { return }
-            let locationInWindow = self.window!.convertPoint(fromScreen: NSPoint(x: event.locationInWindow.x, y: NSScreen.main!.frame.height - event.locationInWindow.y))
-            let locationInView = self.convert(locationInWindow, from: nil)
-
-            self.endPoint = locationInView
-            self.needsDisplay = true
-        }
-
-        // Monitor pour mouseUp global
-        mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
-            guard let self = self, self.isDragging else { return }
-            guard let start = self.startPoint, let end = self.endPoint else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.onCancel?()
-                }
-                return
-            }
-
-            self.isDragging = false
-
-            let rect = CGRect(
-                x: min(start.x, end.x),
-                y: min(start.y, end.y),
-                width: abs(end.x - start.x),
-                height: abs(end.y - start.y)
-            )
-
-            if rect.width > 10 && rect.height > 10 {
-                DispatchQueue.main.async { [weak self] in
-                    self?.emitSelection(rect: rect)
-                }
-            } else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.onCancel?()
-                }
-            }
-        }
-    }
-
-    deinit {
-        // Cleanup global monitors
-        if let monitor = mouseDownMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        if let monitor = mouseDraggedMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        if let monitor = mouseUpMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
     }
 
     // CRITICAL: Accept first mouse click even when app is not active

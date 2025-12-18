@@ -18,8 +18,10 @@ class HotKeyManager {
     private var globalEventMonitor: Any?
     private var localEventMonitor: Any?
     private let settings = AppSettings.shared
+    private let permissionManager = PermissionManager.shared
     private var settingsObserver: AnyCancellable?
     private var advancedHotkeyObserver: AnyCancellable?
+    private var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false
 
     private init() {
@@ -44,12 +46,25 @@ class HotKeyManager {
                 }
             }
         }
+
+        // Restart monitoring automatically once Accessibility permission is granted
+        permissionObserver = permissionManager.$accessibilityStatus
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                guard let self = self else { return }
+                if status == .authorized {
+                    self.startMonitoring()
+                } else {
+                    self.stopMonitoring()
+                }
+            }
     }
 
     deinit {
         stopMonitoring()
         settingsObserver?.cancel()
         advancedHotkeyObserver?.cancel()
+        permissionObserver?.cancel()
     }
 
     /// Starts listening for the global hotkey if it's enabled in settings.

@@ -283,8 +283,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     
     // Handle the edited image from the editing window
     private func handleEditedImage(editedImage: NSImage, selectionRect: CGRect) {
+        let settings = AppSettings.shared
+        let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
+
         // Play capture sound if enabled
-        if AppSettings.shared.playSoundOnCapture {
+        if settings.playSoundOnCapture {
             let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
             if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
                 sound.play()
@@ -307,18 +310,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         // Save to file if enabled (or reuse path already created for clipboard)
         var filePath: String? = clipboardFilePath
-        if AppSettings.shared.saveToFile {
-            if filePath == nil {
-                filePath = self.saveToFileAndGetPath(
-                    cgImage: cgImage,
-                    pointSize: selectionRect.size
-                )
-            }
+        if allowSaving && filePath == nil {
+            filePath = self.saveToFileAndGetPath(
+                cgImage: cgImage,
+                pointSize: selectionRect.size
+            )
         }
 
-        if let filePath = filePath {
+        if allowSaving, let filePath = filePath {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
-            AppSettings.shared.addToHistory(filePath)
+            settings.addToHistory(filePath)
         }
 
         // Show notification and visual feedback
@@ -327,8 +328,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     // Gestion commune du succès
     private func handleSuccessfulCapture(cgImage: CGImage, selectionRect: CGRect) {
+        let settings = AppSettings.shared
+        let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
+
         // Play capture sound if enabled
-        if AppSettings.shared.playSoundOnCapture {
+        if settings.playSoundOnCapture {
             let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
             if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
                 sound.play()
@@ -350,18 +354,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         // Save to file if enabled (or reuse path already created for clipboard)
         var filePath: String? = clipboardFilePath
-        if AppSettings.shared.saveToFile {
-            if filePath == nil {
-                filePath = self.saveToFileAndGetPath(
-                    cgImage: cgImage,
-                    pointSize: selectionRect.size
-                )
-            }
+        if allowSaving && filePath == nil {
+            filePath = self.saveToFileAndGetPath(
+                cgImage: cgImage,
+                pointSize: selectionRect.size
+            )
         }
 
-        if let filePath = filePath {
+        if allowSaving, let filePath = filePath {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
-            AppSettings.shared.addToHistory(filePath)
+            settings.addToHistory(filePath)
         }
 
         // Show notification and visual feedback
@@ -510,13 +512,19 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
-        // Always save file first (for history and potential path use)
-        let filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
+        let settings = AppSettings.shared
+        let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
+
+        // Only save when user enabled it and a valid folder is configured
+        var filePath: String?
+        if allowSaving {
+            filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
+        }
 
         // Check for App Override
         var usePathOnly = false
         if let bundleID = previousApp?.bundleIdentifier,
-           let override = AppSettings.shared.getOverride(for: bundleID) {
+           let override = settings.getOverride(for: bundleID) {
             if override == .path {
                 usePathOnly = true
             }
@@ -526,6 +534,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             // PATH ONLY - For terminals
             if let imagePath = filePath {
                 pasteboard.setString(imagePath, forType: .string)
+            } else {
+                // Fallback to image copy if no path is available
+                pasteboard.writeObjects([image])
             }
         } else {
             // IMAGE ONLY - Default behavior (works with AI agents, browsers, etc.)
