@@ -124,11 +124,11 @@ struct ImageEditingView: View {
     }
     
     private static func defaultTool() -> DrawingTool {
-        let enabledTools = AppSettings.shared.enabledEditingTools
-        if let firstEnabled = DrawingTool.allCases.first(where: { enabledTools.contains($0) }) {
+        let settings = AppSettings.shared
+        if let firstEnabled = settings.orderedEnabledEditingTools.first {
             return firstEnabled
         }
-        return .pen
+        return settings.orderedEditingTools.first ?? .pen
     }
     
     // MARK: - Undo/Redo Properties
@@ -142,9 +142,8 @@ struct ImageEditingView: View {
     }
     
     private var toolbarTools: [DrawingTool] {
-        let enabledTools = settings.enabledEditingTools
-        let filtered = DrawingTool.allCases.filter { enabledTools.contains($0) }
-        return filtered.isEmpty ? DrawingTool.allCases : filtered
+        let orderedEnabled = settings.orderedEnabledEditingTools
+        return orderedEnabled.isEmpty ? settings.orderedEditingTools : orderedEnabled
     }
     
     private func ensureValidSelectedTool() {

@@ -152,6 +152,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
+    private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
 
     @Published var saveToFile: Bool {
         didSet {
@@ -203,6 +204,19 @@ class AppSettings: ObservableObject {
     @Published var advancedHotkeyEnabled: Bool {
         didSet {
             UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
+        }
+    }
+    
+    @Published var editingToolOrder: [DrawingTool] {
+        didSet {
+            let normalized = AppSettings.normalizeToolOrder(editingToolOrder, fallback: defaultEditingToolOrder)
+            if normalized != editingToolOrder {
+                editingToolOrder = normalized
+                return
+            }
+            
+            let rawValues = editingToolOrder.map { $0.rawValue }
+            UserDefaults.standard.set(rawValues, forKey: "editingToolOrder")
         }
     }
     
@@ -301,6 +315,13 @@ class AppSettings: ObservableObject {
         
         self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
 
+        if let storedOrder = UserDefaults.standard.array(forKey: "editingToolOrder") as? [String] {
+            let order = storedOrder.compactMap(DrawingTool.init(rawValue:))
+            self.editingToolOrder = AppSettings.normalizeToolOrder(order, fallback: defaultEditingToolOrder)
+        } else {
+            self.editingToolOrder = defaultEditingToolOrder
+        }
+        
         self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? false
         self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? false  // Default: disabled
 
@@ -453,6 +474,37 @@ class AppSettings: ObservableObject {
             current.remove(tool)
         }
         enabledEditingTools = current.isEmpty ? defaultEditingTools : current
+    }
+    
+    var orderedEditingTools: [DrawingTool] {
+        AppSettings.normalizeToolOrder(editingToolOrder, fallback: defaultEditingToolOrder)
+    }
+    
+    var orderedEnabledEditingTools: [DrawingTool] {
+        let enabled = enabledEditingTools
+        let ordered = orderedEditingTools.filter { enabled.contains($0) }
+        return ordered.isEmpty ? orderedEditingTools : ordered
+    }
+    
+    func updateEditingToolOrder(_ newOrder: [DrawingTool]) {
+        editingToolOrder = AppSettings.normalizeToolOrder(newOrder, fallback: defaultEditingToolOrder)
+    }
+    
+    private static func normalizeToolOrder(_ order: [DrawingTool], fallback: [DrawingTool]) -> [DrawingTool] {
+        var seen = Set<DrawingTool>()
+        var normalized: [DrawingTool] = []
+        
+        for tool in order where !seen.contains(tool) {
+            normalized.append(tool)
+            seen.insert(tool)
+        }
+        
+        for tool in fallback where !seen.contains(tool) {
+            normalized.append(tool)
+            seen.insert(tool)
+        }
+        
+        return normalized
     }
 
     private func applyAppLanguage() {

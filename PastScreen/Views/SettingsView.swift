@@ -324,7 +324,9 @@ struct CaptureSettingsView: View {
 
 struct EditorSettingsView: View {
     @EnvironmentObject var settings: AppSettings
-    private let tools = DrawingTool.allCases
+    private var orderedTools: [DrawingTool] {
+        settings.orderedEditingTools
+    }
 
     var body: some View {
         VStack(spacing: 32) {
@@ -339,15 +341,45 @@ struct EditorSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
+                        
+                        Text(NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
 
                         Divider()
 
-                        ForEach(tools, id: \.self) { tool in
-                            Toggle(isOn: binding(for: tool)) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: tool.systemImage)
-                                        .frame(width: 18)
-                                    Text(tool.localizedName)
+                        ForEach(Array(orderedTools.enumerated()), id: \.element) { index, tool in
+                            HStack(spacing: 8) {
+                                Toggle(isOn: binding(for: tool)) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: tool.systemImage)
+                                            .frame(width: 18)
+                                        Text(tool.localizedName)
+                                    }
+                                }
+
+                                Spacer()
+
+                                HStack(spacing: 4) {
+                                    Button {
+                                        moveTool(at: index, offset: -1)
+                                    } label: {
+                                        Image(systemName: "chevron.up")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == 0)
+
+                                    Button {
+                                        moveTool(at: index, offset: 1)
+                                    } label: {
+                                        Image(systemName: "chevron.down")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == orderedTools.count - 1)
                                 }
                             }
                         }
@@ -369,6 +401,16 @@ struct EditorSettingsView: View {
                 settings.updateEditingTool(tool, enabled: newValue)
             }
         )
+    }
+    
+    private func moveTool(at index: Int, offset: Int) {
+        var updated = orderedTools
+        let destination = index + offset
+        
+        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
+        
+        updated.swapAt(index, destination)
+        settings.updateEditingToolOrder(updated)
     }
 }
 

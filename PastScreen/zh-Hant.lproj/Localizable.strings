@@ -71,6 +71,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "编辑工具栏";
 "settings.editor.toolbar.description" = "选择在高级截图后的编辑页面里，要显示哪些工具。";
+"settings.editor.toolbar.reorder_hint" = "使用右侧的箭头调整工具顺序。";
 "settings.editor.toolbar.note" = "至少保留一个工具。";
 
 /* Settings - Storage */
