@@ -151,6 +151,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
+    private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
 
     @Published var saveToFile: Bool {
         didSet {
@@ -202,6 +203,13 @@ class AppSettings: ObservableObject {
     @Published var advancedHotkeyEnabled: Bool {
         didSet {
             UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
+        }
+    }
+    
+    @Published var enabledEditingTools: Set<DrawingTool> {
+        didSet {
+            let rawValues = enabledEditingTools.map { $0.rawValue }
+            UserDefaults.standard.set(rawValues, forKey: "enabledEditingTools")
         }
     }
 
@@ -314,8 +322,16 @@ class AppSettings: ObservableObject {
         } else {
             self.appLanguage = .system
         }
-        applyAppLanguage()
+        
+        if let storedTools = UserDefaults.standard.array(forKey: "enabledEditingTools") as? [String] {
+            let tools = storedTools.compactMap(DrawingTool.init(rawValue:))
+            let toolSet = Set(tools)
+            self.enabledEditingTools = toolSet.isEmpty ? defaultEditingTools : toolSet
+        } else {
+            self.enabledEditingTools = defaultEditingTools
+        }
 
+        applyAppLanguage()
         restoreFolderAccess()
         ensureFolderExists()
     }
@@ -427,6 +443,16 @@ class AppSettings: ObservableObject {
 
     func getOverride(for bundleIdentifier: String) -> ClipboardFormat? {
         return appOverrides.first(where: { $0.bundleIdentifier == bundleIdentifier })?.format
+    }
+    
+    func updateEditingTool(_ tool: DrawingTool, enabled: Bool) {
+        var current = enabledEditingTools
+        if enabled {
+            current.insert(tool)
+        } else if current.count > 1 {
+            current.remove(tool)
+        }
+        enabledEditingTools = current.isEmpty ? defaultEditingTools : current
     }
 
     private func applyAppLanguage() {

@@ -18,6 +18,7 @@
 /* Settings - Tabs */
 "settings.tab.general" = "通用";
 "settings.tab.capture" = "截图";
+"settings.tab.editor" = "编辑";
 "settings.tab.storage" = "存储";
 "settings.tab.apps" = "应用";
 
@@ -66,6 +67,11 @@
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
 "settings.capture.advanced_screenshot" = "高级截图";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "编辑工具栏";
+"settings.editor.toolbar.description" = "选择在高级截图后的编辑页面里，要显示哪些工具。";
+"settings.editor.toolbar.note" = "至少保留一个工具。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";

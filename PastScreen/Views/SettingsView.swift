@@ -19,6 +19,7 @@ struct SettingsView: View {
     enum SettingsTab: CaseIterable {
         case general
         case capture
+        case editor
         case storage
         case apps
 
@@ -28,6 +29,8 @@ struct SettingsView: View {
                 return NSLocalizedString("settings.tab.general", value: "通用", comment: "")
             case .capture:
                 return NSLocalizedString("settings.tab.capture", value: "截图", comment: "")
+            case .editor:
+                return NSLocalizedString("settings.tab.editor", value: "编辑", comment: "")
             case .storage:
                 return NSLocalizedString("settings.tab.storage", value: "存储", comment: "")
             case .apps:
@@ -39,6 +42,7 @@ struct SettingsView: View {
             switch self {
             case .general: return "gear"
             case .capture: return "camera.fill"
+            case .editor: return "paintbrush.pointed"
             case .storage: return "folder.fill"
             case .apps: return "macwindow"
             }
@@ -48,6 +52,7 @@ struct SettingsView: View {
             switch self {
             case .general: return .gray
             case .capture: return .red
+            case .editor: return .orange
             case .storage: return .blue
             case .apps: return .green
             }
@@ -96,6 +101,7 @@ struct SettingsView: View {
                         switch selectedTab {
                         case .general: GeneralSettingsView()
                         case .capture: CaptureSettingsView()
+                        case .editor: EditorSettingsView()
                         case .storage: StorageSettingsView()
                         case .apps: AppsSettingsView()
                         }
@@ -311,6 +317,58 @@ struct CaptureSettingsView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Editor Settings
+
+struct EditorSettingsView: View {
+    @EnvironmentObject var settings: AppSettings
+    private let tools = DrawingTool.allCases
+
+    var body: some View {
+        VStack(spacing: 32) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.editor.toolbar.title", comment: ""), systemImage: "paintbrush.pointed")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(NSLocalizedString("settings.editor.toolbar.description", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Divider()
+
+                        ForEach(tools, id: \.self) { tool in
+                            Toggle(isOn: binding(for: tool)) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: tool.systemImage)
+                                        .frame(width: 18)
+                                    Text(tool.localizedName)
+                                }
+                            }
+                        }
+
+                        Text(NSLocalizedString("settings.editor.toolbar.note", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                }
+            }
+        }
+    }
+
+    private func binding(for tool: DrawingTool) -> Binding<Bool> {
+        Binding(
+            get: { settings.enabledEditingTools.contains(tool) },
+            set: { newValue in
+                settings.updateEditingTool(tool, enabled: newValue)
+            }
+        )
     }
 }
 

@@ -18,6 +18,7 @@
 /* Settings - Tabs */
 "settings.tab.general" = "General";
 "settings.tab.capture" = "Capture";
+"settings.tab.editor" = "Editor";
 "settings.tab.storage" = "Storage";
 "settings.tab.apps" = "Apps";
 
@@ -66,6 +67,11 @@
 "settings.capture.hotkey_disabled_help" = "Enable shortcuts to capture anytime";
 "settings.capture.quick_screenshot" = "Quick Capture";
 "settings.capture.advanced_screenshot" = "Advanced Capture";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "Editing toolbar";
+"settings.editor.toolbar.description" = "Choose which tools appear after taking an advanced capture.";
+"settings.editor.toolbar.note" = "Keep at least one tool enabled.";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "Save location";

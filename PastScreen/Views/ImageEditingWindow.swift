@@ -11,7 +11,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 
 class ImageEditingWindow: NSWindow {
-    private var hostingView: NSHostingView<ImageEditingView>!
+    private var hostingView: NSHostingView<AnyView>!
     private var screenshotImage: NSImage
     private var onCompletion: ((NSImage) -> Void)?
     private var onCancel: (() -> Void)?
@@ -59,8 +59,9 @@ class ImageEditingWindow: NSWindow {
                 self?.onCancel?()
             }
         )
+        let wrappedView = AnyView(editingView.environmentObject(AppSettings.shared))
         
-        hostingView = NSHostingView(rootView: editingView)
+        hostingView = NSHostingView(rootView: wrappedView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         contentView?.addSubview(hostingView)
         
@@ -85,9 +86,10 @@ struct ImageEditingView: View {
     let image: NSImage
     let onCompletion: (NSImage) -> Void
     let onCancel: () -> Void
+    @EnvironmentObject private var settings: AppSettings
     
     @State private var editedImage: NSImage
-    @State private var selectedTool: DrawingTool = .pen
+    @State private var selectedTool: DrawingTool = ImageEditingView.defaultTool()
     @State private var selectedColor: Color = .red
     @State private var strokeWidth: Double = 2.0
     @State private var drawingPaths: [DrawingPath] = []
@@ -121,6 +123,14 @@ struct ImageEditingView: View {
         self._editedImage = State(initialValue: image)
     }
     
+    private static func defaultTool() -> DrawingTool {
+        let enabledTools = AppSettings.shared.enabledEditingTools
+        if let firstEnabled = DrawingTool.allCases.first(where: { enabledTools.contains($0) }) {
+            return firstEnabled
+        }
+        return .pen
+    }
+    
     // MARK: - Undo/Redo Properties
     
     private var canUndo: Bool {
@@ -131,6 +141,19 @@ struct ImageEditingView: View {
         !redoStack.isEmpty
     }
     
+    private var toolbarTools: [DrawingTool] {
+        let enabledTools = settings.enabledEditingTools
+        let filtered = DrawingTool.allCases.filter { enabledTools.contains($0) }
+        return filtered.isEmpty ? DrawingTool.allCases : filtered
+    }
+    
+    private func ensureValidSelectedTool() {
+        let available = toolbarTools
+        if !available.contains(selectedTool) {
+            selectedTool = available.first ?? .pen
+        }
+    }
+
     // MARK: - Body View
     
     var body: some View {
@@ -139,7 +162,7 @@ struct ImageEditingView: View {
             HStack(spacing: 16) {
                 // Drawing tools
                 HStack(spacing: 6) {
-                    ForEach(DrawingTool.allCases, id: \.self) { tool in
+                    ForEach(toolbarTools, id: \.self) { tool in
                         Button(action: { 
                             let previousTool = selectedTool
                             let newTool = tool
@@ -183,7 +206,7 @@ struct ImageEditingView: View {
                                 )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help(toolName(for: tool))
+                        .help(tool.localizedName)
                     }
                 }
                 .padding(.leading, 4)
@@ -455,6 +478,12 @@ struct ImageEditingView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            ensureValidSelectedTool()
+        }
+        .onChangeCompat(of: settings.enabledEditingTools) {
+            ensureValidSelectedTool()
         }
     }
     
@@ -781,18 +810,6 @@ struct ImageEditingView: View {
         }
     }
     
-    private func toolName(for tool: DrawingTool) -> String {
-        switch tool {
-        case .pen: return NSLocalizedString("tool.pen", comment: "")
-        case .line: return NSLocalizedString("tool.line", comment: "")
-        case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
-        case .circle: return NSLocalizedString("tool.circle", comment: "")
-        case .arrow: return NSLocalizedString("tool.arrow", comment: "")
-        case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
-        case .text: return NSLocalizedString("tool.text", comment: "")
-        }
-    }
-    
     private func saveEditedImage() {
         // Create a new image with drawings
         let mosaicBaseImage = renderMosaicImage()
@@ -1037,7 +1054,7 @@ enum EditAction {
     case removeMosaic(MosaicRegion, index: Int)
 }
 
-enum DrawingTool: CaseIterable {
+enum DrawingTool: String, CaseIterable, Codable {
     case pen
     case line
     case rectangle
@@ -1055,6 +1072,18 @@ enum DrawingTool: CaseIterable {
         case .arrow: return "arrow.right"
         case .mosaic: return "square.grid.3x3"
         case .text: return "textformat"
+        }
+    }
+    
+    var localizedName: String {
+        switch self {
+        case .pen: return NSLocalizedString("tool.pen", comment: "")
+        case .line: return NSLocalizedString("tool.line", comment: "")
+        case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
+        case .circle: return NSLocalizedString("tool.circle", comment: "")
+        case .arrow: return NSLocalizedString("tool.arrow", comment: "")
+        case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
+        case .text: return NSLocalizedString("tool.text", comment: "")
         }
     }
 }
@@ -1080,4 +1109,15 @@ struct TextInput: Identifiable {
     let location: CGPoint
     let color: Color
     let fontSize: CGFloat
+}
+
+extension View {
+    @ViewBuilder
+    func onChangeCompat<V: Equatable>(of value: V, perform action: @escaping () -> Void) -> some View {
+        if #available(macOS 14.0, *) {
+            self.onChange(of: value) { _, _ in action() }
+        } else {
+            self.onChange(of: value, perform: { _ in action() })
+        }
+    }
 }
