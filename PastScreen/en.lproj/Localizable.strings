@@ -226,6 +226,7 @@
 /* Editor */
 "editor.window.title" = "Edit Screenshot";
 "editor.text.size" = "Size";
+"editor.mosaic.size" = "Mosaic size";
 "editor.stroke.width" = "Stroke width";
 "editor.text.title" = "Enter text";
 "editor.text.placeholder" = "Please enter text";
@@ -236,4 +237,5 @@
 "tool.rectangle" = "Rectangle";
 "tool.circle" = "Circle";
 "tool.arrow" = "Arrow";
+"tool.mosaic" = "Mosaic";
 "tool.text" = "Text";
