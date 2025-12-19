@@ -153,6 +153,7 @@ class AppSettings: ObservableObject {
     static let shared = AppSettings()
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
     private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
+    private var isInitialized = false
 
     @Published var saveToFile: Bool {
         didSet {
@@ -224,6 +225,12 @@ class AppSettings: ObservableObject {
         didSet {
             let rawValues = enabledEditingTools.map { $0.rawValue }
             UserDefaults.standard.set(rawValues, forKey: "enabledEditingTools")
+            if isInitialized {
+                radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
+                    radialToolIdentifiers,
+                    allowed: radialAvailableTools
+                )
+            }
         }
     }
 
@@ -272,6 +279,14 @@ class AppSettings: ObservableObject {
     
     @Published var radialToolIdentifiers: [String] {
         didSet {
+            let normalized = AppSettings.normalizeRadialIdentifiers(
+                radialToolIdentifiers,
+                allowed: radialAvailableTools
+            )
+            if normalized != radialToolIdentifiers {
+                radialToolIdentifiers = normalized
+                return
+            }
             UserDefaults.standard.set(radialToolIdentifiers, forKey: "radialToolIdentifiers")
         }
     }
@@ -321,12 +336,14 @@ class AppSettings: ObservableObject {
         
         self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
 
+        let resolvedEditingOrder: [DrawingTool]
         if let storedOrder = UserDefaults.standard.array(forKey: "editingToolOrder") as? [String] {
             let order = storedOrder.compactMap(DrawingTool.init(rawValue:))
-            self.editingToolOrder = AppSettings.normalizeToolOrder(order, fallback: defaultEditingToolOrder)
+            resolvedEditingOrder = AppSettings.normalizeToolOrder(order, fallback: defaultEditingToolOrder)
         } else {
-            self.editingToolOrder = defaultEditingToolOrder
+            resolvedEditingOrder = defaultEditingToolOrder
         }
+        self.editingToolOrder = resolvedEditingOrder
         
         self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? false
         self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? false  // Default: disabled
@@ -350,22 +367,27 @@ class AppSettings: ObservableObject {
             self.appLanguage = .system
         }
         
+        let resolvedEnabledTools: Set<DrawingTool>
         if let storedTools = UserDefaults.standard.array(forKey: "enabledEditingTools") as? [String] {
             let tools = storedTools.compactMap(DrawingTool.init(rawValue:))
             let toolSet = Set(tools)
-            self.enabledEditingTools = toolSet.isEmpty ? defaultEditingTools : toolSet
+            resolvedEnabledTools = toolSet.isEmpty ? defaultEditingTools : toolSet
         } else {
-            self.enabledEditingTools = defaultEditingTools
+            resolvedEnabledTools = defaultEditingTools
         }
+        self.enabledEditingTools = resolvedEnabledTools
 
         let defaultRadials = DrawingTool.defaultRadialIdentifiers
-        let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers")
-        if let storedRadials, storedRadials.count == defaultRadials.count {
-            self.radialToolIdentifiers = storedRadials
-        } else {
-            self.radialToolIdentifiers = defaultRadials
-        }
+        let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials
+        let initialOrder = resolvedEditingOrder
+        let initialEnabled = resolvedEnabledTools
+        let initialRadialAllowed = initialOrder.filter { initialEnabled.contains($0) }
+        self.radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
+            storedRadials,
+            allowed: initialRadialAllowed
+        )
 
+        self.isInitialized = true
         applyAppLanguage()
         restoreFolderAccess()
         ensureFolderExists()
@@ -488,6 +510,10 @@ class AppSettings: ObservableObject {
             current.remove(tool)
         }
         enabledEditingTools = current.isEmpty ? defaultEditingTools : current
+        radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
+            radialToolIdentifiers,
+            allowed: radialAvailableTools
+        )
     }
     
     var orderedEditingTools: [DrawingTool] {
@@ -498,6 +524,24 @@ class AppSettings: ObservableObject {
         let enabled = enabledEditingTools
         let ordered = orderedEditingTools.filter { enabled.contains($0) }
         return ordered.isEmpty ? orderedEditingTools : ordered
+    }
+    
+    var radialDrawingTools: [DrawingTool] {
+        DrawingTool.tools(fromIdentifiers: radialToolIdentifiers, allowed: radialAvailableTools)
+    }
+    
+    var radialAvailableTools: [DrawingTool] {
+        orderedEnabledEditingTools
+    }
+    
+    @discardableResult
+    func updateRadialTools(_ tools: [DrawingTool]) -> [DrawingTool] {
+        let normalized = DrawingTool.tools(
+            fromIdentifiers: tools.map { $0.identifier },
+            allowed: radialAvailableTools
+        )
+        radialToolIdentifiers = normalized.map { $0.identifier }
+        return normalized
     }
     
     func updateEditingToolOrder(_ newOrder: [DrawingTool]) {
@@ -519,6 +563,10 @@ class AppSettings: ObservableObject {
         }
         
         return normalized
+    }
+    
+    private static func normalizeRadialIdentifiers(_ identifiers: [String], allowed: [DrawingTool]) -> [String] {
+        DrawingTool.tools(fromIdentifiers: identifiers, allowed: allowed).map { $0.identifier }
     }
 
     private func applyAppLanguage() {

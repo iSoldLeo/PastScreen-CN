@@ -324,8 +324,15 @@ struct CaptureSettingsView: View {
 
 struct EditorSettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @State private var radialTools: [DrawingTool] = DrawingTool.defaultRadialTools
     private var orderedTools: [DrawingTool] {
         settings.orderedEditingTools
+    }
+    private var availableRadialTools: [DrawingTool] {
+        settings.radialAvailableTools
+    }
+    private var maxRadialCount: Int {
+        min(4, availableRadialTools.count)
     }
 
     var body: some View {
@@ -391,7 +398,96 @@ struct EditorSettingsView: View {
                     .padding(12)
                 }
             }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.editor.radial.title", comment: ""), systemImage: "circle.grid.3x3.fill")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(NSLocalizedString("settings.editor.radial.description", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Divider()
+
+                        ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
+                            HStack(spacing: 8) {
+                                Picker("", selection: Binding(
+                                    get: { radialTools[index] },
+                                    set: { newValue in updateRadialTool(at: index, with: newValue) }
+                                )) {
+                                    ForEach(availableRadialTools, id: \.self) { option in
+                                        Label(option.localizedName, systemImage: option.systemImage)
+                                            .tag(option)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: 200, alignment: .leading)
+
+                                Spacer()
+
+                                HStack(spacing: 4) {
+                                    Button {
+                                        moveRadialTool(at: index, offset: -1)
+                                    } label: {
+                                        Image(systemName: "chevron.up")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == 0)
+
+                                    Button {
+                                        moveRadialTool(at: index, offset: 1)
+                                    } label: {
+                                        Image(systemName: "chevron.down")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == radialTools.count - 1)
+
+                                    Button {
+                                        removeRadialTool(at: index)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(radialTools.count <= 1)
+                                }
+                            }
+                        }
+
+                        if radialTools.count < maxRadialCount {
+                            Button {
+                                addRadialTool()
+                            } label: {
+                                Label(NSLocalizedString("settings.editor.radial.add", comment: ""), systemImage: "plus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                        }
+
+                        RadialWheelPreview(tools: radialTools)
+                            .frame(maxWidth: .infinity)
+
+                        Text(NSLocalizedString("settings.editor.radial.note", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                }
+            }
         }
+        .onAppear {
+            radialTools = settings.radialDrawingTools
+        }
+        .onChange(of: settings.radialToolIdentifiers) { _, _ in radialTools = settings.radialDrawingTools }
     }
 
     private func binding(for tool: DrawingTool) -> Binding<Bool> {
@@ -411,6 +507,81 @@ struct EditorSettingsView: View {
         
         updated.swapAt(index, destination)
         settings.updateEditingToolOrder(updated)
+    }
+    
+    private func addRadialTool() {
+        guard !availableRadialTools.isEmpty else { return }
+        var updated = radialTools
+        let unusedTools = availableRadialTools.filter { !updated.contains($0) }
+        if let next = unusedTools.first {
+            updated.append(next)
+        } else if let fallback = availableRadialTools.first {
+            updated.append(fallback)
+        }
+        applyRadialTools(updated)
+    }
+    
+    private func removeRadialTool(at index: Int) {
+        guard radialTools.count > 1, radialTools.indices.contains(index) else { return }
+        var updated = radialTools
+        updated.remove(at: index)
+        applyRadialTools(updated)
+    }
+    
+    private func moveRadialTool(at index: Int, offset: Int) {
+        var updated = radialTools
+        let destination = index + offset
+        
+        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
+        
+        updated.swapAt(index, destination)
+        applyRadialTools(updated)
+    }
+    
+    private func updateRadialTool(at index: Int, with newTool: DrawingTool) {
+        guard radialTools.indices.contains(index) else { return }
+        var updated = radialTools
+        updated[index] = newTool
+        applyRadialTools(updated)
+    }
+    
+    private func applyRadialTools(_ tools: [DrawingTool]) {
+        let cleaned = deduplicatedRadialTools(tools)
+        let normalized = settings.updateRadialTools(cleaned)
+        radialTools = normalized
+    }
+    
+    private func deduplicatedRadialTools(_ tools: [DrawingTool]) -> [DrawingTool] {
+        var seen = Set<DrawingTool>()
+        var ordered: [DrawingTool] = []
+        
+        for tool in tools.reversed() {
+            if seen.insert(tool).inserted {
+                ordered.append(tool)
+            }
+        }
+        
+        return ordered.reversed()
+    }
+}
+
+private struct RadialWheelPreview: View {
+    let tools: [DrawingTool]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            let highlight = CGPoint(x: center.x, y: center.y - 40)
+            RadialToolPalette(
+                center: center,
+                current: tools.isEmpty ? center : highlight,
+                tools: tools.isEmpty ? DrawingTool.defaultRadialTools : tools,
+                deadZoneRadius: 30,
+                toolNameProvider: { $0.localizedName },
+                selectedIndex: tools.isEmpty ? nil : 0
+            )
+        }
+        .frame(width: 220, height: 200)
     }
 }
 

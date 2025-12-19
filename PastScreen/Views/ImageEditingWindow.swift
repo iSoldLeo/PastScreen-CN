@@ -58,7 +58,7 @@ class ImageEditingWindow: NSWindow {
                 self?.hide()
                 self?.onCancel?()
             },
-            radialTools: DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
+            radialTools: AppSettings.shared.radialDrawingTools
         )
         let wrappedView = AnyView(editingView.environmentObject(AppSettings.shared))
         
@@ -125,7 +125,7 @@ struct ImageEditingView: View {
         image: NSImage,
         onCompletion: @escaping (NSImage) -> Void,
         onCancel: @escaping () -> Void,
-        radialTools: [DrawingTool] = DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
+        radialTools: [DrawingTool] = AppSettings.shared.radialDrawingTools
     ) {
         self.image = image
         self.onCompletion = onCompletion
@@ -1145,9 +1145,33 @@ enum DrawingTool: String, CaseIterable, Codable {
     static var defaultRadialTools: [DrawingTool] { [.arrow, .rectangle, .circle, .line] }
     static var defaultRadialIdentifiers: [String] { defaultRadialTools.map { $0.identifier } }
     
-    static func tools(fromIdentifiers identifiers: [String]) -> [DrawingTool] {
-        let mapped = identifiers.compactMap { DrawingTool(identifier: $0) }
-        return mapped.count == identifiers.count && !mapped.isEmpty ? mapped : defaultRadialTools
+    static func tools(fromIdentifiers identifiers: [String], allowed: [DrawingTool]? = nil) -> [DrawingTool] {
+        let allowedSet = allowed.map { Set($0) }
+        var seen = Set<DrawingTool>()
+        var tools: [DrawingTool] = []
+        
+        for identifier in identifiers {
+            guard let tool = DrawingTool(identifier: identifier),
+                  (allowedSet == nil || allowedSet!.contains(tool)),
+                  !seen.contains(tool) else { continue }
+            seen.insert(tool)
+            tools.append(tool)
+            
+            if tools.count >= 4 {
+                break
+            }
+        }
+        
+        if tools.isEmpty {
+            let fallback = allowed ?? defaultRadialTools
+            for tool in fallback where (allowedSet == nil || allowedSet!.contains(tool)) && !seen.contains(tool) {
+                tools.append(tool)
+                seen.insert(tool)
+                if tools.count >= 4 { break }
+            }
+        }
+        
+        return tools
     }
     
     init?(identifier: String) {
@@ -1225,7 +1249,7 @@ struct TextInput: Identifiable {
 
 // MARK: - Radial Tool Palette Views
 
-private struct RadialToolPalette: View {
+struct RadialToolPalette: View {
     let center: CGPoint
     let current: CGPoint
     let tools: [DrawingTool]
@@ -1368,7 +1392,7 @@ private struct RadialToolPalette: View {
     }
 }
 
-private struct SectorShape: Shape {
+struct SectorShape: Shape {
     let startAngle: CGFloat
     let endAngle: CGFloat
     let innerRadius: CGFloat
@@ -1384,6 +1408,8 @@ private struct SectorShape: Shape {
         return path
     }
 }
+
+// MARK: - Right Click capture
 
 private struct RightClickCaptureView: NSViewRepresentable {
     var onRightDown: (CGPoint) -> Void
