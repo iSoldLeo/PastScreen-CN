@@ -1234,37 +1234,101 @@ private struct RadialToolPalette: View {
     let selectedIndex: Int?
     
     var body: some View {
-        let radius: CGFloat = 80
-        let labelRadius: CGFloat = (deadZoneRadius + radius) / 2
+        let radius: CGFloat = 86
+        let labelRadius: CGFloat = (deadZoneRadius + radius) / 2 + 8
         let twoPi = CGFloat.pi * 2
         let sectorAngle = twoPi / CGFloat(max(1, tools.count))
-        let frameSize = (max(labelRadius, radius) + 16) * 2
+        let frameSize = (max(labelRadius, radius) + 22) * 2
         let localCenter = CGPoint(x: frameSize / 2, y: frameSize / 2)
+        let highlightVector = CGPoint(x: current.x - center.x, y: current.y - center.y)
+        let maxOffset = radius - 12
+        let clampedVector = CGPoint(
+            x: max(-maxOffset, min(maxOffset, highlightVector.x)),
+            y: max(-maxOffset, min(maxOffset, highlightVector.y))
+        )
+        let highlightPoint = CGPoint(x: localCenter.x + clampedVector.x, y: localCenter.y + clampedVector.y)
+        let highlightUnit = UnitPoint(x: highlightPoint.x / frameSize, y: highlightPoint.y / frameSize)
         
         ZStack {
-            // Dead zone
+            // Moving glow that follows the pointer
             Circle()
-                .fill(Color.black.opacity(0.35))
-                .frame(width: deadZoneRadius * 2, height: deadZoneRadius * 2)
-            
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color.accentColor.opacity(0.4),
+                            Color.accentColor.opacity(0.12),
+                            Color.accentColor.opacity(0.0)
+                        ]),
+                        center: highlightUnit,
+                        startRadius: 6,
+                        endRadius: radius + 36
+                    )
+                )
+                .blur(radius: 6)
+                .blendMode(.plusLighter)
+                .frame(width: frameSize, height: frameSize)
+                .mask(
+                    Circle()
+                        .frame(width: radius * 2, height: radius * 2)
+                        .position(x: frameSize / 2, y: frameSize / 2)
+                )
+                .allowsHitTesting(false)
+
             // Sectors and labels
             ForEach(Array(tools.enumerated()), id: \.offset) { index, tool in
                 let sectorStart = -CGFloat.pi / 2 + sectorAngle * CGFloat(index)
                 let sectorEnd = sectorStart + sectorAngle
                 let midAngle = (sectorStart + sectorEnd) / 2
+                let isSelected = selectedIndex == index
                 
                 SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                    .fill((selectedIndex == index) ? Color.accentColor.opacity(0.25) : Color.gray.opacity(0.2))
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.22),
+                                        Color.white.opacity(0.08)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .fill(Color.accentColor.opacity(isSelected ? 0.28 : 0.1))
+                            .blendMode(.plusLighter)
+                    )
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .stroke(Color.white.opacity(0.22), lineWidth: 0.9)
+                    )
                 
                 let labelX = localCenter.x + cos(midAngle) * labelRadius
                 let labelY = localCenter.y + sin(midAngle) * labelRadius
-                VStack(spacing: 2) {
+                VStack(spacing: 4) {
                     Image(systemName: tool.systemImage)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
                     Text(toolNameProvider(tool))
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
                 }
-                .padding(6)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.thinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+                        )
+                )
+                .shadow(color: Color.black.opacity(isSelected ? 0.25 : 0.12), radius: isSelected ? 8 : 5, y: isSelected ? 4 : 2)
+                .scaleEffect(isSelected ? 1.08 : 1.0)
+                .animation(.quickSpring, value: isSelected)
                 .position(x: labelX, y: labelY)
 
                 // Divider line at sector boundary
@@ -1279,8 +1343,23 @@ private struct RadialToolPalette: View {
             
             // Center marker
             Circle()
-                .stroke(Color.white.opacity(0.6), lineWidth: 1)
-                .frame(width: deadZoneRadius * 2 + 6, height: deadZoneRadius * 2 + 6)
+                .fill(.regularMaterial)
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.7),
+                                    Color.white.opacity(0.25)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1.4
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 6, y: 4)
+                .frame(width: deadZoneRadius * 2 + 12, height: deadZoneRadius * 2 + 12)
         }
         .frame(width: frameSize, height: frameSize)
         .position(x: center.x, y: center.y)
