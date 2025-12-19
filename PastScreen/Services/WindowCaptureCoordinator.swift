@@ -22,6 +22,7 @@ struct WindowCaptureResult {
     let image: CGImage
     let window: SCWindow
     let application: SCRunningApplication?
+    let paddingPoints: NSEdgeInsets
 }
 
 enum WindowCaptureError: LocalizedError {
@@ -79,10 +80,14 @@ final class WindowCaptureCoordinator {
     func hitTestFrontmostWindow(
         quartzPoint: CGPoint,
         excludingPIDs: Set<pid_t> = [],
-        excludingWindowIDs: Set<CGWindowID> = []
+        excludingWindowIDs: Set<CGWindowID> = [],
+        skipSelfWindows: Bool = true
     ) throws -> WindowHitTestResult {
-        let skipPIDs = excludingPIDs.union([selfPID])
+        let skipPIDs = skipSelfWindows ? excludingPIDs.union([selfPID]) : excludingPIDs
         let skipWindowIDs = excludingWindowIDs
+        let mainDisplayBounds = CGDisplayBounds(CGMainDisplayID())
+        let screenWidth = mainDisplayBounds.width
+        let screenHeight = mainDisplayBounds.height
 
         // Quartz returns on-screen windows ordered front → back.
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -117,8 +122,10 @@ final class WindowCaptureCoordinator {
                 return 0
             }()
 
-            // Filter out non-standard layers (Dock, menu bar, system overlays)
-            guard layer == 0 else { continue }
+            // Allow standard + floating/modal/popup layers; filter out higher system overlays.
+            let normalLevel = Int(CGWindowLevelForKey(.normalWindow))
+            let popupLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+            guard layer >= normalLevel && layer <= popupLevel else { continue }
 
             if let alphaNum = info[kCGWindowAlpha as String] as? NSNumber, alphaNum.doubleValue <= 0 {
                 continue
@@ -127,8 +134,15 @@ final class WindowCaptureCoordinator {
                 continue
             }
 
-            // Exclude Dock explicitly
-            if ownerName == "Dock" { continue }
+            let owner = ownerName ?? ""
+            if owner == "Window Server" || owner == "Dock" || owner == "SystemUIServer" {
+                continue
+            }
+
+            // Skip full-screen overlays (e.g., Mission Control, spaces) that cover the whole display.
+            if quartzBounds.width >= screenWidth - 1 && quartzBounds.height >= screenHeight - 1 {
+                continue
+            }
 
             let appKitBounds = QuartzSpace.appKitRect(fromQuartz: quartzBounds)
 
@@ -147,7 +161,8 @@ final class WindowCaptureCoordinator {
     /// Convenience: hit-test at current mouse location (Quartz coordinates).
     func hitTestFrontmostWindowAtMouse(
         excludingPIDs: Set<pid_t> = [],
-        excludingWindowIDs: Set<CGWindowID> = []
+        excludingWindowIDs: Set<CGWindowID> = [],
+        skipSelfWindows: Bool = true
     ) throws -> WindowHitTestResult {
         // Use AppKit mouse location (bottom-left origin) then convert to Quartz (top-left origin)
         let appKitPoint = NSEvent.mouseLocation
@@ -155,7 +170,8 @@ final class WindowCaptureCoordinator {
         return try hitTestFrontmostWindow(
             quartzPoint: cgPoint,
             excludingPIDs: excludingPIDs,
-            excludingWindowIDs: excludingWindowIDs
+            excludingWindowIDs: excludingWindowIDs,
+            skipSelfWindows: skipSelfWindows
         )
     }
 
@@ -184,15 +200,40 @@ final class WindowCaptureCoordinator {
         config.scalesToFit = false
 
         do {
+            let settings = AppSettings.shared
+            let borderEnabled = settings.windowBorderEnabled
+            let borderPoints = CGFloat(settings.windowBorderWidth)
+            let borderCornerRadius = CGFloat(settings.windowBorderCornerRadius)
+            let borderColor = settings.windowBorderColor.cgColor ?? CGColor(gray: 1, alpha: 1)
+
             let image = try await SCScreenshotManager.captureImage(
                 contentFilter: filter,
                 configuration: config
             )
+            var paddingPoints = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+            let finalImage: CGImage
+            if borderEnabled, borderPoints > 0 {
+                if let bordered = addBorderIfNeeded(
+                    to: image,
+                    borderPoints: borderPoints,
+                    cornerRadiusPoints: borderCornerRadius,
+                    scale: scaleCGFloat,
+                    color: borderColor
+                ) {
+                    finalImage = bordered.image
+                    paddingPoints = bordered.paddingPoints
+                } else {
+                    finalImage = image
+                }
+            } else {
+                finalImage = image
+            }
 
             return WindowCaptureResult(
-                image: image,
+                image: finalImage,
                 window: scWindow,
-                application: scWindow.owningApplication
+                application: scWindow.owningApplication,
+                paddingPoints: paddingPoints
             )
         } catch let streamError as SCStreamError {
             throw WindowCaptureError.streamError(streamError)
@@ -209,5 +250,72 @@ final class WindowCaptureCoordinator {
 
     private func convertQuartzRectToAppKit(_ rect: CGRect) -> CGRect {
         QuartzSpace.appKitRect(fromQuartz: rect)
+    }
+
+    /// Add an outer border around the captured window image.
+    private struct BorderRenderResult {
+        let image: CGImage
+        let paddingPoints: NSEdgeInsets
+    }
+
+    private func addBorderIfNeeded(
+        to image: CGImage,
+        borderPoints: CGFloat,
+        cornerRadiusPoints: CGFloat,
+        scale: CGFloat,
+        color: CGColor = CGColor(gray: 0, alpha: 0.18)
+    ) -> BorderRenderResult? {
+        let borderPixels = max(1, Int(ceil(borderPoints * scale)))
+        let newWidth = image.width + borderPixels * 2
+        let newHeight = image.height + borderPixels * 2
+        let cornerRadiusPixels = max(0, cornerRadiusPoints * scale)
+
+        guard let colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+
+        guard let context = CGContext(
+            data: nil,
+            width: newWidth,
+            height: newHeight,
+            bitsPerComponent: image.bitsPerComponent,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        // Fill border area with rounded corners; transparent outside. Apply shadow to border only.
+        context.setFillColor(color)
+        let outerRect = CGRect(x: 0, y: 0, width: newWidth, height: newHeight)
+        let path = CGPath(
+            roundedRect: outerRect,
+            cornerWidth: cornerRadiusPixels,
+            cornerHeight: cornerRadiusPixels,
+            transform: nil
+        )
+        context.addPath(path)
+        context.fillPath()
+
+        // Draw original image inside the border
+        context.draw(
+            image,
+            in: CGRect(
+                x: borderPixels,
+                y: borderPixels,
+                width: image.width,
+                height: image.height
+            )
+        )
+
+        guard let bordered = context.makeImage() else { return nil }
+
+        let paddingPoints = NSEdgeInsets(
+            top: CGFloat(borderPixels) / scale,
+            left: CGFloat(borderPixels) / scale,
+            bottom: CGFloat(borderPixels) / scale,
+            right: CGFloat(borderPixels) / scale
+        )
+
+        return BorderRenderResult(image: bordered, paddingPoints: paddingPoints)
     }
 }

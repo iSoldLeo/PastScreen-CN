@@ -67,6 +67,11 @@
 "settings.capture.hotkey_disabled_help" = "Enable shortcuts to capture anytime";
 "settings.capture.quick_screenshot" = "Quick Capture";
 "settings.capture.advanced_screenshot" = "Advanced Capture";
+"settings.capture.window_border" = "Window border";
+"settings.capture.window_border.enable" = "Enable window border";
+"settings.capture.window_border.width" = "Border width";
+"settings.capture.window_border.corner" = "Corner radius";
+"settings.capture.window_border.color" = "Border color";
 
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Editing toolbar";

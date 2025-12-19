@@ -67,6 +67,11 @@
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
 "settings.capture.advanced_screenshot" = "高级截图";
+"settings.capture.window_border" = "視窗邊框";
+"settings.capture.window_border.enable" = "啟用視窗邊框";
+"settings.capture.window_border.width" = "邊框寬度";
+"settings.capture.window_border.corner" = "圓角半徑";
+"settings.capture.window_border.color" = "邊框顏色";
 
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "编辑工具栏";

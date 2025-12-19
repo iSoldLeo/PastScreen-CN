@@ -349,7 +349,10 @@ class SelectionOverlayView: NSView {
     private func resolveWindowHit() -> WindowHitTestResult? {
         guard let window = self.window else { return nil }
         do {
-            let hit = try WindowCaptureCoordinator.shared.hitTestFrontmostWindowAtMouse()
+            let hit = try WindowCaptureCoordinator.shared.hitTestFrontmostWindowAtMouse(
+                excludingWindowIDs: Set([CGWindowID(window.windowNumber)]),
+                skipSelfWindows: false
+            )
             let rectOnScreen = hit.bounds
             let rectInWindow = window.convertFromScreen(rectOnScreen)
             let rectInView = convert(rectInWindow, from: nil)

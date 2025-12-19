@@ -278,7 +278,14 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             do {
                 let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(using: hitResult)
-                let sizeRect = CGRect(origin: .zero, size: captureResult.window.frame.size)
+                let padding = captureResult.paddingPoints
+                let sizeRect = CGRect(
+                    origin: .zero,
+                    size: CGSize(
+                        width: captureResult.window.frame.size.width + padding.left + padding.right,
+                        height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                    )
+                )
                 await MainActor.run {
                     self.handleSuccessfulCapture(cgImage: captureResult.image, selectionRect: sizeRect)
                 }
@@ -297,7 +304,14 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             do {
                 let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(using: hitResult)
-                let sizeRect = CGRect(origin: .zero, size: captureResult.window.frame.size)
+                let padding = captureResult.paddingPoints
+                let sizeRect = CGRect(
+                    origin: .zero,
+                    size: CGSize(
+                        width: captureResult.window.frame.size.width + padding.left + padding.right,
+                        height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                    )
+                )
                 await MainActor.run {
                     self.handleAdvancedCapture(cgImage: captureResult.image, selectionRect: sizeRect)
                 }

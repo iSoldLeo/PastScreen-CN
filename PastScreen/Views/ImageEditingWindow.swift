@@ -306,6 +306,12 @@ struct ImageEditingView: View {
             
             // Image editing area
             GeometryReader { geometry in
+                let inset: CGFloat = 6
+                let canvasSize = CGSize(
+                    width: max(0, geometry.size.width - inset * 2),
+                    height: max(0, geometry.size.height - inset * 2)
+                )
+
                 let previewRegion = currentMosaicPreviewRegion()
                 let baseImage = previewRegion != nil
                     ? renderMosaicImage(additionalRegions: [previewRegion!])
@@ -319,7 +325,11 @@ struct ImageEditingView: View {
                     
                     // Mosaic live preview outline
                     if let previewRegion {
-                        let displayRect = convertImageRectToDisplayRect(previewRegion.rect, in: geometry, imageSize: editedImage.size)
+                        let displayRect = convertImageRectToDisplayRect(
+                            previewRegion.rect,
+                            canvasSize: canvasSize,
+                            imageSize: editedImage.size
+                        )
                         Path { path in
                             path.addRect(displayRect)
                         }
@@ -374,7 +384,7 @@ struct ImageEditingView: View {
                     ForEach(Array(textInputs.enumerated()), id: \.element.id) { index, textInput in
                         let textPositionView = calculateTextPosition(
                             for: textInput, 
-                            in: geometry, 
+                            canvasSize: canvasSize, 
                             with: editedImage.size
                         )
                         
@@ -430,7 +440,7 @@ struct ImageEditingView: View {
                 .onTapGesture { location in
                     // Handle tap for text placement
                     if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
-                        placeTextAt(location: location, in: geometry)
+                        placeTextAt(location: location, canvasSize: canvasSize)
                     }
                 }
                 .onHover { isHovering in
@@ -449,15 +459,15 @@ struct ImageEditingView: View {
                             }
                             // Handle drawing for other tools
                             if selectedTool != .text {
-                                handleDragChanged(value: value, in: geometry)
+                                handleDragChanged(value: value, canvasSize: canvasSize)
                             }
                         }
                         .onEnded { value in
                             // Handle text placement on click
                             if selectedTool == .text && waitingForTextPlacement {
-                                placeTextAt(location: value.location, in: geometry)
+                                placeTextAt(location: value.location, canvasSize: canvasSize)
                             } else if selectedTool != .text {
-                                handleDragEnded(value: value, in: geometry)
+                                handleDragEnded(value: value, canvasSize: canvasSize)
                             }
                         }
                 )
@@ -496,6 +506,8 @@ struct ImageEditingView: View {
                         keyboardMonitor = nil
                     }
                 }
+                .frame(width: canvasSize.width, height: canvasSize.height)
+                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
             }
         }
         .onAppear {
@@ -506,36 +518,32 @@ struct ImageEditingView: View {
         }
     }
     
-    private func handleDragChanged(value: DragGesture.Value, in geometry: GeometryProxy) {
+    private func handleDragChanged(value: DragGesture.Value, canvasSize: CGSize) {
         let location = value.location
-        let size = geometry.size
+        let size = canvasSize
         
         // Calculate image display properties (same as in Canvas)
         let imageSize = editedImage.size
-        let aspectRatio = imageSize.width / imageSize.height
-        let canvasAspectRatio = size.width / size.height
+        let displayRect = imageDisplayRect(canvasSize: size, imageSize: imageSize)
+        guard displayRect.width > 0, displayRect.height > 0 else { return }
         
-        // Determine the displayed image size before scaling
-        let displaySize: CGSize
-        if aspectRatio > canvasAspectRatio {
-            // Image is wider, fit to width
-            displaySize = CGSize(width: size.width, height: size.width / aspectRatio)
-        } else {
-            // Image is taller, fit to height
-            displaySize = CGSize(width: size.height * aspectRatio, height: size.height)
+        // Clamp pointer to image display rect to avoid drawing on background
+        let clampedLocation = CGPoint(
+            x: min(max(location.x, displayRect.minX), displayRect.maxX),
+            y: min(max(location.y, displayRect.minY), displayRect.maxY)
+        )
+        if clampedLocation != location && !isDrawing {
+            // If starting outside image, ignore the drag
+            return
         }
         
-        // Calculate offset to center the image
-        let offsetX = (size.width - displaySize.width) / 2
-        let offsetY = (size.height - displaySize.height) / 2
-        
         // Calculate the scale factor from image coordinates to display coordinates
-        let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
+        let imageToDisplayScale = min(displayRect.width / imageSize.width, displayRect.height / imageSize.height)
         
         // Transform screen coordinates to original image coordinates
         let imageLocation = CGPoint(
-            x: (location.x - offsetX) / imageToDisplayScale,
-            y: (location.y - offsetY) / imageToDisplayScale
+            x: (clampedLocation.x - displayRect.minX) / imageToDisplayScale,
+            y: (clampedLocation.y - displayRect.minY) / imageToDisplayScale
         )
         
         // Handle text tool separately
@@ -661,42 +669,35 @@ struct ImageEditingView: View {
         return path
     }
     
-    private func handleDragEnded(value: DragGesture.Value, in geometry: GeometryProxy) {
+    private func handleDragEnded(value: DragGesture.Value, canvasSize: CGSize) {
         let location = value.location
-        let size = geometry.size
+        let size = canvasSize
         
         // Calculate the image position and scale in the canvas
         let imageSize = editedImage.size
-        let aspectRatio = imageSize.width / imageSize.height
-        let canvasAspectRatio = size.width / size.height
+        let displayRect = imageDisplayRect(canvasSize: size, imageSize: imageSize)
+        guard displayRect.width > 0, displayRect.height > 0 else { return }
         
-        // Determine the displayed image size before scaling
-        let displaySize: CGSize
-        if aspectRatio > canvasAspectRatio {
-            // Image is wider, fit to width
-            displaySize = CGSize(width: size.width, height: size.width / aspectRatio)
-        } else {
-            // Image is taller, fit to height
-            displaySize = CGSize(width: size.height * aspectRatio, height: size.height)
+        let clampedLocation = CGPoint(
+            x: min(max(location.x, displayRect.minX), displayRect.maxX),
+            y: min(max(location.y, displayRect.minY), displayRect.maxY)
+        )
+        if clampedLocation != location && !isDrawing {
+            return
         }
         
-        // Calculate offset to center the image
-        let offsetX = (size.width - displaySize.width) / 2
-        let offsetY = (size.height - displaySize.height) / 2
-        
-        // Calculate the scale factor from image coordinates to display coordinates
-        let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
+        let imageToDisplayScale = min(displayRect.width / imageSize.width, displayRect.height / imageSize.height)
         
         // Transform screen coordinates to original image coordinates
         let imageLocation = CGPoint(
-            x: (location.x - offsetX) / imageToDisplayScale,
-            y: (location.y - offsetY) / imageToDisplayScale
+            x: (clampedLocation.x - displayRect.minX) / imageToDisplayScale,
+            y: (clampedLocation.y - displayRect.minY) / imageToDisplayScale
         )
         
         if selectedTool == .text {
             // For text tool, if we're waiting for placement, place the text
             if waitingForTextPlacement {
-                placeTextAt(location: location, in: geometry)
+                placeTextAt(location: location, canvasSize: size)
             }
             return
         }
@@ -748,27 +749,21 @@ struct ImageEditingView: View {
         }
     }
     
-    private func placeTextAt(location: CGPoint, in geometry: GeometryProxy) {
+    private func placeTextAt(location: CGPoint, canvasSize: CGSize) {
         // Convert screen coordinates to image coordinates
-        let size = geometry.size
         let imageSize = editedImage.size
-        let aspectRatio = imageSize.width / imageSize.height
-        let canvasAspectRatio = size.width / size.height
-        
-        let displaySize: CGSize
-        if aspectRatio > canvasAspectRatio {
-            displaySize = CGSize(width: size.width, height: size.width / aspectRatio)
-        } else {
-            displaySize = CGSize(width: size.height * aspectRatio, height: size.height)
-        }
-        
-        let offsetX = (size.width - displaySize.width) / 2
-        let offsetY = (size.height - displaySize.height) / 2
-        let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
+        let displayRect = imageDisplayRect(canvasSize: canvasSize, imageSize: imageSize)
+        guard displayRect.width > 0, displayRect.height > 0 else { return }
+
+        let clampedLocation = CGPoint(
+            x: min(max(location.x, displayRect.minX), displayRect.maxX),
+            y: min(max(location.y, displayRect.minY), displayRect.maxY)
+        )
+        let imageToDisplayScale = min(displayRect.width / imageSize.width, displayRect.height / imageSize.height)
         
         let imageLocation = CGPoint(
-            x: (location.x - offsetX) / imageToDisplayScale,
-            y: (location.y - offsetY) / imageToDisplayScale
+            x: (clampedLocation.x - displayRect.minX) / imageToDisplayScale,
+            y: (clampedLocation.y - displayRect.minY) / imageToDisplayScale
         )
         
         let newText = TextInput(
@@ -1020,19 +1015,19 @@ struct ImageEditingView: View {
         return MosaicRegion(rect: rect, scale: mosaicScale(from: strokeWidth))
     }
     
-    private func convertImageRectToDisplayRect(_ rect: CGRect, in geometry: GeometryProxy, imageSize: CGSize) -> CGRect {
+    private func convertImageRectToDisplayRect(_ rect: CGRect, canvasSize: CGSize, imageSize: CGSize) -> CGRect {
         let aspectRatio = imageSize.width / imageSize.height
-        let canvasAspectRatio = geometry.size.width / geometry.size.height
+        let canvasAspectRatio = canvasSize.width / canvasSize.height
         
         let displaySize: CGSize
         if aspectRatio > canvasAspectRatio {
-            displaySize = CGSize(width: geometry.size.width, height: geometry.size.width / aspectRatio)
+            displaySize = CGSize(width: canvasSize.width, height: canvasSize.width / aspectRatio)
         } else {
-            displaySize = CGSize(width: geometry.size.height * aspectRatio, height: geometry.size.height)
+            displaySize = CGSize(width: canvasSize.height * aspectRatio, height: canvasSize.height)
         }
         
-        let offsetX = (geometry.size.width - displaySize.width) / 2
-        let offsetY = (geometry.size.height - displaySize.height) / 2
+        let offsetX = (canvasSize.width - displaySize.width) / 2
+        let offsetY = (canvasSize.height - displaySize.height) / 2
         let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
         
         return CGRect(
@@ -1041,6 +1036,24 @@ struct ImageEditingView: View {
             width: rect.width * imageToDisplayScale,
             height: rect.height * imageToDisplayScale
         )
+    }
+
+    /// Returns the rect where the image is displayed inside the canvas (centered, aspect fit).
+    private func imageDisplayRect(canvasSize: CGSize, imageSize: CGSize) -> CGRect {
+        let aspectRatio = imageSize.width / imageSize.height
+        let canvasAspectRatio = canvasSize.width / canvasSize.height
+
+        let displaySize: CGSize
+        if aspectRatio > canvasAspectRatio {
+            displaySize = CGSize(width: canvasSize.width, height: canvasSize.width / aspectRatio)
+        } else {
+            displaySize = CGSize(width: canvasSize.height * aspectRatio, height: canvasSize.height)
+        }
+
+        let offsetX = (canvasSize.width - displaySize.width) / 2
+        let offsetY = (canvasSize.height - displaySize.height) / 2
+
+        return CGRect(origin: CGPoint(x: offsetX, y: offsetY), size: displaySize)
     }
     
     // MARK: - Undo/Redo Functions
@@ -1103,19 +1116,19 @@ struct ImageEditingView: View {
         undoStack.append(actionToRedo)
     }
     
-    private func calculateTextPosition(for textInput: TextInput, in geometry: GeometryProxy, with imageSize: CGSize) -> CGPoint {
+    private func calculateTextPosition(for textInput: TextInput, canvasSize: CGSize, with imageSize: CGSize) -> CGPoint {
         let aspectRatio = imageSize.width / imageSize.height
-        let canvasAspectRatio = geometry.size.width / geometry.size.height
+        let canvasAspectRatio = canvasSize.width / canvasSize.height
         
         let displaySize: CGSize
         if aspectRatio > canvasAspectRatio {
-            displaySize = CGSize(width: geometry.size.width, height: geometry.size.width / aspectRatio)
+            displaySize = CGSize(width: canvasSize.width, height: canvasSize.width / aspectRatio)
         } else {
-            displaySize = CGSize(width: geometry.size.height * aspectRatio, height: geometry.size.height)
+            displaySize = CGSize(width: canvasSize.height * aspectRatio, height: canvasSize.height)
         }
         
-        let offsetX = (geometry.size.width - displaySize.width) / 2
-        let offsetY = (geometry.size.height - displaySize.height) / 2
+        let offsetX = (canvasSize.width - displaySize.width) / 2
+        let offsetY = (canvasSize.height - displaySize.height) / 2
         let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
         
         // Convert stored image coordinates to screen coordinates

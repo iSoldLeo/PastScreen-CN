@@ -287,6 +287,59 @@ struct CaptureSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""), systemImage: "square.on.square.dashed")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(NSLocalizedString("settings.capture.window_border.enable", value: "启用窗口边框", comment: ""), isOn: $settings.windowBorderEnabled)
+
+                        if settings.windowBorderEnabled {
+                            Divider()
+                            HStack {
+                                Text(NSLocalizedString("settings.capture.window_border.width", value: "边框宽度", comment: ""))
+                                Slider(value: $settings.windowBorderWidth, in: 8...32, step: 1)
+                                Text("\(Int(settings.windowBorderWidth)) pt")
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                Spacer()
+                            }
+
+                            HStack {
+                                Text(NSLocalizedString("settings.capture.window_border.corner", value: "圆角半径", comment: ""))
+                                Slider(value: $settings.windowBorderCornerRadius, in: 8...32, step: 1)
+                                Text("\(Int(settings.windowBorderCornerRadius)) pt")
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                Spacer()
+                            }
+
+                            HStack {
+                                Text(NSLocalizedString("settings.capture.window_border.color", value: "边框颜色", comment: ""))
+                                ColorPicker(
+                                    "",
+                                    selection: Binding<Color>(
+                                        get: { settings.windowBorderColor.swiftUIColor },
+                                        set: { newColor in
+                                            if let cg = newColor.cgColor, let rgba = RGBAColor(cgColor: cg) {
+                                                settings.windowBorderColor = rgba
+                                            }
+                                        }
+                                    ),
+                                    supportsOpacity: true
+                                )
+                                .labelsHidden()
+                                Spacer()
+                            }
+
+                        }
+                    }
+                    .padding(12)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 Label(NSLocalizedString("settings.capture.shortcuts_section", comment: ""), systemImage: "keyboard")
                     .font(.headline)
                     .padding(.leading, 2)

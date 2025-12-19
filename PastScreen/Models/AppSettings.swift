@@ -130,6 +130,43 @@ struct AppOverride: Codable, Identifiable, Equatable {
     var format: ClipboardFormat
 }
 
+struct RGBAColor: Codable, Equatable {
+    var r: Double
+    var g: Double
+    var b: Double
+    var a: Double
+
+    init(r: Double, g: Double, b: Double, a: Double) {
+        self.r = r; self.g = g; self.b = b; self.a = a
+    }
+
+    init(nsColor: NSColor) {
+        let color = nsColor.usingColorSpace(.sRGB) ?? nsColor
+        self.r = Double(color.redComponent)
+        self.g = Double(color.greenComponent)
+        self.b = Double(color.blueComponent)
+        self.a = Double(color.alphaComponent)
+    }
+
+    init?(cgColor: CGColor) {
+        guard let nsColor = NSColor(cgColor: cgColor)?.usingColorSpace(.sRGB) else { return nil }
+        self.init(nsColor: nsColor)
+    }
+
+    var cgColor: CGColor? {
+        NSColor(
+            calibratedRed: CGFloat(r),
+            green: CGFloat(g),
+            blue: CGFloat(b),
+            alpha: CGFloat(a)
+        ).cgColor
+    }
+
+    var swiftUIColor: Color {
+        Color(.sRGB, red: r, green: g, blue: b, opacity: a)
+    }
+}
+
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system = "system"
     case simplifiedChinese = "zh-Hans"
@@ -151,6 +188,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
+    private let defaultBorderColor = RGBAColor(r: 1, g: 1, b: 1, a: 1)
+    private let defaultBorderWidth: Double = 16
+    private let defaultBorderCornerRadius: Double = 20
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
     private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
     private var isInitialized = false
@@ -171,6 +211,32 @@ class AppSettings: ObservableObject {
     @Published var imageFormat: String {
         didSet {
             UserDefaults.standard.set(imageFormat, forKey: "imageFormat")
+        }
+    }
+
+    @Published var windowBorderEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(windowBorderEnabled, forKey: "windowBorderEnabled")
+        }
+    }
+
+    @Published var windowBorderWidth: Double {
+        didSet {
+            UserDefaults.standard.set(windowBorderWidth, forKey: "windowBorderWidth")
+        }
+    }
+
+    @Published var windowBorderCornerRadius: Double {
+        didSet {
+            UserDefaults.standard.set(windowBorderCornerRadius, forKey: "windowBorderCornerRadius")
+        }
+    }
+
+    @Published var windowBorderColor: RGBAColor {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(windowBorderColor) {
+                UserDefaults.standard.set(encoded, forKey: "windowBorderColor")
+            }
         }
     }
 
@@ -323,6 +389,15 @@ class AppSettings: ObservableObject {
         self.saveFolderPath = UserDefaults.standard.string(forKey: "saveFolderPath") ?? defaultPath
 
         self.imageFormat = UserDefaults.standard.string(forKey: "imageFormat") ?? "png"
+        self.windowBorderEnabled = UserDefaults.standard.object(forKey: "windowBorderEnabled") as? Bool ?? true
+        self.windowBorderWidth = UserDefaults.standard.object(forKey: "windowBorderWidth") as? Double ?? defaultBorderWidth
+        self.windowBorderCornerRadius = UserDefaults.standard.object(forKey: "windowBorderCornerRadius") as? Double ?? defaultBorderCornerRadius
+        if let data = UserDefaults.standard.data(forKey: "windowBorderColor"),
+           let decoded = try? JSONDecoder().decode(RGBAColor.self, from: data) {
+            self.windowBorderColor = decoded
+        } else {
+            self.windowBorderColor = defaultBorderColor
+        }
         self.playSoundOnCapture = UserDefaults.standard.object(forKey: "playSoundOnCapture") as? Bool ?? true
         self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: "globalHotkeyEnabled") as? Bool ?? true
 
