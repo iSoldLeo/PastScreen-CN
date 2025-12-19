@@ -247,6 +247,12 @@ class AppSettings: ObservableObject {
             applyAppLanguage()
         }
     }
+    
+    @Published var radialToolIdentifiers: [String] {
+        didSet {
+            UserDefaults.standard.set(radialToolIdentifiers, forKey: "radialToolIdentifiers")
+        }
+    }
 
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
@@ -314,10 +320,18 @@ class AppSettings: ObservableObject {
         } else {
             self.appLanguage = .system
         }
-        applyAppLanguage()
+        
+        let defaultRadials = DrawingTool.defaultRadialIdentifiers
+        let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers")
+        if let storedRadials, storedRadials.count == defaultRadials.count {
+            self.radialToolIdentifiers = storedRadials
+        } else {
+            self.radialToolIdentifiers = defaultRadials
+        }
 
         restoreFolderAccess()
         ensureFolderExists()
+        applyAppLanguage()
     }
 
     func ensureFolderExists() {
