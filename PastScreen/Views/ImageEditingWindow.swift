@@ -57,7 +57,8 @@ class ImageEditingWindow: NSWindow {
             onCancel: { [weak self] in
                 self?.hide()
                 self?.onCancel?()
-            }
+            },
+            radialTools: DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
         )
         let wrappedView = AnyView(editingView.environmentObject(AppSettings.shared))
         
@@ -86,6 +87,7 @@ struct ImageEditingView: View {
     let image: NSImage
     let onCompletion: (NSImage) -> Void
     let onCancel: () -> Void
+    let radialTools: [DrawingTool]
     @EnvironmentObject private var settings: AppSettings
     
     @State private var editedImage: NSImage
@@ -97,7 +99,10 @@ struct ImageEditingView: View {
     @State private var isDrawing = false
     @State private var mosaicRegions: [MosaicRegion] = []
     private let ciContext = CIContext()
-
+    
+    // Radial tool selector state
+    @State private var radialCenter: CGPoint? = nil
+    @State private var radialCurrentPoint: CGPoint? = nil
     
     // Text tool properties
     @State private var textInputs: [TextInput] = []
@@ -116,10 +121,16 @@ struct ImageEditingView: View {
     // Keyboard monitor for cleanup
     @State private var keyboardMonitor: Any? = nil
     
-    init(image: NSImage, onCompletion: @escaping (NSImage) -> Void, onCancel: @escaping () -> Void) {
+    init(
+        image: NSImage,
+        onCompletion: @escaping (NSImage) -> Void,
+        onCancel: @escaping () -> Void,
+        radialTools: [DrawingTool] = DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
+    ) {
         self.image = image
         self.onCompletion = onCompletion
         self.onCancel = onCancel
+        self.radialTools = radialTools.isEmpty ? DrawingTool.defaultRadialTools : radialTools
         self._editedImage = State(initialValue: image)
     }
     
@@ -163,37 +174,7 @@ struct ImageEditingView: View {
                 HStack(spacing: 6) {
                     ForEach(toolbarTools, id: \.self) { tool in
                         Button(action: { 
-                            let previousTool = selectedTool
-                            let newTool = tool
-                            
-                            // Reset stroke width when switching between text and drawing tools
-                            if newTool == .text && previousTool != .text {
-                                // Switching to text, adjust for text sizing (current value might be too small)
-                                strokeWidth = max(strokeWidth, 2)
-                            } else if newTool != .text && previousTool == .text {
-                                // Switching from text to another tool
-                                // Close text input dialog if open
-                                if showTextInput {
-                                    showTextInput = false
-                                    currentText = ""
-                                }
-                                // If user has entered text but not placed it, cancel placement
-                                if waitingForTextPlacement {
-                                    print("Cancelling waitingForTextPlacement from \(waitingForTextPlacement) to false")
-                                    waitingForTextPlacement = false
-                                }
-                            }
-                            
-                            let maxStroke = sliderMaximum(for: newTool)
-                            strokeWidth = min(maxStroke, max(1, strokeWidth))
-                            
-                            selectedTool = newTool
-                            
-                            if newTool == .text {
-                                showTextInput = true
-                                waitingForTextPlacement = false
-                                previewTextPosition = nil
-                            }
+                            selectTool(tool)
                         }) {
                             Image(systemName: tool.systemImage)
                                 .font(.system(size: 16))
@@ -411,6 +392,37 @@ struct ImageEditingView: View {
                             .position(x: mousePosition.x, y: mousePosition.y)
                     }
                 }
+                // Capture right-click gestures for radial tool selection
+                .overlay(
+                    RightClickCaptureView(
+                        onRightDown: { point in
+                            radialCenter = point
+                            radialCurrentPoint = point
+                        },
+                        onRightDrag: { point in
+                            radialCurrentPoint = point
+                        },
+                        onRightUp: { point in
+                            radialCurrentPoint = point
+                            finalizeRadialSelection()
+                        }
+                    )
+                )
+                // Radial palette overlay
+                .overlay(
+                    Group {
+                        if let center = radialCenter, let current = radialCurrentPoint {
+                            RadialToolPalette(
+                                center: center,
+                                current: current,
+                                tools: radialTools,
+                                deadZoneRadius: 30,
+                                toolNameProvider: toolName(for:),
+                                selectedIndex: radialSelectionIndex()
+                            )
+                        }
+                    }
+                )
                 .clipped()
                 .contentShape(Rectangle()) // Prevent window dragging in this area
                 .onTapGesture { location in
@@ -809,6 +821,74 @@ struct ImageEditingView: View {
         }
     }
     
+    private func selectTool(_ newTool: DrawingTool) {
+        let previousTool = selectedTool
+        
+        if newTool == .text && previousTool != .text {
+            strokeWidth = max(strokeWidth, 2)
+        } else if newTool != .text && previousTool == .text {
+            if showTextInput {
+                showTextInput = false
+                currentText = ""
+            }
+            if waitingForTextPlacement {
+                waitingForTextPlacement = false
+            }
+        }
+        
+        let maxStroke = sliderMaximum(for: newTool)
+        strokeWidth = min(maxStroke, max(1, strokeWidth))
+        
+        selectedTool = newTool
+        
+        if newTool == .text {
+            showTextInput = true
+            waitingForTextPlacement = false
+            previewTextPosition = nil
+        }
+    }
+    
+    // MARK: - Radial tool selector
+    
+    private func finalizeRadialSelection() {
+        defer {
+            radialCenter = nil
+            radialCurrentPoint = nil
+        }
+        guard let index = radialSelectionIndex() else { return }
+        let tool = radialTools[index]
+        selectTool(tool)
+    }
+    
+    private func radialSelectionIndex() -> Int? {
+        guard let center = radialCenter, let current = radialCurrentPoint else { return nil }
+        let dx = current.x - center.x
+        let dy = center.y - current.y // flip Y so up is positive
+        let distance = hypot(dx, dy)
+        let deadZone: CGFloat = 30
+        guard distance > deadZone else { return nil }
+        // Angle in range [0, 2π), with 0 pointing up, clockwise increase
+        let angle = atan2(dy, dx)
+        let twoPi = CGFloat.pi * 2
+        var angleFromTop = (CGFloat.pi / 2) - angle
+        if angleFromTop < 0 { angleFromTop += twoPi }
+        let sectorAngle = twoPi / CGFloat(max(1, radialTools.count))
+        let index = Int(floor(angleFromTop / sectorAngle)) % radialTools.count
+        return index
+    }
+    
+    private func toolName(for tool: DrawingTool) -> String {
+        switch tool {
+        case .pen: return NSLocalizedString("tool.pen", comment: "")
+        case .line: return NSLocalizedString("tool.line", comment: "")
+        case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
+        case .circle: return NSLocalizedString("tool.circle", comment: "")
+        case .arrow: return NSLocalizedString("tool.arrow", comment: "")
+        case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
+        case .text: return NSLocalizedString("tool.text", comment: "")
+        }
+    }
+    
     private func saveEditedImage() {
         // Create a new image with drawings
         let mosaicBaseImage = renderMosaicImage()
@@ -1062,6 +1142,39 @@ enum DrawingTool: String, CaseIterable, Codable {
     case mosaic
     case text
     
+    static var defaultRadialTools: [DrawingTool] { [.arrow, .rectangle, .circle, .line] }
+    static var defaultRadialIdentifiers: [String] { defaultRadialTools.map { $0.identifier } }
+    
+    static func tools(fromIdentifiers identifiers: [String]) -> [DrawingTool] {
+        let mapped = identifiers.compactMap { DrawingTool(identifier: $0) }
+        return mapped.count == identifiers.count && !mapped.isEmpty ? mapped : defaultRadialTools
+    }
+    
+    init?(identifier: String) {
+        switch identifier {
+        case "pen": self = .pen
+        case "line": self = .line
+        case "rectangle": self = .rectangle
+        case "circle": self = .circle
+        case "arrow": self = .arrow
+        case "mosaic": self = .mosaic
+        case "text": self = .text
+        default: return nil
+        }
+    }
+    
+    var identifier: String {
+        switch self {
+        case .pen: return "pen"
+        case .line: return "line"
+        case .rectangle: return "rectangle"
+        case .circle: return "circle"
+        case .arrow: return "arrow"
+        case .mosaic: return "mosaic"
+        case .text: return "text"
+        }
+    }
+    
     var systemImage: String {
         switch self {
         case .pen: return "pencil"
@@ -1108,6 +1221,145 @@ struct TextInput: Identifiable {
     let location: CGPoint
     let color: Color
     let fontSize: CGFloat
+}
+
+// MARK: - Radial Tool Palette Views
+
+private struct RadialToolPalette: View {
+    let center: CGPoint
+    let current: CGPoint
+    let tools: [DrawingTool]
+    let deadZoneRadius: CGFloat
+    let toolNameProvider: (DrawingTool) -> String
+    let selectedIndex: Int?
+    
+    var body: some View {
+        let radius: CGFloat = 80
+        let labelRadius: CGFloat = (deadZoneRadius + radius) / 2
+        let twoPi = CGFloat.pi * 2
+        let sectorAngle = twoPi / CGFloat(max(1, tools.count))
+        let frameSize = (max(labelRadius, radius) + 16) * 2
+        let localCenter = CGPoint(x: frameSize / 2, y: frameSize / 2)
+        
+        ZStack {
+            // Dead zone
+            Circle()
+                .fill(Color.black.opacity(0.35))
+                .frame(width: deadZoneRadius * 2, height: deadZoneRadius * 2)
+            
+            // Sectors and labels
+            ForEach(Array(tools.enumerated()), id: \.offset) { index, tool in
+                let sectorStart = -CGFloat.pi / 2 + sectorAngle * CGFloat(index)
+                let sectorEnd = sectorStart + sectorAngle
+                let midAngle = (sectorStart + sectorEnd) / 2
+                
+                SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                    .fill((selectedIndex == index) ? Color.accentColor.opacity(0.25) : Color.gray.opacity(0.2))
+                
+                let labelX = localCenter.x + cos(midAngle) * labelRadius
+                let labelY = localCenter.y + sin(midAngle) * labelRadius
+                VStack(spacing: 2) {
+                    Image(systemName: tool.systemImage)
+                        .font(.system(size: 14, weight: .medium))
+                    Text(toolNameProvider(tool))
+                        .font(.system(size: 11))
+                }
+                .padding(6)
+                .position(x: labelX, y: labelY)
+
+                // Divider line at sector boundary
+                Path { path in
+                    path.move(to: CGPoint(x: localCenter.x + cos(sectorStart) * deadZoneRadius,
+                                          y: localCenter.y + sin(sectorStart) * deadZoneRadius))
+                    path.addLine(to: CGPoint(x: localCenter.x + cos(sectorStart) * radius,
+                                             y: localCenter.y + sin(sectorStart) * radius))
+                }
+                .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            }
+            
+            // Center marker
+            Circle()
+                .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                .frame(width: deadZoneRadius * 2 + 6, height: deadZoneRadius * 2 + 6)
+        }
+        .frame(width: frameSize, height: frameSize)
+        .position(x: center.x, y: center.y)
+        .animation(.easeOut(duration: 0.08), value: selectedIndex)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct SectorShape: Shape {
+    let startAngle: CGFloat
+    let endAngle: CGFloat
+    let innerRadius: CGFloat
+    let outerRadius: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        
+        path.addArc(center: center, radius: innerRadius, startAngle: Angle(radians: Double(startAngle)), endAngle: Angle(radians: Double(endAngle)), clockwise: false)
+        path.addArc(center: center, radius: outerRadius, startAngle: Angle(radians: Double(endAngle)), endAngle: Angle(radians: Double(startAngle)), clockwise: true)
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct RightClickCaptureView: NSViewRepresentable {
+    var onRightDown: (CGPoint) -> Void
+    var onRightDrag: (CGPoint) -> Void
+    var onRightUp: (CGPoint) -> Void
+    
+    func makeNSView(context: Context) -> NSView {
+        let view = CaptureView()
+        view.onRightDown = onRightDown
+        view.onRightDrag = onRightDrag
+        view.onRightUp = onRightUp
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+    
+    private class CaptureView: NSView {
+        var onRightDown: ((CGPoint) -> Void)?
+        var onRightDrag: ((CGPoint) -> Void)?
+        var onRightUp: ((CGPoint) -> Void)?
+        
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            // Only capture right/other mouse events; let left-clicks fall through.
+            guard let event = NSApp.currentEvent else { return nil }
+            switch event.type {
+            case .rightMouseDown, .rightMouseDragged, .rightMouseUp,
+                 .otherMouseDown, .otherMouseDragged, .otherMouseUp:
+                return self
+            default:
+                return nil
+            }
+        }
+        
+        override func rightMouseDown(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            let flipped = flipY(point)
+            onRightDown?(flipped)
+        }
+        
+        override func rightMouseDragged(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            let flipped = flipY(point)
+            onRightDrag?(flipped)
+        }
+        
+        override func rightMouseUp(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            let flipped = flipY(point)
+            onRightUp?(flipped)
+        }
+        
+        private func flipY(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: point.x, y: bounds.height - point.y)
+        }
+    }
 }
 
 extension View {
