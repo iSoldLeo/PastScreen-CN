@@ -5,7 +5,7 @@
 <p align="center">极速截图，自动进剪贴板。原生应用，小而快。</p>
 <p align="center">
   <a href="https://www.apple.com/macos/">
-    <img src="https://img.shields.io/badge/platform-macOS%2026+-blue.svg" alt="Platform macOS 26+">
+    <img src="https://img.shields.io/badge/platform-macOS%2014+-blue.svg" alt="Platform macOS 14+">
   </a>
   <a href="https://swift.org/">
     <img src="https://img.shields.io/badge/Swift-5.9-orange.svg" alt="Swift 5.9">
