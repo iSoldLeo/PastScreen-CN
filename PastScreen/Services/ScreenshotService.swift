@@ -273,7 +273,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             onCompletion: { [weak self] editedImage in
                 self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
             },
-            onCancel: { [weak self] in
+            onCancel: {
                 // Just close editing window, no further action - user cancelled
             }
         )

@@ -226,6 +226,7 @@
 /* Editor */
 "editor.window.title" = "编辑截图";
 "editor.text.size" = "大小";
+"editor.mosaic.size" = "马赛克大小";
 "editor.stroke.width" = "粗细";
 "editor.text.title" = "输入文字";
 "editor.text.placeholder" = "请输入文字";
@@ -236,4 +237,5 @@
 "tool.rectangle" = "矩形";
 "tool.circle" = "圆形";
 "tool.arrow" = "箭头";
+"tool.mosaic" = "马赛克";
 "tool.text" = "文字";

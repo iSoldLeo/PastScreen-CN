@@ -7,6 +7,8 @@
 
 import SwiftUI
 import AppKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 class ImageEditingWindow: NSWindow {
     private var hostingView: NSHostingView<ImageEditingView>!
@@ -91,7 +93,8 @@ struct ImageEditingView: View {
     @State private var drawingPaths: [DrawingPath] = []
     @State private var currentPath: DrawingPath?
     @State private var isDrawing = false
-    
+    @State private var mosaicRegions: [MosaicRegion] = []
+    private let ciContext = CIContext()
 
     
     // Text tool properties
@@ -157,12 +160,10 @@ struct ImageEditingView: View {
                                     print("Cancelling waitingForTextPlacement from \(waitingForTextPlacement) to false")
                                     waitingForTextPlacement = false
                                 }
-                                // Clamp to drawing limits (all non-text tools have max 10)
-                                strokeWidth = min(strokeWidth, 10)
-                            } else if newTool != .text {
-                                // Switching between non-text tools, ensure it doesn't exceed 10
-                                strokeWidth = min(strokeWidth, 10)
                             }
+                            
+                            let maxStroke = sliderMaximum(for: newTool)
+                            strokeWidth = min(maxStroke, max(1, strokeWidth))
                             
                             selectedTool = newTool
                             
@@ -198,17 +199,18 @@ struct ImageEditingView: View {
                         .frame(width: 28, height: 28)
                     
                     // Stroke width/Text size
+                    let sliderMax = sliderMaximum(for: selectedTool)
                     VStack(spacing: 2) {
-                        Text(selectedTool == .text ? NSLocalizedString("editor.text.size", comment: "") : NSLocalizedString("editor.stroke.width", comment: ""))
+                        Text(sliderLabel(for: selectedTool))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                         HStack(spacing: 4) {
                             Text("1")
                                 .font(.system(size: 9))
                                 .foregroundColor(Color.secondary.opacity(0.6))
-                            Slider(value: $strokeWidth, in: 1...(selectedTool == .text ? 50 : 10), step: 1)
+                            Slider(value: $strokeWidth, in: 1...sliderMax, step: 1)
                                 .frame(width: 100)
-                            Text(selectedTool == .text ? "50" : "10")
+                            Text("\(Int(sliderMax))")
                                 .font(.system(size: 9))
                                 .foregroundColor(Color.secondary.opacity(0.6))
                         }
@@ -282,7 +284,7 @@ struct ImageEditingView: View {
                                 if selectedTool == .text {
                                     selectedTool = .pen
                                     // 确保画笔粗细在合理范围内
-                                    strokeWidth = min(strokeWidth, 10)
+                                    strokeWidth = min(strokeWidth, sliderMaximum(for: selectedTool))
                                 }
                             }
                             .padding()
@@ -301,11 +303,26 @@ struct ImageEditingView: View {
             
             // Image editing area
             GeometryReader { geometry in
+                let previewRegion = currentMosaicPreviewRegion()
+                let baseImage = previewRegion != nil
+                    ? renderMosaicImage(additionalRegions: [previewRegion!])
+                    : editedImage
+                
                 ZStack {
                     // Background image
-                    Image(nsImage: editedImage)
+                    Image(nsImage: baseImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
+                    
+                    // Mosaic live preview outline
+                    if let previewRegion {
+                        let displayRect = convertImageRectToDisplayRect(previewRegion.rect, in: geometry, imageSize: editedImage.size)
+                        Path { path in
+                            path.addRect(displayRect)
+                        }
+                        .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
+                        .allowsHitTesting(false)
+                    }
                     
                     // Drawing overlay
                     Canvas { context, size in
@@ -336,7 +353,8 @@ struct ImageEditingView: View {
                             var contextCopy = context
                             contextCopy.translateBy(x: offsetX, y: offsetY)
                             contextCopy.scaleBy(x: imageToDisplayScale, y: imageToDisplayScale)
-                            contextCopy.stroke(drawingPath.path, with: .color(drawingPath.color), lineWidth: drawingPath.strokeWidth)
+                            let width = drawingPath.tool == .mosaic ? 1.5 : drawingPath.strokeWidth
+                            contextCopy.stroke(drawingPath.path, with: .color(drawingPath.color), lineWidth: width)
                         }
                         
                         // Draw the current path being drawn
@@ -344,7 +362,8 @@ struct ImageEditingView: View {
                             var contextCopy = context
                             contextCopy.translateBy(x: offsetX, y: offsetY)
                             contextCopy.scaleBy(x: imageToDisplayScale, y: imageToDisplayScale)
-                            contextCopy.stroke(currentPath.path, with: .color(currentPath.color), lineWidth: currentPath.strokeWidth)
+                            let width = currentPath.tool == .mosaic ? 1.5 : currentPath.strokeWidth
+                            contextCopy.stroke(currentPath.path, with: .color(currentPath.color), lineWidth: width)
                         }
                     }
                     
@@ -495,6 +514,8 @@ struct ImageEditingView: View {
                 newPath.move(to: imageLocation)
             case .arrow:
                 newPath.move(to: imageLocation)
+            case .mosaic:
+                newPath.move(to: imageLocation)
             case .text:
                 newPath.move(to: imageLocation)
             }
@@ -545,6 +566,17 @@ struct ImageEditingView: View {
             case .arrow:
                 let startPoint = currentPath!.startPoint
                 updatedPath = createArrowPath(from: startPoint, to: imageLocation)
+            case .mosaic:
+                let startPoint = currentPath!.startPoint
+                let rect = CGRect(
+                    x: min(startPoint.x, imageLocation.x),
+                    y: min(startPoint.y, imageLocation.y),
+                    width: abs(imageLocation.x - startPoint.x),
+                    height: abs(imageLocation.y - startPoint.y)
+                )
+                updatedPath = Path { path in
+                    path.addRect(rect)
+                }
             case .text:
                 updatedPath = currentPath!.path
             }
@@ -608,7 +640,7 @@ struct ImageEditingView: View {
         let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
         
         // Transform screen coordinates to original image coordinates
-        let _ = CGPoint(
+        let imageLocation = CGPoint(
             x: (location.x - offsetX) / imageToDisplayScale,
             y: (location.y - offsetY) / imageToDisplayScale
         )
@@ -622,9 +654,29 @@ struct ImageEditingView: View {
         }
         
         if let path = currentPath {
-            drawingPaths.append(path)
-            undoStack.append(.addPath(path))
-            saveState()
+            switch selectedTool {
+            case .mosaic:
+                let startPoint = path.startPoint
+                let rect = CGRect(
+                    x: min(startPoint.x, imageLocation.x),
+                    y: min(startPoint.y, imageLocation.y),
+                    width: abs(imageLocation.x - startPoint.x),
+                    height: abs(imageLocation.y - startPoint.y)
+                )
+                let clampedRect = clampRectToImage(rect: rect, imageSize: imageSize)
+                
+                if clampedRect.width > 1 && clampedRect.height > 1 {
+                    let region = MosaicRegion(rect: clampedRect, scale: mosaicScale(from: strokeWidth))
+                    mosaicRegions.append(region)
+                    undoStack.append(.addMosaic(region))
+                    saveState()
+                    refreshEditedImage()
+                }
+            default:
+                drawingPaths.append(path)
+                undoStack.append(.addPath(path))
+                saveState()
+            }
         }
         currentPath = nil
         isDrawing = false
@@ -644,7 +696,7 @@ struct ImageEditingView: View {
             // 如果没有输入文字，切换回画笔工具
             selectedTool = .pen
             // 确保画笔粗细在合理范围内
-            strokeWidth = min(strokeWidth, 10)
+            strokeWidth = min(strokeWidth, sliderMaximum(for: selectedTool))
         }
     }
     
@@ -688,7 +740,7 @@ struct ImageEditingView: View {
         // Switch back to pen tool after text placement
         selectedTool = .pen
         // 确保画笔粗细在合理范围内
-        strokeWidth = min(strokeWidth, 10)
+        strokeWidth = min(strokeWidth, sliderMaximum(for: selectedTool))
     }
     
     private func addTextAtLocation() {
@@ -709,6 +761,26 @@ struct ImageEditingView: View {
         currentText = ""
     }
     
+    private func sliderLabel(for tool: DrawingTool) -> String {
+        switch tool {
+        case .text:
+            return NSLocalizedString("editor.text.size", comment: "")
+        case .mosaic:
+            return NSLocalizedString("editor.mosaic.size", comment: "")
+        default:
+            return NSLocalizedString("editor.stroke.width", comment: "")
+        }
+    }
+    
+    private func sliderMaximum(for tool: DrawingTool) -> Double {
+        switch tool {
+        case .text, .mosaic:
+            return 50
+        default:
+            return 10
+        }
+    }
+    
     private func toolName(for tool: DrawingTool) -> String {
         switch tool {
         case .pen: return NSLocalizedString("tool.pen", comment: "")
@@ -716,15 +788,17 @@ struct ImageEditingView: View {
         case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
         case .circle: return NSLocalizedString("tool.circle", comment: "")
         case .arrow: return NSLocalizedString("tool.arrow", comment: "")
+        case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
         case .text: return NSLocalizedString("tool.text", comment: "")
         }
     }
     
     private func saveEditedImage() {
         // Create a new image with drawings
+        let mosaicBaseImage = renderMosaicImage()
         let renderer = ImageRenderer(content: 
             ZStack {
-                Image(nsImage: image)
+                Image(nsImage: mosaicBaseImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                 
@@ -749,6 +823,121 @@ struct ImageEditingView: View {
         }
     }
     
+    // MARK: - Mosaic Helpers
+    
+    private func refreshEditedImage() {
+        editedImage = renderMosaicImage()
+    }
+    
+    private func renderMosaicImage(additionalRegions: [MosaicRegion] = []) -> NSImage {
+        let regions = mosaicRegions + additionalRegions
+        guard !regions.isEmpty else { return image }
+        guard
+            let tiffData = image.tiffRepresentation,
+            let ciImage = CIImage(data: tiffData)
+        else {
+            return image
+        }
+        
+        let baseSize = image.size
+        var outputImage = ciImage
+        
+        for region in regions {
+            let ciRect = ciRectFromImageRect(region.rect, imageSize: baseSize, ciExtent: ciImage.extent)
+            guard ciRect.width > 0, ciRect.height > 0 else { continue }
+            
+            let pixellate = CIFilter.pixellate()
+            pixellate.inputImage = outputImage
+            pixellate.scale = Float(max(1, region.scale))
+            pixellate.center = CGPoint(x: ciRect.midX, y: ciRect.midY)
+            guard let pixellated = pixellate.outputImage?.cropped(to: outputImage.extent) else { continue }
+            
+            guard let mask = createMask(for: ciRect, extent: outputImage.extent) else { continue }
+            
+            if let blended = CIFilter(
+                name: "CIBlendWithMask",
+                parameters: [
+                    kCIInputImageKey: pixellated,
+                    kCIInputBackgroundImageKey: outputImage,
+                    kCIInputMaskImageKey: mask
+                ]
+            )?.outputImage {
+                outputImage = blended
+            }
+        }
+        
+        guard let cgImage = ciContext.createCGImage(outputImage, from: ciImage.extent) else {
+            return image
+        }
+        
+        return NSImage(cgImage: cgImage, size: image.size)
+    }
+    
+    private func createMask(for rect: CGRect, extent: CGRect) -> CIImage? {
+        guard rect.width > 0, rect.height > 0 else { return nil }
+        let black = CIImage(color: .black).cropped(to: extent)
+        let white = CIImage(color: .white).cropped(to: rect)
+        return white.composited(over: black)
+    }
+    
+    private func ciRectFromImageRect(_ rect: CGRect, imageSize: CGSize, ciExtent: CGRect) -> CGRect {
+        let scaleX = ciExtent.width / imageSize.width
+        let scaleY = ciExtent.height / imageSize.height
+        return CGRect(
+            x: rect.origin.x * scaleX,
+            y: (imageSize.height - rect.origin.y - rect.height) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        )
+    }
+    
+    private func clampRectToImage(rect: CGRect, imageSize: CGSize) -> CGRect {
+        let minX = max(0, min(rect.origin.x, imageSize.width))
+        let minY = max(0, min(rect.origin.y, imageSize.height))
+        let maxX = min(rect.maxX, imageSize.width)
+        let maxY = min(rect.maxY, imageSize.height)
+        return CGRect(
+            x: minX,
+            y: minY,
+            width: max(0, maxX - minX),
+            height: max(0, maxY - minY)
+        )
+    }
+    
+    private func mosaicScale(from strokeWidth: Double) -> Double {
+        max(4, strokeWidth * 4)
+    }
+    
+    private func currentMosaicPreviewRegion() -> MosaicRegion? {
+        guard selectedTool == .mosaic, isDrawing, let path = currentPath else { return nil }
+        let rect = clampRectToImage(rect: path.path.boundingRect, imageSize: editedImage.size)
+        guard rect.width > 1, rect.height > 1 else { return nil }
+        return MosaicRegion(rect: rect, scale: mosaicScale(from: strokeWidth))
+    }
+    
+    private func convertImageRectToDisplayRect(_ rect: CGRect, in geometry: GeometryProxy, imageSize: CGSize) -> CGRect {
+        let aspectRatio = imageSize.width / imageSize.height
+        let canvasAspectRatio = geometry.size.width / geometry.size.height
+        
+        let displaySize: CGSize
+        if aspectRatio > canvasAspectRatio {
+            displaySize = CGSize(width: geometry.size.width, height: geometry.size.width / aspectRatio)
+        } else {
+            displaySize = CGSize(width: geometry.size.height * aspectRatio, height: geometry.size.height)
+        }
+        
+        let offsetX = (geometry.size.width - displaySize.width) / 2
+        let offsetY = (geometry.size.height - displaySize.height) / 2
+        let imageToDisplayScale = min(displaySize.width / imageSize.width, displaySize.height / imageSize.height)
+        
+        return CGRect(
+            x: offsetX + rect.origin.x * imageToDisplayScale,
+            y: offsetY + rect.origin.y * imageToDisplayScale,
+            width: rect.width * imageToDisplayScale,
+            height: rect.height * imageToDisplayScale
+        )
+    }
+    
     // MARK: - Undo/Redo Functions
     
     private func undo() {
@@ -767,6 +956,14 @@ struct ImageEditingView: View {
             }
         case .removeText(let text, let index):
             textInputs.insert(text, at: index)
+        case .addMosaic(let region):
+            if let index = mosaicRegions.firstIndex(where: { $0.id == region.id }) {
+                mosaicRegions.remove(at: index)
+                refreshEditedImage()
+            }
+        case .removeMosaic(let region, let index):
+            mosaicRegions.insert(region, at: index)
+            refreshEditedImage()
         }
         
         redoStack.append(lastAction)
@@ -787,6 +984,14 @@ struct ImageEditingView: View {
         case .removeText(let text, _):
             if let index = textInputs.firstIndex(where: { $0.id == text.id }) {
                 textInputs.remove(at: index)
+            }
+        case .addMosaic(let region):
+            mosaicRegions.append(region)
+            refreshEditedImage()
+        case .removeMosaic(let region, _):
+            if let index = mosaicRegions.firstIndex(where: { $0.id == region.id }) {
+                mosaicRegions.remove(at: index)
+                refreshEditedImage()
             }
         }
         
@@ -828,6 +1033,8 @@ enum EditAction {
     case removePath(DrawingPath, index: Int)
     case addText(TextInput)
     case removeText(TextInput, index: Int)
+    case addMosaic(MosaicRegion)
+    case removeMosaic(MosaicRegion, index: Int)
 }
 
 enum DrawingTool: CaseIterable {
@@ -836,6 +1043,7 @@ enum DrawingTool: CaseIterable {
     case rectangle
     case circle
     case arrow
+    case mosaic
     case text
     
     var systemImage: String {
@@ -845,6 +1053,7 @@ enum DrawingTool: CaseIterable {
         case .rectangle: return "rectangle"
         case .circle: return "circle"
         case .arrow: return "arrow.right"
+        case .mosaic: return "square.grid.3x3"
         case .text: return "textformat"
         }
     }
@@ -857,6 +1066,12 @@ struct DrawingPath: Identifiable {
     let strokeWidth: Double
     let tool: DrawingTool
     let startPoint: CGPoint
+}
+
+struct MosaicRegion: Identifiable {
+    var id = UUID()
+    let rect: CGRect
+    let scale: Double
 }
 
 struct TextInput: Identifiable {
