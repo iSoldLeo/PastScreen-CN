@@ -290,6 +290,12 @@ class AppSettings: ObservableObject {
             UserDefaults.standard.set(radialToolIdentifiers, forKey: "radialToolIdentifiers")
         }
     }
+    
+    @Published var radialWheelEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(radialWheelEnabled, forKey: "radialWheelEnabled")
+        }
+    }
 
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
@@ -376,6 +382,7 @@ class AppSettings: ObservableObject {
             resolvedEnabledTools = defaultEditingTools
         }
         self.enabledEditingTools = resolvedEnabledTools
+        self.radialWheelEnabled = UserDefaults.standard.object(forKey: "radialWheelEnabled") as? Bool ?? true
 
         let defaultRadials = DrawingTool.defaultRadialIdentifiers
         let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials

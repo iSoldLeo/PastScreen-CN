@@ -406,6 +406,8 @@ struct EditorSettingsView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
+                        Toggle(NSLocalizedString("settings.editor.radial.enabled", comment: ""), isOn: $settings.radialWheelEnabled)
+
                         Text(NSLocalizedString("settings.editor.radial.description", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -413,72 +415,76 @@ struct EditorSettingsView: View {
 
                         Divider()
 
-                        ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
-                            HStack(spacing: 8) {
-                                Picker("", selection: Binding(
-                                    get: { radialTools[index] },
-                                    set: { newValue in updateRadialTool(at: index, with: newValue) }
-                                )) {
-                                    ForEach(availableRadialTools, id: \.self) { option in
-                                        Label(option.localizedName, systemImage: option.systemImage)
-                                            .tag(option)
+                        Group {
+                            ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
+                                HStack(spacing: 8) {
+                                    Picker("", selection: Binding(
+                                        get: { radialTools[index] },
+                                        set: { newValue in updateRadialTool(at: index, with: newValue) }
+                                    )) {
+                                        ForEach(availableRadialTools, id: \.self) { option in
+                                            Label(option.localizedName, systemImage: option.systemImage)
+                                                .tag(option)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(maxWidth: 200, alignment: .leading)
+
+                                    Spacer()
+
+                                    HStack(spacing: 4) {
+                                        Button {
+                                            moveRadialTool(at: index, offset: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(index == 0)
+
+                                        Button {
+                                            moveRadialTool(at: index, offset: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(index == radialTools.count - 1)
+
+                                        Button {
+                                            removeRadialTool(at: index)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(radialTools.count <= 1)
                                     }
                                 }
-                                .labelsHidden()
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: 200, alignment: .leading)
+                            }
 
-                                Spacer()
-
-                                HStack(spacing: 4) {
-                                    Button {
-                                        moveRadialTool(at: index, offset: -1)
-                                    } label: {
-                                        Image(systemName: "chevron.up")
-                                            .frame(width: 18, height: 18)
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .controlSize(.small)
-                                    .disabled(index == 0)
-
-                                    Button {
-                                        moveRadialTool(at: index, offset: 1)
-                                    } label: {
-                                        Image(systemName: "chevron.down")
-                                            .frame(width: 18, height: 18)
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .controlSize(.small)
-                                    .disabled(index == radialTools.count - 1)
-
-                                    Button {
-                                        removeRadialTool(at: index)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .frame(width: 18, height: 18)
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .controlSize(.small)
-                                    .disabled(radialTools.count <= 1)
+                            if radialTools.count < maxRadialCount {
+                                Button {
+                                    addRadialTool()
+                                } label: {
+                                    Label(NSLocalizedString("settings.editor.radial.add", comment: ""), systemImage: "plus.circle")
                                 }
+                                .buttonStyle(.borderless)
                             }
+
+                            RadialWheelPreview(tools: radialTools)
+                                .frame(maxWidth: .infinity)
+
+                            Text(NSLocalizedString("settings.editor.radial.note", comment: ""))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-
-                        if radialTools.count < maxRadialCount {
-                            Button {
-                                addRadialTool()
-                            } label: {
-                                Label(NSLocalizedString("settings.editor.radial.add", comment: ""), systemImage: "plus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                        }
-
-                        RadialWheelPreview(tools: radialTools)
-                            .frame(maxWidth: .infinity)
-
-                        Text(NSLocalizedString("settings.editor.radial.note", comment: ""))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        .disabled(!settings.radialWheelEnabled)
+                        .opacity(settings.radialWheelEnabled ? 1 : 0.6)
                     }
                     .padding(12)
                 }

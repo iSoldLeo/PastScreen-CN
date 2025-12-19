@@ -393,36 +393,38 @@ struct ImageEditingView: View {
                     }
                 }
                 // Capture right-click gestures for radial tool selection
-                .overlay(
-                    RightClickCaptureView(
-                        onRightDown: { point in
-                            radialCenter = point
-                            radialCurrentPoint = point
-                        },
-                        onRightDrag: { point in
-                            radialCurrentPoint = point
-                        },
-                        onRightUp: { point in
-                            radialCurrentPoint = point
-                            finalizeRadialSelection()
-                        }
-                    )
-                )
-                // Radial palette overlay
-                .overlay(
-                    Group {
-                        if let center = radialCenter, let current = radialCurrentPoint {
-                            RadialToolPalette(
-                                center: center,
-                                current: current,
-                                tools: radialTools,
-                                deadZoneRadius: 30,
-                                toolNameProvider: toolName(for:),
-                                selectedIndex: radialSelectionIndex()
-                            )
-                        }
+                .overlay {
+                    if settings.radialWheelEnabled {
+                        RightClickCaptureView(
+                            onRightDown: { point in
+                                radialCenter = point
+                                radialCurrentPoint = point
+                            },
+                            onRightDrag: { point in
+                                radialCurrentPoint = point
+                            },
+                            onRightUp: { point in
+                                radialCurrentPoint = point
+                                finalizeRadialSelection()
+                            }
+                        )
                     }
-                )
+                }
+                // Radial palette overlay
+                .overlay {
+                    if settings.radialWheelEnabled,
+                       let center = radialCenter,
+                       let current = radialCurrentPoint {
+                        RadialToolPalette(
+                            center: center,
+                            current: current,
+                            tools: radialTools,
+                            deadZoneRadius: 30,
+                            toolNameProvider: toolName(for:),
+                            selectedIndex: radialSelectionIndex()
+                        )
+                    }
+                }
                 .clipped()
                 .contentShape(Rectangle()) // Prevent window dragging in this area
                 .onTapGesture { location in
@@ -459,6 +461,12 @@ struct ImageEditingView: View {
                             }
                         }
                 )
+                .onChange(of: settings.radialWheelEnabled) { _, isEnabled in
+                    if !isEnabled {
+                        radialCenter = nil
+                        radialCurrentPoint = nil
+                    }
+                }
                 .onAppear {
                     // Setup keyboard shortcuts for undo/redo
                     keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -855,6 +863,7 @@ struct ImageEditingView: View {
             radialCenter = nil
             radialCurrentPoint = nil
         }
+        guard settings.radialWheelEnabled else { return }
         guard let index = radialSelectionIndex() else { return }
         let tool = radialTools[index]
         selectTool(tool)
