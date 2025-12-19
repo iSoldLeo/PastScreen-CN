@@ -18,6 +18,7 @@
 /* Settings - Tabs */
 "settings.tab.general" = "General";
 "settings.tab.capture" = "Capture";
+"settings.tab.editor" = "Editor";
 "settings.tab.storage" = "Storage";
 "settings.tab.apps" = "Apps";
 
@@ -66,6 +67,17 @@
 "settings.capture.hotkey_disabled_help" = "Enable shortcuts to capture anytime";
 "settings.capture.quick_screenshot" = "Quick Capture";
 "settings.capture.advanced_screenshot" = "Advanced Capture";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "Editing toolbar";
+"settings.editor.toolbar.description" = "Choose which tools appear after taking an advanced capture.";
+"settings.editor.toolbar.reorder_hint" = "Use the arrows on the right to reorder the toolbar.";
+"settings.editor.toolbar.note" = "Keep at least one tool enabled.";
+"settings.editor.radial.title" = "Quick wheel";
+"settings.editor.radial.description" = "Customize the right-click quick wheel with 1-4 enabled tools.";
+"settings.editor.radial.enabled" = "Use quick wheel";
+"settings.editor.radial.add" = "Add tool";
+"settings.editor.radial.note" = "Keep at least one tool. Right-click in the editor to open the wheel.";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "Save location";

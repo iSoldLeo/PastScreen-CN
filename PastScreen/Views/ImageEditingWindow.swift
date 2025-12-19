@@ -11,7 +11,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 
 class ImageEditingWindow: NSWindow {
-    private var hostingView: NSHostingView<ImageEditingView>!
+    private var hostingView: NSHostingView<AnyView>!
     private var screenshotImage: NSImage
     private var onCompletion: ((NSImage) -> Void)?
     private var onCancel: (() -> Void)?
@@ -58,10 +58,11 @@ class ImageEditingWindow: NSWindow {
                 self?.hide()
                 self?.onCancel?()
             },
-            radialTools: DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
+            radialTools: AppSettings.shared.radialDrawingTools
         )
+        let wrappedView = AnyView(editingView.environmentObject(AppSettings.shared))
         
-        hostingView = NSHostingView(rootView: editingView)
+        hostingView = NSHostingView(rootView: wrappedView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         contentView?.addSubview(hostingView)
         
@@ -87,9 +88,10 @@ struct ImageEditingView: View {
     let onCompletion: (NSImage) -> Void
     let onCancel: () -> Void
     let radialTools: [DrawingTool]
+    @EnvironmentObject private var settings: AppSettings
     
     @State private var editedImage: NSImage
-    @State private var selectedTool: DrawingTool = .pen
+    @State private var selectedTool: DrawingTool = ImageEditingView.defaultTool()
     @State private var selectedColor: Color = .red
     @State private var strokeWidth: Double = 2.0
     @State private var drawingPaths: [DrawingPath] = []
@@ -123,13 +125,21 @@ struct ImageEditingView: View {
         image: NSImage,
         onCompletion: @escaping (NSImage) -> Void,
         onCancel: @escaping () -> Void,
-        radialTools: [DrawingTool] = DrawingTool.tools(fromIdentifiers: AppSettings.shared.radialToolIdentifiers)
+        radialTools: [DrawingTool] = AppSettings.shared.radialDrawingTools
     ) {
         self.image = image
         self.onCompletion = onCompletion
         self.onCancel = onCancel
         self.radialTools = radialTools.isEmpty ? DrawingTool.defaultRadialTools : radialTools
         self._editedImage = State(initialValue: image)
+    }
+    
+    private static func defaultTool() -> DrawingTool {
+        let settings = AppSettings.shared
+        if let firstEnabled = settings.orderedEnabledEditingTools.first {
+            return firstEnabled
+        }
+        return settings.orderedEditingTools.first ?? .pen
     }
     
     // MARK: - Undo/Redo Properties
@@ -142,6 +152,18 @@ struct ImageEditingView: View {
         !redoStack.isEmpty
     }
     
+    private var toolbarTools: [DrawingTool] {
+        let orderedEnabled = settings.orderedEnabledEditingTools
+        return orderedEnabled.isEmpty ? settings.orderedEditingTools : orderedEnabled
+    }
+    
+    private func ensureValidSelectedTool() {
+        let available = toolbarTools
+        if !available.contains(selectedTool) {
+            selectedTool = available.first ?? .pen
+        }
+    }
+
     // MARK: - Body View
     
     var body: some View {
@@ -150,7 +172,7 @@ struct ImageEditingView: View {
             HStack(spacing: 16) {
                 // Drawing tools
                 HStack(spacing: 6) {
-                    ForEach(DrawingTool.allCases, id: \.self) { tool in
+                    ForEach(toolbarTools, id: \.self) { tool in
                         Button(action: { 
                             selectTool(tool)
                         }) {
@@ -164,7 +186,7 @@ struct ImageEditingView: View {
                                 )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        .help(toolName(for: tool))
+                        .help(tool.localizedName)
                     }
                 }
                 .padding(.leading, 4)
@@ -371,36 +393,38 @@ struct ImageEditingView: View {
                     }
                 }
                 // Capture right-click gestures for radial tool selection
-                .overlay(
-                    RightClickCaptureView(
-                        onRightDown: { point in
-                            radialCenter = point
-                            radialCurrentPoint = point
-                        },
-                        onRightDrag: { point in
-                            radialCurrentPoint = point
-                        },
-                        onRightUp: { point in
-                            radialCurrentPoint = point
-                            finalizeRadialSelection()
-                        }
-                    )
-                )
-                // Radial palette overlay
-                .overlay(
-                    Group {
-                        if let center = radialCenter, let current = radialCurrentPoint {
-                            RadialToolPalette(
-                                center: center,
-                                current: current,
-                                tools: radialTools,
-                                deadZoneRadius: 30,
-                                toolNameProvider: toolName(for:),
-                                selectedIndex: radialSelectionIndex()
-                            )
-                        }
+                .overlay {
+                    if settings.radialWheelEnabled {
+                        RightClickCaptureView(
+                            onRightDown: { point in
+                                radialCenter = point
+                                radialCurrentPoint = point
+                            },
+                            onRightDrag: { point in
+                                radialCurrentPoint = point
+                            },
+                            onRightUp: { point in
+                                radialCurrentPoint = point
+                                finalizeRadialSelection()
+                            }
+                        )
                     }
-                )
+                }
+                // Radial palette overlay
+                .overlay {
+                    if settings.radialWheelEnabled,
+                       let center = radialCenter,
+                       let current = radialCurrentPoint {
+                        RadialToolPalette(
+                            center: center,
+                            current: current,
+                            tools: radialTools,
+                            deadZoneRadius: 30,
+                            toolNameProvider: toolName(for:),
+                            selectedIndex: radialSelectionIndex()
+                        )
+                    }
+                }
                 .clipped()
                 .contentShape(Rectangle()) // Prevent window dragging in this area
                 .onTapGesture { location in
@@ -437,6 +461,12 @@ struct ImageEditingView: View {
                             }
                         }
                 )
+                .onChange(of: settings.radialWheelEnabled) { _, isEnabled in
+                    if !isEnabled {
+                        radialCenter = nil
+                        radialCurrentPoint = nil
+                    }
+                }
                 .onAppear {
                     // Setup keyboard shortcuts for undo/redo
                     keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -467,6 +497,12 @@ struct ImageEditingView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            ensureValidSelectedTool()
+        }
+        .onChangeCompat(of: settings.enabledEditingTools) {
+            ensureValidSelectedTool()
         }
     }
     
@@ -827,6 +863,7 @@ struct ImageEditingView: View {
             radialCenter = nil
             radialCurrentPoint = nil
         }
+        guard settings.radialWheelEnabled else { return }
         guard let index = radialSelectionIndex() else { return }
         let tool = radialTools[index]
         selectTool(tool)
@@ -1105,7 +1142,7 @@ enum EditAction {
     case removeMosaic(MosaicRegion, index: Int)
 }
 
-enum DrawingTool: CaseIterable {
+enum DrawingTool: String, CaseIterable, Codable {
     case pen
     case line
     case rectangle
@@ -1117,9 +1154,33 @@ enum DrawingTool: CaseIterable {
     static var defaultRadialTools: [DrawingTool] { [.arrow, .rectangle, .circle, .line] }
     static var defaultRadialIdentifiers: [String] { defaultRadialTools.map { $0.identifier } }
     
-    static func tools(fromIdentifiers identifiers: [String]) -> [DrawingTool] {
-        let mapped = identifiers.compactMap { DrawingTool(identifier: $0) }
-        return mapped.count == identifiers.count && !mapped.isEmpty ? mapped : defaultRadialTools
+    static func tools(fromIdentifiers identifiers: [String], allowed: [DrawingTool]? = nil) -> [DrawingTool] {
+        let allowedSet = allowed.map { Set($0) }
+        var seen = Set<DrawingTool>()
+        var tools: [DrawingTool] = []
+        
+        for identifier in identifiers {
+            guard let tool = DrawingTool(identifier: identifier),
+                  (allowedSet == nil || allowedSet!.contains(tool)),
+                  !seen.contains(tool) else { continue }
+            seen.insert(tool)
+            tools.append(tool)
+            
+            if tools.count >= 4 {
+                break
+            }
+        }
+        
+        if tools.isEmpty {
+            let fallback = allowed ?? defaultRadialTools
+            for tool in fallback where (allowedSet == nil || allowedSet!.contains(tool)) && !seen.contains(tool) {
+                tools.append(tool)
+                seen.insert(tool)
+                if tools.count >= 4 { break }
+            }
+        }
+        
+        return tools
     }
     
     init?(identifier: String) {
@@ -1158,6 +1219,18 @@ enum DrawingTool: CaseIterable {
         case .text: return "textformat"
         }
     }
+    
+    var localizedName: String {
+        switch self {
+        case .pen: return NSLocalizedString("tool.pen", comment: "")
+        case .line: return NSLocalizedString("tool.line", comment: "")
+        case .rectangle: return NSLocalizedString("tool.rectangle", comment: "")
+        case .circle: return NSLocalizedString("tool.circle", comment: "")
+        case .arrow: return NSLocalizedString("tool.arrow", comment: "")
+        case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
+        case .text: return NSLocalizedString("tool.text", comment: "")
+        }
+    }
 }
 
 struct DrawingPath: Identifiable {
@@ -1185,7 +1258,7 @@ struct TextInput: Identifiable {
 
 // MARK: - Radial Tool Palette Views
 
-private struct RadialToolPalette: View {
+struct RadialToolPalette: View {
     let center: CGPoint
     let current: CGPoint
     let tools: [DrawingTool]
@@ -1194,37 +1267,101 @@ private struct RadialToolPalette: View {
     let selectedIndex: Int?
     
     var body: some View {
-        let radius: CGFloat = 80
-        let labelRadius: CGFloat = (deadZoneRadius + radius) / 2
+        let radius: CGFloat = 86
+        let labelRadius: CGFloat = (deadZoneRadius + radius) / 2 + 8
         let twoPi = CGFloat.pi * 2
         let sectorAngle = twoPi / CGFloat(max(1, tools.count))
-        let frameSize = (max(labelRadius, radius) + 16) * 2
+        let frameSize = (max(labelRadius, radius) + 22) * 2
         let localCenter = CGPoint(x: frameSize / 2, y: frameSize / 2)
+        let highlightVector = CGPoint(x: current.x - center.x, y: current.y - center.y)
+        let maxOffset = radius - 12
+        let clampedVector = CGPoint(
+            x: max(-maxOffset, min(maxOffset, highlightVector.x)),
+            y: max(-maxOffset, min(maxOffset, highlightVector.y))
+        )
+        let highlightPoint = CGPoint(x: localCenter.x + clampedVector.x, y: localCenter.y + clampedVector.y)
+        let highlightUnit = UnitPoint(x: highlightPoint.x / frameSize, y: highlightPoint.y / frameSize)
         
         ZStack {
-            // Dead zone
+            // Moving glow that follows the pointer
             Circle()
-                .fill(Color.black.opacity(0.35))
-                .frame(width: deadZoneRadius * 2, height: deadZoneRadius * 2)
-            
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color.accentColor.opacity(0.4),
+                            Color.accentColor.opacity(0.12),
+                            Color.accentColor.opacity(0.0)
+                        ]),
+                        center: highlightUnit,
+                        startRadius: 6,
+                        endRadius: radius + 36
+                    )
+                )
+                .blur(radius: 6)
+                .blendMode(.plusLighter)
+                .frame(width: frameSize, height: frameSize)
+                .mask(
+                    Circle()
+                        .frame(width: radius * 2, height: radius * 2)
+                        .position(x: frameSize / 2, y: frameSize / 2)
+                )
+                .allowsHitTesting(false)
+
             // Sectors and labels
             ForEach(Array(tools.enumerated()), id: \.offset) { index, tool in
                 let sectorStart = -CGFloat.pi / 2 + sectorAngle * CGFloat(index)
                 let sectorEnd = sectorStart + sectorAngle
                 let midAngle = (sectorStart + sectorEnd) / 2
+                let isSelected = selectedIndex == index
                 
                 SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                    .fill((selectedIndex == index) ? Color.accentColor.opacity(0.25) : Color.gray.opacity(0.2))
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.22),
+                                        Color.white.opacity(0.08)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    )
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .fill(Color.accentColor.opacity(isSelected ? 0.28 : 0.1))
+                            .blendMode(.plusLighter)
+                    )
+                    .overlay(
+                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                            .stroke(Color.white.opacity(0.22), lineWidth: 0.9)
+                    )
                 
                 let labelX = localCenter.x + cos(midAngle) * labelRadius
                 let labelY = localCenter.y + sin(midAngle) * labelRadius
-                VStack(spacing: 2) {
+                VStack(spacing: 4) {
                     Image(systemName: tool.systemImage)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
                     Text(toolNameProvider(tool))
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
                 }
-                .padding(6)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.thinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+                        )
+                )
+                .shadow(color: Color.black.opacity(isSelected ? 0.25 : 0.12), radius: isSelected ? 8 : 5, y: isSelected ? 4 : 2)
+                .scaleEffect(isSelected ? 1.08 : 1.0)
+                .animation(.quickSpring, value: isSelected)
                 .position(x: labelX, y: labelY)
 
                 // Divider line at sector boundary
@@ -1239,8 +1376,23 @@ private struct RadialToolPalette: View {
             
             // Center marker
             Circle()
-                .stroke(Color.white.opacity(0.6), lineWidth: 1)
-                .frame(width: deadZoneRadius * 2 + 6, height: deadZoneRadius * 2 + 6)
+                .fill(.regularMaterial)
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.7),
+                                    Color.white.opacity(0.25)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1.4
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 6, y: 4)
+                .frame(width: deadZoneRadius * 2 + 12, height: deadZoneRadius * 2 + 12)
         }
         .frame(width: frameSize, height: frameSize)
         .position(x: center.x, y: center.y)
@@ -1249,7 +1401,7 @@ private struct RadialToolPalette: View {
     }
 }
 
-private struct SectorShape: Shape {
+struct SectorShape: Shape {
     let startAngle: CGFloat
     let endAngle: CGFloat
     let innerRadius: CGFloat
@@ -1265,6 +1417,8 @@ private struct SectorShape: Shape {
         return path
     }
 }
+
+// MARK: - Right Click capture
 
 private struct RightClickCaptureView: NSViewRepresentable {
     var onRightDown: (CGPoint) -> Void
@@ -1318,6 +1472,17 @@ private struct RightClickCaptureView: NSViewRepresentable {
         
         private func flipY(_ point: CGPoint) -> CGPoint {
             CGPoint(x: point.x, y: bounds.height - point.y)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func onChangeCompat<V: Equatable>(of value: V, perform action: @escaping () -> Void) -> some View {
+        if #available(macOS 14.0, *) {
+            self.onChange(of: value) { _, _ in action() }
+        } else {
+            self.onChange(of: value, perform: { _ in action() })
         }
     }
 }

@@ -19,6 +19,7 @@ struct SettingsView: View {
     enum SettingsTab: CaseIterable {
         case general
         case capture
+        case editor
         case storage
         case apps
 
@@ -28,6 +29,8 @@ struct SettingsView: View {
                 return NSLocalizedString("settings.tab.general", value: "通用", comment: "")
             case .capture:
                 return NSLocalizedString("settings.tab.capture", value: "截图", comment: "")
+            case .editor:
+                return NSLocalizedString("settings.tab.editor", value: "编辑", comment: "")
             case .storage:
                 return NSLocalizedString("settings.tab.storage", value: "存储", comment: "")
             case .apps:
@@ -39,6 +42,7 @@ struct SettingsView: View {
             switch self {
             case .general: return "gear"
             case .capture: return "camera.fill"
+            case .editor: return "paintbrush.pointed"
             case .storage: return "folder.fill"
             case .apps: return "macwindow"
             }
@@ -48,6 +52,7 @@ struct SettingsView: View {
             switch self {
             case .general: return .gray
             case .capture: return .red
+            case .editor: return .orange
             case .storage: return .blue
             case .apps: return .green
             }
@@ -96,6 +101,7 @@ struct SettingsView: View {
                         switch selectedTab {
                         case .general: GeneralSettingsView()
                         case .capture: CaptureSettingsView()
+                        case .editor: EditorSettingsView()
                         case .storage: StorageSettingsView()
                         case .apps: AppsSettingsView()
                         }
@@ -311,6 +317,277 @@ struct CaptureSettingsView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Editor Settings
+
+struct EditorSettingsView: View {
+    @EnvironmentObject var settings: AppSettings
+    @State private var radialTools: [DrawingTool] = DrawingTool.defaultRadialTools
+    private var orderedTools: [DrawingTool] {
+        settings.orderedEditingTools
+    }
+    private var availableRadialTools: [DrawingTool] {
+        settings.radialAvailableTools
+    }
+    private var maxRadialCount: Int {
+        min(4, availableRadialTools.count)
+    }
+
+    var body: some View {
+        VStack(spacing: 32) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.editor.toolbar.title", comment: ""), systemImage: "paintbrush.pointed")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(NSLocalizedString("settings.editor.toolbar.description", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        Text(NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        ForEach(Array(orderedTools.enumerated()), id: \.element) { index, tool in
+                            HStack(spacing: 8) {
+                                Toggle(isOn: binding(for: tool)) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: tool.systemImage)
+                                            .frame(width: 18)
+                                        Text(tool.localizedName)
+                                    }
+                                }
+
+                                Spacer()
+
+                                HStack(spacing: 4) {
+                                    Button {
+                                        moveTool(at: index, offset: -1)
+                                    } label: {
+                                        Image(systemName: "chevron.up")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == 0)
+
+                                    Button {
+                                        moveTool(at: index, offset: 1)
+                                    } label: {
+                                        Image(systemName: "chevron.down")
+                                            .frame(width: 18, height: 18)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
+                                    .disabled(index == orderedTools.count - 1)
+                                }
+                            }
+                        }
+
+                        Text(NSLocalizedString("settings.editor.toolbar.note", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.editor.radial.title", comment: ""), systemImage: "circle.grid.3x3.fill")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(NSLocalizedString("settings.editor.radial.enabled", comment: ""), isOn: $settings.radialWheelEnabled)
+
+                        Text(NSLocalizedString("settings.editor.radial.description", comment: ""))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Divider()
+
+                        Group {
+                            ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
+                                HStack(spacing: 8) {
+                                    Picker("", selection: Binding(
+                                        get: { radialTools[index] },
+                                        set: { newValue in updateRadialTool(at: index, with: newValue) }
+                                    )) {
+                                        ForEach(availableRadialTools, id: \.self) { option in
+                                            Label(option.localizedName, systemImage: option.systemImage)
+                                                .tag(option)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(maxWidth: 200, alignment: .leading)
+
+                                    Spacer()
+
+                                    HStack(spacing: 4) {
+                                        Button {
+                                            moveRadialTool(at: index, offset: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(index == 0)
+
+                                        Button {
+                                            moveRadialTool(at: index, offset: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(index == radialTools.count - 1)
+
+                                        Button {
+                                            removeRadialTool(at: index)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .frame(width: 18, height: 18)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .controlSize(.small)
+                                        .disabled(radialTools.count <= 1)
+                                    }
+                                }
+                            }
+
+                            if radialTools.count < maxRadialCount {
+                                Button {
+                                    addRadialTool()
+                                } label: {
+                                    Label(NSLocalizedString("settings.editor.radial.add", comment: ""), systemImage: "plus.circle")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+
+                            RadialWheelPreview(tools: radialTools)
+                                .frame(maxWidth: .infinity)
+
+                            Text(NSLocalizedString("settings.editor.radial.note", comment: ""))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .disabled(!settings.radialWheelEnabled)
+                        .opacity(settings.radialWheelEnabled ? 1 : 0.6)
+                    }
+                    .padding(12)
+                }
+            }
+        }
+        .onAppear {
+            radialTools = settings.radialDrawingTools
+        }
+        .onChange(of: settings.radialToolIdentifiers) { _, _ in radialTools = settings.radialDrawingTools }
+    }
+
+    private func binding(for tool: DrawingTool) -> Binding<Bool> {
+        Binding(
+            get: { settings.enabledEditingTools.contains(tool) },
+            set: { newValue in
+                settings.updateEditingTool(tool, enabled: newValue)
+            }
+        )
+    }
+    
+    private func moveTool(at index: Int, offset: Int) {
+        var updated = orderedTools
+        let destination = index + offset
+        
+        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
+        
+        updated.swapAt(index, destination)
+        settings.updateEditingToolOrder(updated)
+    }
+    
+    private func addRadialTool() {
+        guard !availableRadialTools.isEmpty else { return }
+        var updated = radialTools
+        let unusedTools = availableRadialTools.filter { !updated.contains($0) }
+        if let next = unusedTools.first {
+            updated.append(next)
+        } else if let fallback = availableRadialTools.first {
+            updated.append(fallback)
+        }
+        applyRadialTools(updated)
+    }
+    
+    private func removeRadialTool(at index: Int) {
+        guard radialTools.count > 1, radialTools.indices.contains(index) else { return }
+        var updated = radialTools
+        updated.remove(at: index)
+        applyRadialTools(updated)
+    }
+    
+    private func moveRadialTool(at index: Int, offset: Int) {
+        var updated = radialTools
+        let destination = index + offset
+        
+        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
+        
+        updated.swapAt(index, destination)
+        applyRadialTools(updated)
+    }
+    
+    private func updateRadialTool(at index: Int, with newTool: DrawingTool) {
+        guard radialTools.indices.contains(index) else { return }
+        var updated = radialTools
+        updated[index] = newTool
+        applyRadialTools(updated)
+    }
+    
+    private func applyRadialTools(_ tools: [DrawingTool]) {
+        let cleaned = deduplicatedRadialTools(tools)
+        let normalized = settings.updateRadialTools(cleaned)
+        radialTools = normalized
+    }
+    
+    private func deduplicatedRadialTools(_ tools: [DrawingTool]) -> [DrawingTool] {
+        var seen = Set<DrawingTool>()
+        var ordered: [DrawingTool] = []
+        
+        for tool in tools.reversed() {
+            if seen.insert(tool).inserted {
+                ordered.append(tool)
+            }
+        }
+        
+        return ordered.reversed()
+    }
+}
+
+private struct RadialWheelPreview: View {
+    let tools: [DrawingTool]
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            let highlight = CGPoint(x: center.x, y: center.y - 40)
+            RadialToolPalette(
+                center: center,
+                current: tools.isEmpty ? center : highlight,
+                tools: tools.isEmpty ? DrawingTool.defaultRadialTools : tools,
+                deadZoneRadius: 30,
+                toolNameProvider: { $0.localizedName },
+                selectedIndex: tools.isEmpty ? nil : 0
+            )
+        }
+        .frame(width: 220, height: 200)
     }
 }
 

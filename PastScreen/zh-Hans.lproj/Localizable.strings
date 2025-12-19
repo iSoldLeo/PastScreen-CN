@@ -18,6 +18,7 @@
 /* Settings - Tabs */
 "settings.tab.general" = "通用";
 "settings.tab.capture" = "截图";
+"settings.tab.editor" = "编辑";
 "settings.tab.storage" = "存储";
 "settings.tab.apps" = "应用";
 
@@ -66,6 +67,17 @@
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
 "settings.capture.advanced_screenshot" = "高级截图";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "编辑工具栏";
+"settings.editor.toolbar.description" = "选择在高级截图后的编辑页面里，要显示哪些工具。";
+"settings.editor.toolbar.reorder_hint" = "使用右侧的箭头调整工具顺序。";
+"settings.editor.toolbar.note" = "至少保留一个工具。";
+"settings.editor.radial.title" = "快捷轮盘";
+"settings.editor.radial.description" = "自定义右键呼出的快捷轮盘，添加 1-4 个已启用的常用工具。";
+"settings.editor.radial.enabled" = "启用快捷轮盘";
+"settings.editor.radial.add" = "添加工具";
+"settings.editor.radial.note" = "至少保留 1 个工具，在编辑器里右键打开快捷轮盘。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";
