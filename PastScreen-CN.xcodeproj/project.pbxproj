@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		53CC39C40F444DC9887525AB /* PastScreen/Services/WindowCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 674A4511757E4725B98929FD /* PastScreen/Services/WindowCaptureCoordinator.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		160D2D5F2ECCB91300A25E82 /* PastScreen-CN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PastScreen-CN.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		674A4511757E4725B98929FD /* PastScreen/Services/WindowCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/WindowCaptureCoordinator.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -15,6 +20,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Info-AppStore.plist",
+				Services/WindowCaptureCoordinator.swift,
 			);
 			target = 160D2D552ECCB91300A25E82 /* PastScreen-CN */;
 		};
@@ -47,6 +53,7 @@
 			children = (
 				16C553432EB8AF3F008745D0 /* PastScreen */,
 				16C553422EB8AF3F008745D0 /* Products */,
+				562853FB2EF5586D000CF76C /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -56,6 +63,14 @@
 				160D2D5F2ECCB91300A25E82 /* PastScreen-CN.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		562853FB2EF5586D000CF76C /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				674A4511757E4725B98929FD /* PastScreen/Services/WindowCaptureCoordinator.swift */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -135,6 +150,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				53CC39C40F444DC9887525AB /* PastScreen/Services/WindowCaptureCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,7 +166,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 29JVTLN6CG;
 				ENABLE_APP_SANDBOX = NO;
@@ -176,7 +192,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_SWIFT_FLAGS = "-D APPSTORE";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.iSoldLeo.PastScreen-CN";
@@ -200,7 +216,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 29JVTLN6CG;
 				ENABLE_APP_SANDBOX = NO;
@@ -226,7 +242,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				OTHER_SWIFT_FLAGS = "-D APPSTORE";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.iSoldLeo.PastScreen-CN";
 				PRODUCT_NAME = "PastScreen-CN";
