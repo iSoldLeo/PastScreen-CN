@@ -150,6 +150,26 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
+    func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult) {
+        let overlayWindowIDs = window.getOverlayWindowIDs()
+
+        window.hide()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self = self else { return }
+
+            if self.isAdvancedCapture {
+                self.performAdvancedWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+            } else {
+                self.performWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.selectionWindow = nil
+            }
+        }
+    }
+
     func selectionWindowDidCancel(_ window: SelectionWindow) {
         // Hide all selection windows
         window.hide()
@@ -251,6 +271,45 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
+    private func performWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+        _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
+        Task { [weak self] in
+            guard let self = self else { return }
+
+            do {
+                let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(using: hitResult)
+                let sizeRect = CGRect(origin: .zero, size: captureResult.window.frame.size)
+                await MainActor.run {
+                    self.handleSuccessfulCapture(cgImage: captureResult.image, selectionRect: sizeRect)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.showErrorNotification(error: error)
+                }
+            }
+        }
+    }
+
+    private func performAdvancedWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+        _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
+        Task { [weak self] in
+            guard let self = self else { return }
+
+            do {
+                let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(using: hitResult)
+                let sizeRect = CGRect(origin: .zero, size: captureResult.window.frame.size)
+                await MainActor.run {
+                    self.handleAdvancedCapture(cgImage: captureResult.image, selectionRect: sizeRect)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.isAdvancedCapture = false
+                    self?.showErrorNotification(error: error)
+                }
+            }
+        }
+    }
+
     // Nouvelle méthode avec ScreenCaptureKit
     private func captureWithScreenCaptureKit(rect: CGRect, excludeWindowIDs: [CGWindowID]) async throws -> CGImage {
         return try await captureScreenRegion(rect: rect, excludeWindowIDs: excludeWindowIDs)
@@ -273,9 +332,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             onCompletion: { [weak self] editedImage in
                 self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
             },
-            onCancel: { [weak self] in
-                // Just close editing window, no further action - user cancelled
-            }
+            onCancel: { }
         )
         
         editingWindow.show()

@@ -11,6 +11,7 @@ import AppKit
 // Protocol simple pour communiquer avec le service
 protocol SelectionWindowDelegate: AnyObject {
     func selectionWindow(_ window: SelectionWindow, didSelectRect rect: CGRect)
+    func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult)
     func selectionWindowDidCancel(_ window: SelectionWindow)
 }
 
@@ -67,6 +68,7 @@ class SelectionWindow: NSWindow {
             window.level = .screenSaver
             window.ignoresMouseEvents = false
             window.hasShadow = false
+            window.acceptsMouseMovedEvents = true
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
             // Manually position window to this screen's frame
@@ -78,6 +80,10 @@ class SelectionWindow: NSWindow {
             overlayView.onComplete = { [weak self] rect in
                 guard let self = self else { return }
                 self.selectionDelegate?.selectionWindow(self, didSelectRect: rect)
+            }
+            overlayView.onWindowSelect = { [weak self] hitResult in
+                guard let self = self else { return }
+                self.selectionDelegate?.selectionWindow(self, didSelectWindow: hitResult)
             }
             overlayView.onCancel = { [weak self] in
                 guard let self = self else { return }
@@ -138,13 +144,19 @@ class SelectionWindow: NSWindow {
 // Vue simple pour dessiner la sélection
 class SelectionOverlayView: NSView {
     var onComplete: ((CGRect) -> Void)?
+    var onWindowSelect: ((WindowHitTestResult) -> Void)?
     var onCancel: (() -> Void)?
     
     private let overlayOpacity: CGFloat = 0.2
+    private let clickThreshold: CGFloat = 10
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
     private var isDragging = false
+    private var pendingWindowHit: WindowHitTestResult?
+    private var hoverWindowHit: WindowHitTestResult?
+    private var highlightRect: NSRect?
+    private var trackingArea: NSTrackingArea?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -155,6 +167,24 @@ class SelectionOverlayView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        hoverWindowHit = resolveWindowHit()
+        pendingWindowHit = hoverWindowHit
+        needsDisplay = true
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let options: NSTrackingArea.Options = [.mouseMoved, .activeAlways, .inVisibleRect]
+        let area = NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
     }
 
     // CRITICAL: Accept first mouse click even when app is not active
@@ -169,16 +199,36 @@ class SelectionOverlayView: NSView {
         return false
     }
 
+    override func mouseMoved(with event: NSEvent) {
+        guard !isDragging else { return }
+        hoverWindowHit = resolveWindowHit()
+        pendingWindowHit = hoverWindowHit
+        needsDisplay = true
+    }
+
     override func mouseDown(with event: NSEvent) {
         startPoint = convert(event.locationInWindow, from: nil)
         endPoint = startPoint
         isDragging = true
+        pendingWindowHit = hoverWindowHit ?? resolveWindowHit()
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard isDragging else { return }
         endPoint = convert(event.locationInWindow, from: nil)
+
+        // Once user moves beyond the click threshold, switch to box selection
+        if let start = startPoint, let end = endPoint {
+            let deltaX = abs(end.x - start.x)
+            let deltaY = abs(end.y - start.y)
+            if max(deltaX, deltaY) > clickThreshold {
+                pendingWindowHit = nil
+                hoverWindowHit = nil
+                highlightRect = nil
+            }
+        }
+
         needsDisplay = true
     }
 
@@ -192,6 +242,22 @@ class SelectionOverlayView: NSView {
         }
 
         isDragging = false
+
+        let deltaX = abs(end.x - start.x)
+        let deltaY = abs(end.y - start.y)
+        let hasDragged = max(deltaX, deltaY) > clickThreshold
+
+        if !hasDragged, let windowHit = pendingWindowHit {
+            // Treat as window-click capture
+            DispatchQueue.main.async { [weak self] in
+                self?.onWindowSelect?(windowHit)
+            }
+            pendingWindowHit = nil
+            highlightRect = nil
+            startPoint = nil
+            endPoint = nil
+            return
+        }
 
         let rect = CGRect(
             x: min(start.x, end.x),
@@ -210,12 +276,19 @@ class SelectionOverlayView: NSView {
                 self?.onCancel?()
             }
         }
+
+        pendingWindowHit = nil
+        highlightRect = nil
+        hoverWindowHit = nil
     }
 
     override func rightMouseDown(with event: NSEvent) {
         isDragging = false
         startPoint = nil
         endPoint = nil
+        pendingWindowHit = nil
+        hoverWindowHit = nil
+        highlightRect = nil
         needsDisplay = true
 
         DispatchQueue.main.async { [weak self] in
@@ -243,14 +316,20 @@ class SelectionOverlayView: NSView {
         NSColor.black.withAlphaComponent(overlayOpacity).setFill()
         bounds.fill()
 
-        guard let start = startPoint, let end = endPoint else { return }
+        var holeRect: NSRect?
 
-        let rect = NSRect(
-            x: min(start.x, end.x),
-            y: min(start.y, end.y),
-            width: abs(end.x - start.x),
-            height: abs(end.y - start.y)
-        )
+        if let start = startPoint, let end = endPoint, (abs(end.x - start.x) > 0 || abs(end.y - start.y) > 0) {
+            holeRect = NSRect(
+                x: min(start.x, end.x),
+                y: min(start.y, end.y),
+                width: abs(end.x - start.x),
+                height: abs(end.y - start.y)
+            )
+        } else if let highlightRect {
+            holeRect = highlightRect
+        }
+
+        guard let rect = holeRect else { return }
 
         // Zone claire
         NSColor.clear.setFill()
@@ -264,4 +343,21 @@ class SelectionOverlayView: NSView {
     }
 
     override var acceptsFirstResponder: Bool { true }
+
+    // MARK: - Private helpers
+
+    private func resolveWindowHit() -> WindowHitTestResult? {
+        guard let window = self.window else { return nil }
+        do {
+            let hit = try WindowCaptureCoordinator.shared.hitTestFrontmostWindowAtMouse()
+            let rectOnScreen = hit.bounds
+            let rectInWindow = window.convertFromScreen(rectOnScreen)
+            let rectInView = convert(rectInWindow, from: nil)
+            highlightRect = rectInView
+            return hit
+        } catch {
+            highlightRect = nil
+            return nil
+        }
+    }
 }
