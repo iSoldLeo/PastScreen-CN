@@ -19,6 +19,7 @@ extension Notification.Name {
     static let showInDockChanged = Notification.Name("showInDockChanged")
     static let hotKeyPressed = Notification.Name("hotKeyPressed")
     static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
+    static let ocrHotKeyPressed = Notification.Name("ocrHotKeyPressed")
 }
 
 @main
@@ -144,6 +145,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOCRHotKeyPressed),
+            name: .ocrHotKeyPressed,
+            object: nil
+        )
+
         // Configurer le mode initial (Dock ou menu bar seulement)
         updateActivationPolicy()
 
@@ -185,6 +193,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @objc func handleAdvancedHotKeyPressed() {
         requestScreenRecordingIfNeeded { [weak self] in
             self?.performAdvancedAreaCapture(source: .hotkey)
+        }
+    }
+
+    @objc func handleOCRHotKeyPressed() {
+        requestScreenRecordingIfNeeded { [weak self] in
+            self?.performOCRCapture(source: .hotkey)
         }
     }
     
@@ -404,6 +418,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
             screenshotService?.captureAdvancedScreenshot()
+        }
+    }
+
+    func performOCRCapture(source: CaptureTrigger = .menuBar) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureOCRScreenshot()
         }
     }
 

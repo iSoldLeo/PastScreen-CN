@@ -364,6 +364,15 @@ struct CaptureSettingsView: View {
                                 HotKeyRecorderView(hotkey: $settings.advancedHotkey)
                                     .disabled(!settings.advancedHotkeyEnabled)
                             }
+                            Divider()
+                            HStack {
+                                Text(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""))
+                                Spacer()
+                                Toggle("", isOn: $settings.ocrHotkeyEnabled)
+                                    .labelsHidden()
+                                HotKeyRecorderView(hotkey: $settings.ocrHotkey)
+                                    .disabled(!settings.ocrHotkeyEnabled)
+                            }
                         }
                     }
                     .padding(12)
@@ -538,6 +547,44 @@ struct EditorSettingsView: View {
                         }
                         .disabled(!settings.radialWheelEnabled)
                         .opacity(settings.radialWheelEnabled ? 1 : 0.6)
+                    }
+                    .padding(12)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label(NSLocalizedString("settings.editor.ocr.title", value: "OCR", comment: ""), systemImage: "text.viewfinder")
+                    .font(.headline)
+                    .padding(.leading, 2)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(NSLocalizedString("settings.editor.ocr.description", value: "选择启用的识别语言，使用时会在已启用语言中自动识别。", comment: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer()
+
+                            Button(NSLocalizedString("settings.editor.ocr.reset", value: "恢复默认", comment: "")) {
+                                settings.resetOCRLanguagesToDefault()
+                            }
+                            .controlSize(.small)
+                        }
+
+                        Divider()
+
+                        ForEach(OCRLanguageOption.recommended) { option in
+                            Toggle(option.displayName, isOn: Binding(
+                                get: { settings.ocrRecognitionLanguages.contains(option.code) },
+                                set: { settings.setOCRLanguageEnabled(option.code, enabled: $0) }
+                            ))
+                        }
+
+                        Text(NSLocalizedString("settings.editor.ocr.note", value: "不勾选任何语言时，将使用系统默认/自动检测。", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(12)
                 }
@@ -931,7 +978,9 @@ extension HotKey {
     }
 }
 
-#Preview {
-    SettingsView()
-        .environmentObject(AppSettings.shared)
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        SettingsView()
+            .environmentObject(AppSettings.shared)
+    }
 }

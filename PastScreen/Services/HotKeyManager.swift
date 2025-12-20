@@ -21,6 +21,7 @@ class HotKeyManager {
     private let permissionManager = PermissionManager.shared
     private var settingsObserver: AnyCancellable?
     private var advancedHotkeyObserver: AnyCancellable?
+    private var ocrHotkeyObserver: AnyCancellable?
     private var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false
 
@@ -47,6 +48,15 @@ class HotKeyManager {
             }
         }
 
+        // Also observe changes to the OCR hotkey enabled setting
+        ocrHotkeyObserver = settings.$ocrHotkeyEnabled.sink { [weak self] _ in
+            DispatchQueue.main.async {
+                if self?.settings.globalHotkeyEnabled == true {
+                    self?.startMonitoring()
+                }
+            }
+        }
+
         // Restart monitoring automatically once Accessibility permission is granted
         permissionObserver = permissionManager.$accessibilityStatus
             .receive(on: DispatchQueue.main)
@@ -64,6 +74,7 @@ class HotKeyManager {
         stopMonitoring()
         settingsObserver?.cancel()
         advancedHotkeyObserver?.cancel()
+        ocrHotkeyObserver?.cancel()
         permissionObserver?.cancel()
     }
 
@@ -157,6 +168,27 @@ class HotKeyManager {
             if matchesAdvancedModifiers && (matchesAdvancedKeyCode || matchesAdvancedCharacters) {
                 // Post notification for advanced screenshot
                 NotificationCenter.default.post(name: .advancedHotKeyPressed, object: nil)
+                return true
+            }
+        }
+
+        // Check for OCR hotkey
+        if settings.ocrHotkeyEnabled {
+            let ocrHotkey = settings.ocrHotkey
+            let ocrModifiers = ocrHotkey.modifierFlags
+
+            let matchesOCRModifiers = eventModifiers == ocrModifiers
+            let matchesOCRKeyCode = event.keyCode == ocrHotkey.keyCode
+            let matchesOCRCharacters = {
+                guard let expected = ocrHotkey.characters?.lowercased(),
+                      let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                    return false
+                }
+                return expected == actual
+            }()
+
+            if matchesOCRModifiers && (matchesOCRKeyCode || matchesOCRCharacters) {
+                NotificationCenter.default.post(name: .ocrHotKeyPressed, object: nil)
                 return true
             }
         }

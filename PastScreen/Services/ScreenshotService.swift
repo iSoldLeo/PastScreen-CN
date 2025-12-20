@@ -25,7 +25,14 @@ enum AppCategory {
 class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var previousApp: NSRunningApplication? // Store app that was active before capture
     private var selectionWindow: SelectionWindow? // Custom selection window
-    private var isAdvancedCapture: Bool = false // Flag to distinguish advanced capture
+
+    private enum CaptureMode {
+        case quick
+        case advanced
+        case ocr
+    }
+
+    private var captureMode: CaptureMode = .quick
 
     // Bundle IDs of known applications
     private let appCategoryMap: [String: AppCategory] = [
@@ -93,6 +100,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             selectionWindow = nil
         }
 
+        captureMode = .quick
+
         // Create and show custom selection window (one per screen for multi-monitor support)
         selectionWindow = SelectionWindow()
         selectionWindow?.selectionDelegate = self
@@ -106,11 +115,23 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             selectionWindow = nil
         }
         
-        // Set flag for advanced capture
-        isAdvancedCapture = true
+        captureMode = .advanced
 
         // Create and show custom selection window for advanced capture
         selectionWindow = SelectionWindow()
+        selectionWindow?.selectionDelegate = self
+        selectionWindow?.show()
+    }
+
+    func captureOCRScreenshot() {
+        if let existingWindow = selectionWindow {
+            existingWindow.hide()
+            selectionWindow = nil
+        }
+
+        captureMode = .ocr
+
+        selectionWindow = SelectionWindow(overlayConfiguration: .ocr)
         selectionWindow?.selectionDelegate = self
         selectionWindow?.show()
     }
@@ -137,9 +158,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             guard let self = self else { return }
 
             // Now perform capture with overlay windows excluded
-            if self.isAdvancedCapture {
+            switch self.captureMode {
+            case .advanced:
                 self.performAdvancedCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
-            } else {
+            case .ocr:
+                self.performOCRCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+            case .quick:
                 self.performCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
             }
 
@@ -158,9 +182,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self = self else { return }
 
-            if self.isAdvancedCapture {
+            switch self.captureMode {
+            case .advanced:
                 self.performAdvancedWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
-            } else {
+            case .ocr:
+                self.performOCRWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+            case .quick:
                 self.performWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
             }
 
@@ -173,9 +200,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     func selectionWindowDidCancel(_ window: SelectionWindow) {
         // Hide all selection windows
         window.hide()
-        
-        // Reset advanced capture flag
-        isAdvancedCapture = false
+
+        captureMode = .quick
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             self?.selectionWindow = nil
@@ -243,6 +269,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
     
     private func performAdvancedCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+        captureMode = .quick
+
         // Vérifier que le rectangle est valide
         guard rect.width > 0 && rect.height > 0 else {
             DispatchQueue.main.async { [weak self] in
@@ -263,8 +291,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             } catch {
                 await MainActor.run { [weak self] in
-                    // Reset the advanced capture flag on error
-                    self?.isAdvancedCapture = false
                     self?.showErrorNotification(error: error)
                 }
             }
@@ -299,6 +325,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     private func performAdvancedWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
         _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
+        captureMode = .quick
         Task { [weak self] in
             guard let self = self else { return }
 
@@ -317,7 +344,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.isAdvancedCapture = false
                     self?.showErrorNotification(error: error)
                 }
             }
@@ -331,15 +357,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     // Handle successful advanced capture - show editing window
     private func handleAdvancedCapture(cgImage: CGImage, selectionRect: CGRect) {
+        captureMode = .quick
         // Create NSImage from CGImage
         let rep = NSBitmapImageRep(cgImage: cgImage)
         rep.size = selectionRect.size
         let nsImage = NSImage(size: selectionRect.size)
         nsImage.addRepresentation(rep)
-        
-        // Reset the advanced capture flag
-        isAdvancedCapture = false
-        
+
         // Show editing window
         let editingWindow = ImageEditingWindow(
             image: nsImage,
@@ -352,6 +376,136 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         )
         
         editingWindow.show()
+    }
+
+    private func performOCRCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+        captureMode = .quick
+
+        guard rect.width > 0, rect.height > 0 else {
+            showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
+
+                let settings = AppSettings.shared
+                if settings.playSoundOnCapture {
+                    let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+                    if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
+                        sound.play()
+                    } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
+                        fallback.play()
+                    }
+                }
+
+                guard let ocrImage = self.makePNGImageForOCR(cgImage: cgImage, pointSize: rect.size) else {
+                    await MainActor.run {
+                        self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                    }
+                    return
+                }
+
+                let text = try await OCRService.recognizeText(
+                    in: ocrImage,
+                    region: nil,
+                    preferredLanguages: settings.ocrRecognitionLanguages
+                )
+
+                await MainActor.run {
+                    self.handleOCRResult(text)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                }
+            }
+        }
+    }
+
+    private func performOCRWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+        _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
+        captureMode = .quick
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(
+                    using: hitResult,
+                    applyBorder: false
+                )
+
+                let settings = AppSettings.shared
+                if settings.playSoundOnCapture {
+                    let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+                    if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
+                        sound.play()
+                    } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
+                        fallback.play()
+                    }
+                }
+
+                let padding = captureResult.paddingPoints
+                let pointSize = CGSize(
+                    width: captureResult.window.frame.size.width + padding.left + padding.right,
+                    height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                )
+
+                guard let ocrImage = self.makePNGImageForOCR(cgImage: captureResult.image, pointSize: pointSize) else {
+                    await MainActor.run {
+                        self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                    }
+                    return
+                }
+
+                let text = try await OCRService.recognizeText(
+                    in: ocrImage,
+                    region: nil,
+                    preferredLanguages: settings.ocrRecognitionLanguages
+                )
+
+                await MainActor.run {
+                    self.handleOCRResult(text)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                }
+            }
+        }
+    }
+
+    private func makePNGImageForOCR(cgImage: CGImage, pointSize: CGSize) -> NSImage? {
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        rep.size = pointSize
+        guard let data = rep.representation(using: .png, properties: [:]) else { return nil }
+        return NSImage(data: data)
+    }
+
+    private func handleOCRResult(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            showOCRFeedback(style: .failure, key: "toast.ocr.no_text", fallback: "未识别到文字")
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(trimmed, forType: .string)
+
+        showOCRFeedback(style: .success, key: "toast.ocr.success", fallback: "OCR 已复制")
+    }
+
+    private func showOCRFeedback(style: DynamicIslandManager.Style, key: String, fallback: String) {
+        DynamicIslandManager.shared.show(
+            message: NSLocalizedString(key, value: fallback, comment: ""),
+            duration: 2.0,
+            style: style
+        )
     }
     
     // Handle the edited image from the editing window

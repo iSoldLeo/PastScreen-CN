@@ -28,6 +28,12 @@ struct HotKey: Codable, Equatable {
         characters: "s"
     )
 
+    static let defaultOCRCapture = HotKey(
+        keyCode: 31,
+        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
+        characters: "o"
+    )
+
     var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
     }
@@ -193,6 +199,7 @@ class AppSettings: ObservableObject {
     private let defaultBorderCornerRadius: Double = 20
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
     private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
+    private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
 
     @Published var saveToFile: Bool {
@@ -271,6 +278,20 @@ class AppSettings: ObservableObject {
     @Published var advancedHotkeyEnabled: Bool {
         didSet {
             UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
+        }
+    }
+
+    @Published var ocrHotkey: HotKey {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(ocrHotkey) {
+                UserDefaults.standard.set(encoded, forKey: "ocrHotkey")
+            }
+        }
+    }
+
+    @Published var ocrHotkeyEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(ocrHotkeyEnabled, forKey: "ocrHotkeyEnabled")
         }
     }
     
@@ -363,6 +384,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var ocrRecognitionLanguages: [String] {
+        didSet {
+            UserDefaults.standard.set(ocrRecognitionLanguages, forKey: "ocrRecognitionLanguages")
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
         get { UserDefaults.standard.data(forKey: "saveFolderBookmark") }
@@ -417,6 +444,15 @@ class AppSettings: ObservableObject {
         
         self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
 
+        if let data = UserDefaults.standard.data(forKey: "ocrHotkey"),
+           let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
+            self.ocrHotkey = decoded
+        } else {
+            self.ocrHotkey = .defaultOCRCapture
+        }
+
+        self.ocrHotkeyEnabled = UserDefaults.standard.object(forKey: "ocrHotkeyEnabled") as? Bool ?? true
+
         let resolvedEditingOrder: [DrawingTool]
         if let storedOrder = UserDefaults.standard.array(forKey: "editingToolOrder") as? [String] {
             let order = storedOrder.compactMap(DrawingTool.init(rawValue:))
@@ -458,6 +494,7 @@ class AppSettings: ObservableObject {
         }
         self.enabledEditingTools = resolvedEnabledTools
         self.radialWheelEnabled = UserDefaults.standard.object(forKey: "radialWheelEnabled") as? Bool ?? true
+        self.ocrRecognitionLanguages = UserDefaults.standard.stringArray(forKey: "ocrRecognitionLanguages") ?? Self.defaultOCRRecognitionLanguages
 
         let defaultRadials = DrawingTool.defaultRadialIdentifiers
         let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials
@@ -473,6 +510,20 @@ class AppSettings: ObservableObject {
         applyAppLanguage()
         restoreFolderAccess()
         ensureFolderExists()
+    }
+
+    func setOCRLanguageEnabled(_ code: String, enabled: Bool) {
+        var updated = ocrRecognitionLanguages
+        if enabled {
+            if !updated.contains(code) { updated.append(code) }
+        } else {
+            updated.removeAll { $0 == code }
+        }
+        ocrRecognitionLanguages = updated
+    }
+
+    func resetOCRLanguagesToDefault() {
+        ocrRecognitionLanguages = Self.defaultOCRRecognitionLanguages
     }
 
     func ensureFolderExists() {

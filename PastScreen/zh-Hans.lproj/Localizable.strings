@@ -67,6 +67,7 @@
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
 "settings.capture.advanced_screenshot" = "高级截图";
+"settings.capture.ocr_capture" = "OCR";
 "settings.capture.window_border" = "窗口边框";
 "settings.capture.window_border.enable" = "启用窗口边框";
 "settings.capture.window_border.width" = "边框宽度";
@@ -83,6 +84,10 @@
 "settings.editor.radial.enabled" = "启用快捷轮盘";
 "settings.editor.radial.add" = "添加工具";
 "settings.editor.radial.note" = "至少保留 1 个工具，在编辑器里右键打开快捷轮盘。";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "选择启用的识别语言，使用时会在已启用语言中自动识别。";
+"settings.editor.ocr.reset" = "恢复默认";
+"settings.editor.ocr.note" = "不勾选任何语言时，将使用系统默认/自动检测。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";
@@ -213,6 +218,11 @@
 "tip.quick_capture.title" = "PastScreen-CN 提示";
 "tip.quick_capture.message" = "使用你的热键或 Apple 快捷指令即可快速截图。";
 
+/* OCR Hotkey */
+"toast.ocr.success" = "OCR 已复制";
+"toast.ocr.failure" = "OCR 失败";
+"toast.ocr.no_text" = "未识别到文字";
+
 /* App Intents */
 "intent.capture_area.title" = "选区截图";
 "intent.capture_area.description" = "使用 PastScreen-CN 截取自定义区域并复制图片。";
@@ -247,6 +257,14 @@
 "editor.stroke.width" = "粗细";
 "editor.text.title" = "输入文字";
 "editor.text.placeholder" = "请输入文字";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "拖拽选择区域进行 OCR";
+"editor.ocr.full_image" = "全图 OCR";
+"editor.ocr.copy" = "复制";
+"editor.ocr.empty" = "未识别到文字";
+"editor.ocr.processing" = "识别中…";
+"editor.ocr.error.invalid_image" = "无法读取图片数据";
+"editor.ocr.error.cgimage" = "无法创建图像用于识别";
 
 /* Tools */
 "tool.pen" = "画笔";
@@ -256,3 +274,4 @@
 "tool.arrow" = "箭头";
 "tool.mosaic" = "马赛克";
 "tool.text" = "文字";
+"tool.ocr" = "OCR";

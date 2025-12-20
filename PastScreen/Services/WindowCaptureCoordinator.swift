@@ -177,7 +177,7 @@ final class WindowCaptureCoordinator {
 
     /// Resolve ScreenCaptureKit metadata and screenshot for a CGWindowID.
     /// Uses SCShareableContent.excludingDesktopWindows(_, onScreenWindowsOnly: true) for a visible-only set.
-    func captureWindow(with windowID: CGWindowID) async throws -> WindowCaptureResult {
+    func captureWindow(with windowID: CGWindowID, applyBorder: Bool = true) async throws -> WindowCaptureResult {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
             throw WindowCaptureError.shareableWindowNotFound(windowID)
@@ -201,7 +201,7 @@ final class WindowCaptureCoordinator {
 
         do {
             let settings = AppSettings.shared
-            let borderEnabled = settings.windowBorderEnabled
+            let borderEnabled = applyBorder && settings.windowBorderEnabled
             let borderPoints = CGFloat(settings.windowBorderWidth)
             let borderCornerRadius = CGFloat(settings.windowBorderCornerRadius)
             let borderColor = settings.windowBorderColor.cgColor ?? CGColor(gray: 1, alpha: 1)
@@ -242,8 +242,8 @@ final class WindowCaptureCoordinator {
         }
     }
 
-    func captureWindow(using hitResult: WindowHitTestResult) async throws -> WindowCaptureResult {
-        try await captureWindow(with: hitResult.windowID)
+    func captureWindow(using hitResult: WindowHitTestResult, applyBorder: Bool = true) async throws -> WindowCaptureResult {
+        try await captureWindow(with: hitResult.windowID, applyBorder: applyBorder)
     }
 
     // MARK: - Coordinate helpers

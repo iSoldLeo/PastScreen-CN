@@ -37,8 +37,10 @@ class SelectionWindow: NSWindow {
 
     // Multi-screen support: one window per screen
     private var overlayWindows: [NSWindow] = []
+    private let overlayConfiguration: SelectionOverlayView.Configuration
 
-    init() {
+    init(overlayConfiguration: SelectionOverlayView.Configuration = .screenshot) {
+        self.overlayConfiguration = overlayConfiguration
         // Create main window (first screen) for NSWindow inheritance
         let mainScreen = NSScreen.main ?? NSScreen.screens.first!
 
@@ -76,7 +78,7 @@ class SelectionWindow: NSWindow {
 
             // Create overlay view for this screen - frame must be relative to window (0,0 origin)
             let overlayFrame = NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height)
-            let overlayView = SelectionOverlayView(frame: overlayFrame)
+            let overlayView = SelectionOverlayView(frame: overlayFrame, configuration: overlayConfiguration)
             overlayView.onComplete = { [weak self] rect in
                 guard let self = self else { return }
                 self.selectionDelegate?.selectionWindow(self, didSelectRect: rect)
@@ -147,8 +149,16 @@ class SelectionOverlayView: NSView {
     var onWindowSelect: ((WindowHitTestResult) -> Void)?
     var onCancel: (() -> Void)?
     
-    private let overlayOpacity: CGFloat = 0.2
-    private let clickThreshold: CGFloat = 10
+    struct Configuration {
+        var overlayOpacity: CGFloat
+        var clickThreshold: CGFloat
+        var minSelectionSize: CGFloat
+
+        static let screenshot = Configuration(overlayOpacity: 0.2, clickThreshold: 10, minSelectionSize: 10)
+        static let ocr = Configuration(overlayOpacity: 0.2, clickThreshold: 2, minSelectionSize: 2)
+    }
+
+    private let configuration: Configuration
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
@@ -158,7 +168,8 @@ class SelectionOverlayView: NSView {
     private var highlightRect: NSRect?
     private var trackingArea: NSTrackingArea?
 
-    override init(frame: NSRect) {
+    init(frame: NSRect, configuration: Configuration = .screenshot) {
+        self.configuration = configuration
         super.init(frame: frame)
         self.wantsLayer = true
         // Keep layer clear; dimming is drawn in draw(_:) to allow full transparency in the selection hole
@@ -222,7 +233,7 @@ class SelectionOverlayView: NSView {
         if let start = startPoint, let end = endPoint {
             let deltaX = abs(end.x - start.x)
             let deltaY = abs(end.y - start.y)
-            if max(deltaX, deltaY) > clickThreshold {
+            if max(deltaX, deltaY) > configuration.clickThreshold {
                 pendingWindowHit = nil
                 hoverWindowHit = nil
                 highlightRect = nil
@@ -245,7 +256,7 @@ class SelectionOverlayView: NSView {
 
         let deltaX = abs(end.x - start.x)
         let deltaY = abs(end.y - start.y)
-        let hasDragged = max(deltaX, deltaY) > clickThreshold
+        let hasDragged = max(deltaX, deltaY) > configuration.clickThreshold
 
         if !hasDragged, let windowHit = pendingWindowHit {
             // Treat as window-click capture
@@ -267,7 +278,7 @@ class SelectionOverlayView: NSView {
         )
 
         // Defer callbacks to avoid crash when window is hidden/deallocated during event handling
-        if rect.width > 10 && rect.height > 10 {
+        if rect.width > configuration.minSelectionSize && rect.height > configuration.minSelectionSize {
             DispatchQueue.main.async { [weak self] in
                 self?.emitSelection(rect: rect)
             }
@@ -313,7 +324,7 @@ class SelectionOverlayView: NSView {
         super.draw(dirtyRect)
 
         // Fond semi-transparent plus marqué
-        NSColor.black.withAlphaComponent(overlayOpacity).setFill()
+        NSColor.black.withAlphaComponent(configuration.overlayOpacity).setFill()
         bounds.fill()
 
         var holeRect: NSRect?
