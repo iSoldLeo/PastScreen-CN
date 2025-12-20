@@ -67,6 +67,7 @@
 "settings.capture.hotkey_disabled_help" = "啟用快捷鍵即可隨時截圖";
 "settings.capture.quick_screenshot" = "快速截圖";
 "settings.capture.advanced_screenshot" = "進階截圖";
+"settings.capture.ocr_capture" = "OCR";
 "settings.capture.window_border" = "視窗邊框";
 "settings.capture.window_border.enable" = "啟用視窗邊框";
 "settings.capture.window_border.width" = "邊框寬度";
@@ -216,6 +217,11 @@
 /* Tips */
 "tip.quick_capture.title" = "PastScreen-CN 提示";
 "tip.quick_capture.message" = "使用你的快捷鍵或 Apple 捷徑即可快速截圖。";
+
+/* OCR Hotkey */
+"toast.ocr.success" = "OCR 已複製";
+"toast.ocr.failure" = "OCR 失敗";
+"toast.ocr.no_text" = "未識別到文字";
 
 /* App Intents */
 "intent.capture_area.title" = "選區截圖";

@@ -364,6 +364,15 @@ struct CaptureSettingsView: View {
                                 HotKeyRecorderView(hotkey: $settings.advancedHotkey)
                                     .disabled(!settings.advancedHotkeyEnabled)
                             }
+                            Divider()
+                            HStack {
+                                Text(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""))
+                                Spacer()
+                                Toggle("", isOn: $settings.ocrHotkeyEnabled)
+                                    .labelsHidden()
+                                HotKeyRecorderView(hotkey: $settings.ocrHotkey)
+                                    .disabled(!settings.ocrHotkeyEnabled)
+                            }
                         }
                     }
                     .padding(12)

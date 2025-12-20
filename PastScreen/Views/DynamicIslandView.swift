@@ -13,7 +13,12 @@ class DynamicIslandManager {
     private var pillStatusItem: NSStatusItem?
     private var dismissTimer: Timer?
 
-    func show(message: String, duration: TimeInterval = 3.0) {
+    enum Style {
+        case success
+        case failure
+    }
+
+    func show(message: String, duration: TimeInterval = 3.0, style: Style = .success) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
@@ -23,9 +28,15 @@ class DynamicIslandManager {
             guard let button = statusItem.button else { return }
 
             pillStatusItem = statusItem
-            button.title = "✓ \(message)"
+            switch style {
+            case .success:
+                button.title = "✓ \(message)"
+                button.contentTintColor = .systemGreen
+            case .failure:
+                button.title = "✕ \(message)"
+                button.contentTintColor = .systemRed
+            }
             button.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-            button.contentTintColor = .systemGreen
             button.isBordered = true
             button.bezelStyle = .rounded
             button.focusRingType = .none

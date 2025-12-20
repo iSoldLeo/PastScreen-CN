@@ -28,6 +28,12 @@ struct HotKey: Codable, Equatable {
         characters: "s"
     )
 
+    static let defaultOCRCapture = HotKey(
+        keyCode: 31,
+        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
+        characters: "o"
+    )
+
     var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
     }
@@ -274,6 +280,20 @@ class AppSettings: ObservableObject {
             UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
         }
     }
+
+    @Published var ocrHotkey: HotKey {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(ocrHotkey) {
+                UserDefaults.standard.set(encoded, forKey: "ocrHotkey")
+            }
+        }
+    }
+
+    @Published var ocrHotkeyEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(ocrHotkeyEnabled, forKey: "ocrHotkeyEnabled")
+        }
+    }
     
     @Published var editingToolOrder: [DrawingTool] {
         didSet {
@@ -423,6 +443,15 @@ class AppSettings: ObservableObject {
         }
         
         self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
+
+        if let data = UserDefaults.standard.data(forKey: "ocrHotkey"),
+           let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
+            self.ocrHotkey = decoded
+        } else {
+            self.ocrHotkey = .defaultOCRCapture
+        }
+
+        self.ocrHotkeyEnabled = UserDefaults.standard.object(forKey: "ocrHotkeyEnabled") as? Bool ?? true
 
         let resolvedEditingOrder: [DrawingTool]
         if let storedOrder = UserDefaults.standard.array(forKey: "editingToolOrder") as? [String] {
