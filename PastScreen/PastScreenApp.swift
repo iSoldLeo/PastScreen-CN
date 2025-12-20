@@ -26,7 +26,11 @@ struct PastScreenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Application de menu bar uniquement - pas de fenêtre visible
+        MenuBarExtra("PastScreen", systemImage: "camera.viewfinder") {
+            MenuBarContentView(app: appDelegate)
+        }
+
+        // Pas de fenêtre principale ; les préférences s'ouvrent via le menu
         Settings {
             EmptyView()
         }
@@ -40,15 +44,12 @@ enum CaptureTrigger: String {
     case automation
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    var statusItem: NSStatusItem?
-    var statusMenu: NSMenu?  // Référence persistante au menu
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
     var screenshotService: ScreenshotService?
     var preferencesWindow: NSWindow?
     var preferencesWindowDelegate: PreferencesWindowDelegate?  // Strong reference
     private var hasPromptedAccessibility = false
     private var hasPromptedScreenRecording = false
-    private var hotKeyObserver: AnyCancellable?
 
     // Services
     var permissionManager = PermissionManager.shared
@@ -57,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private let hotKeyManager = HotKeyManager.shared
 
     // Track last screenshot for "Reveal in Finder" menu item
-    var lastScreenshotPath: String?
+    @Published var lastScreenshotPath: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("🎯 [APP] ====== APPLICATION DID FINISH LAUNCHING ======")
@@ -95,29 +96,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         //     }
         // }
 
-        // Create menu bar item
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        if let button = statusItem?.button {
-            // Utiliser l'icône personnalisée depuis Assets.xcassets
-            if let icon = NSImage(named: "MenuBarIcon") {
-                icon.isTemplate = true  // Adaptation automatique au thème clair/sombre
-            button.image = icon
-        } else {
-            // Fallback vers SF Symbol
-                button.image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "PastScreen-CN")
-        }
-
-        button.action = #selector(handleButtonClick)
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        updateHotKeyUI()
-    }
-
         // Initialize services
         screenshotService = ScreenshotService()
-
-        // Setup menu
-        setupMenu()
 
         // NOTE: Permissions are now requested via Onboarding only
         // No auto-prompting at launch to avoid popup chaos
@@ -128,12 +108,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Start monitoring for the global hotkey. The manager will handle settings changes internally.
         hotKeyManager.startMonitoring()
-
-        hotKeyObserver = settings.$globalHotkey
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.updateHotKeyUI()
-            }
 
         // Observe when the hotkey is pressed
         NotificationCenter.default.addObserver(
@@ -184,102 +158,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @objc func handleScreenshotCaptured(_ notification: Notification) {
         if let path = notification.userInfo?["filePath"] as? String {
-            lastScreenshotPath = path
-        }
-    }
-
-    @objc func handleButtonClick() {
-        // Tout clic (gauche ou droit) ouvre le menu - comportement standard des apps menu bar
-        if let button = statusItem?.button {
-            statusMenu = createMenu()  // Recréer pour mettre à jour "Voir la dernière capture"
-            statusMenu?.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height), in: button)
-        }
-    }
-
-    func setupMenu() {
-        // Créer le menu une seule fois mais NE PAS l'assigner au statusItem
-        // On l'affichera manuellement lors du clic droit
-        statusMenu = createMenu()
-    }
-
-    func createMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        let captureTitle = NSLocalizedString("menu.capture_area", comment: "")
-        let screenshotItem = NSMenuItem(title: captureTitle, action: #selector(takeScreenshot), keyEquivalent: "")
-        screenshotItem.target = self
-        screenshotItem.keyEquivalent = settings.globalHotkey.keyEquivalent
-        screenshotItem.keyEquivalentModifierMask = settings.globalHotkey.modifierFlags
-        menu.addItem(screenshotItem)
-
-        let advancedItem = NSMenuItem(title: NSLocalizedString("menu.capture_advanced", comment: ""), action: #selector(captureAdvanced), keyEquivalent: "")
-        advancedItem.target = self
-        advancedItem.keyEquivalent = settings.advancedHotkey.keyEquivalent
-        advancedItem.keyEquivalentModifierMask = settings.advancedHotkey.modifierFlags
-        menu.addItem(advancedItem)
-
-        let fullScreenItem = NSMenuItem(title: NSLocalizedString("menu.capture_fullscreen", comment: ""), action: #selector(captureFullScreen), keyEquivalent: "")
-        fullScreenItem.target = self
-        menu.addItem(fullScreenItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // "Reveal last screenshot" menu item - enabled only if there's a recent capture
-        let revealItem = NSMenuItem(title: NSLocalizedString("menu.show_last", comment: ""), action: #selector(revealLastScreenshot), keyEquivalent: "")
-        revealItem.target = self
-        revealItem.isEnabled = (lastScreenshotPath != nil)
-        menu.addItem(revealItem)
-
-        // History Submenu
-        let historyMenu = NSMenu()
-        let historyItem = NSMenuItem(title: NSLocalizedString("menu.history", comment: ""), action: nil, keyEquivalent: "")
-        historyItem.submenu = historyMenu
-
-        let history = AppSettings.shared.captureHistory
-
-        if history.isEmpty {
-            let emptyItem = NSMenuItem(title: NSLocalizedString("menu.history.empty", comment: ""), action: nil, keyEquivalent: "")
-            emptyItem.isEnabled = false
-            historyMenu.addItem(emptyItem)
-        } else {
-            for path in history {
-                let filename = (path as NSString).lastPathComponent
-                let item = NSMenuItem(title: filename, action: #selector(copyFromHistory(_:)), keyEquivalent: "")
-                item.representedObject = path
-                item.target = self
-                historyMenu.addItem(item)
+            DispatchQueue.main.async { [weak self] in
+                self?.lastScreenshotPath = path
             }
-
-            historyMenu.addItem(NSMenuItem.separator())
-            let clearItem = NSMenuItem(title: NSLocalizedString("menu.history.clear", comment: ""), action: #selector(clearHistory), keyEquivalent: "")
-            clearItem.target = self
-            historyMenu.addItem(clearItem)
         }
-
-        menu.addItem(historyItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let destinationItem = NSMenuItem(title: NSLocalizedString("menu.destination", comment: ""), action: #selector(changeDestinationFolder), keyEquivalent: "")
-        destinationItem.target = self
-        menu.addItem(destinationItem)
-
-        let prefsItem = NSMenuItem(title: NSLocalizedString("menu.preferences", comment: ""), action: #selector(openPreferences), keyEquivalent: "")
-        prefsItem.target = self
-        menu.addItem(prefsItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: ""), action: #selector(quit), keyEquivalent: "")
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        return menu
-    }
-
-    private func updateHotKeyUI() {
-        let hotkeyDisplay = settings.globalHotkey.symbolDisplayString
-        statusItem?.button?.toolTip = "PastScreen-CN - 快捷键：\(hotkeyDisplay)"
     }
 
     @objc func takeScreenshot() {
@@ -331,11 +213,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
 
-    @objc func copyFromHistory(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-
+    func copyFromHistory(path: String) {
         guard FileManager.default.fileExists(atPath: path) else { return }
-
         guard let image = NSImage(contentsOfFile: path) else { return }
 
         let pasteboard = NSPasteboard.general
@@ -343,13 +222,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         pasteboard.writeObjects([image])
         pasteboard.setString(path, forType: .string)
 
-        // Play sound for feedback
         if AppSettings.shared.playSoundOnCapture {
             NSSound(named: "Pop")?.play()
         }
 
-        // Show small notification/feedback
         DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
+    }
+
+    @objc func copyFromHistory(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        copyFromHistory(path: path)
     }
 
     @objc func clearHistory() {
@@ -415,12 +297,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Cleanup full screen service if needed
 
-        // Nettoyer l'icône de la barre de menu
-        if let statusItem = statusItem {
-            NSStatusBar.system.removeStatusItem(statusItem)
-            self.statusItem = nil
-        }
-
         // Terminer l'application (le raccourci reste actif)
         NSApplication.shared.terminate(nil)
     }
@@ -453,9 +329,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationWillTerminate(_ notification: Notification) {
         // HotKeyManager cleans itself up via deinit, so we don't need to call stopMonitoring.
-        if let statusItem = statusItem {
-            NSStatusBar.system.removeStatusItem(statusItem)
-        }
     }
 
     func requestNotificationPermission() {
