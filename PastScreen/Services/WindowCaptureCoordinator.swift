@@ -179,7 +179,7 @@ final class WindowCaptureCoordinator {
     /// Resolve ScreenCaptureKit metadata and screenshot for a CGWindowID.
     /// Uses SCShareableContent.excludingDesktopWindows(_, onScreenWindowsOnly: true) for a visible-only set.
     func captureWindow(with windowID: CGWindowID, applyBorder: Bool = true) async throws -> WindowCaptureResult {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
             throw WindowCaptureError.shareableWindowNotFound(windowID)
         }

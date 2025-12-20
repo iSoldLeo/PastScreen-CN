@@ -32,6 +32,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let image: CGImage
         let padding: NSEdgeInsets
         let pointSize: CGSize
+        let borderApplied: Bool
+        let scale: CGFloat
     }
 
     private enum CaptureMode {
@@ -198,7 +200,22 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self = self else { return }
 
-            if let frozenWindow = self.frozenWindowSnapshots[windowResult.windowID] {
+            if var frozenWindow = self.frozenWindowSnapshots[windowResult.windowID] {
+                if !frozenWindow.borderApplied {
+                    let (bordered, padding) = self.applyFrozenBorderIfNeeded(to: frozenWindow.image, scale: frozenWindow.scale)
+                    let selectionSize = CGSize(
+                        width: frozenWindow.pointSize.width + padding.left + padding.right,
+                        height: frozenWindow.pointSize.height + padding.top + padding.bottom
+                    )
+                    frozenWindow = FrozenWindowSnapshot(
+                        image: bordered,
+                        padding: padding,
+                        pointSize: selectionSize,
+                        borderApplied: true,
+                        scale: frozenWindow.scale
+                    )
+                    self.frozenWindowSnapshots[windowResult.windowID] = frozenWindow
+                }
                 let selectionRect = CGRect(origin: .zero, size: frozenWindow.pointSize)
                 switch self.captureMode {
                 case .advanced:
@@ -280,7 +297,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func startSelectionFlow(overlayConfiguration: SelectionOverlayView.Configuration) {
         Task { [weak self] in
             guard let self = self else { return }
-            let overlayWindowIDs: [CGWindowID] = await MainActor.run { [weak self] in
+            var overlayWindowIDs: [CGWindowID] = await MainActor.run { [weak self] in
                 guard let self = self else { return [] }
                 let window = SelectionWindow(
                     frozenScreenshots: self.frozenDisplaySnapshots,
@@ -290,6 +307,14 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 window.show()
                 self.selectionWindow = window
                 return window.getOverlayWindowIDs()
+            }
+            // 有时窗口刚创建时 windowNumber 还没准备好，导致排除列表为空；稍等一帧再取一次，避免把遮罩本身截图进背景导致“双重遮罩”。
+            if overlayWindowIDs.isEmpty {
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms
+                overlayWindowIDs = await MainActor.run { [weak self] in
+                    guard let self = self else { return [] }
+                    return self.selectionWindow?.getOverlayWindowIDs() ?? []
+                }
             }
             if overlayWindowIDs.isEmpty {
                 return
@@ -311,7 +336,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     private func prepareFrozenSnapshotsWithScreenCaptureKit(excludingWindowIDs: [CGWindowID]) async throws -> FrozenSnapshots {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         let excludeSet = Set(excludingWindowIDs)
         let excludedWindows = content.windows.filter { excludeSet.contains(CGWindowID($0.windowID)) }
 
@@ -331,7 +356,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         for window in content.windows {
             if excludeSet.contains(CGWindowID(window.windowID)) { continue }
             do {
-                let snapshot = try await captureWindowSnapshot(window: window)
+                let snapshot = try await captureWindowSnapshot(window: window, applyBorder: false)
                 windowSnapshots[CGWindowID(window.windowID)] = snapshot
             } catch {
                 // Skip windows that fail to capture to avoid blocking the whole flow
@@ -360,7 +385,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
     }
 
-    private func captureWindowSnapshot(window: SCWindow) async throws -> FrozenWindowSnapshot {
+    private func captureWindowSnapshot(window: SCWindow, applyBorder: Bool) async throws -> FrozenWindowSnapshot {
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let rect = filter.contentRect
         let scale = filter.pointPixelScale
@@ -378,13 +403,30 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             configuration: config
         )
 
-        let (bordered, padding) = applyFrozenBorderIfNeeded(to: image, scale: scaleCGFloat)
-        let pointSize = CGSize(
-            width: rect.width + padding.left + padding.right,
-            height: rect.height + padding.top + padding.bottom
-        )
-
-        return FrozenWindowSnapshot(image: bordered, padding: padding, pointSize: pointSize)
+        if applyBorder {
+            let (bordered, padding) = applyFrozenBorderIfNeeded(to: image, scale: scaleCGFloat)
+            let pointSize = CGSize(
+                width: rect.width + padding.left + padding.right,
+                height: rect.height + padding.top + padding.bottom
+            )
+            return FrozenWindowSnapshot(
+                image: bordered,
+                padding: padding,
+                pointSize: pointSize,
+                borderApplied: true,
+                scale: scaleCGFloat
+            )
+        } else {
+            let padding = NSEdgeInsets()
+            let pointSize = CGSize(width: rect.width, height: rect.height)
+            return FrozenWindowSnapshot(
+                image: image,
+                padding: padding,
+                pointSize: pointSize,
+                borderApplied: false,
+                scale: scaleCGFloat
+            )
+        }
     }
 
     private func frozenCapture(for rect: CGRect) -> CGImage? {
