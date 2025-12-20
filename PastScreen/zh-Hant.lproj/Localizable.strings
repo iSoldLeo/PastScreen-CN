@@ -1,72 +1,72 @@
 /* Menu Items */
-"menu.tooltip" = "PastScreen-CN - 快速截图";
-"menu.capture_area" = "快速截图";
-"menu.capture_fullscreen" = "全屏截图";
-"menu.capture_advanced" = "高级截图";
-"menu.show_last" = "显示最近截图";
-"menu.history" = "历史记录";
-"menu.history.empty" = "暂无截图";
-"menu.history.clear" = "清空历史";
-"menu.destination" = "更改保存文件夹...";
-"menu.preferences" = "设置...";
-"menu.check_updates" = "检查更新...";
+"menu.tooltip" = "PastScreen-CN - 快速截圖";
+"menu.capture_area" = "快速截圖";
+"menu.capture_fullscreen" = "全螢幕截圖";
+"menu.capture_advanced" = "進階截圖";
+"menu.show_last" = "顯示最近截圖";
+"menu.history" = "歷史記錄";
+"menu.history.empty" = "暫無截圖";
+"menu.history.clear" = "清空歷史";
+"menu.destination" = "更改儲存資料夾...";
+"menu.preferences" = "設定...";
+"menu.check_updates" = "檢查更新...";
 "menu.quit" = "退出 PastScreen-CN";
 
 /* Window Titles */
-"window.preferences" = "PastScreen-CN 设置";
+"window.preferences" = "PastScreen-CN 設定";
 
 /* Settings - Tabs */
 "settings.tab.general" = "通用";
-"settings.tab.capture" = "截图";
-"settings.tab.editor" = "编辑";
-"settings.tab.storage" = "存储";
-"settings.tab.apps" = "应用";
+"settings.tab.capture" = "截圖";
+"settings.tab.editor" = "編輯";
+"settings.tab.storage" = "儲存";
+"settings.tab.apps" = "應用";
 
 /* Settings - General */
-"settings.general.options" = "选项";
-"settings.general.launch_at_login" = "开机启动";
-"settings.general.show_in_dock" = "在 Dock 栏里显示";
-"settings.general.copy_clipboard" = "复制到剪贴板";
-"settings.general.copy_clipboard.help" = "截图完成后自动复制到剪贴板";
-"settings.general.play_sound" = "播放截图音效";
-"settings.general.play_sound.help" = "截图时播放相机快门音效";
-"settings.general.show_dimensions" = "显示尺寸";
-"settings.general.show_dimensions.help" = "截图时显示选区尺寸";
-"settings.general.section_title" = "通用选项";
-"settings.general.enable_annotations" = "启用标注";
-"settings.general.enable_annotations.help" = "保存前为截图添加箭头和文字";
+"settings.general.options" = "選項";
+"settings.general.launch_at_login" = "開機啟動";
+"settings.general.show_in_dock" = "在 Dock 欄顯示";
+"settings.general.copy_clipboard" = "複製到剪貼簿";
+"settings.general.copy_clipboard.help" = "截圖完成後自動複製到剪貼簿";
+"settings.general.play_sound" = "播放截圖音效";
+"settings.general.play_sound.help" = "截圖時播放相機快門音效";
+"settings.general.show_dimensions" = "顯示尺寸";
+"settings.general.show_dimensions.help" = "截圖時顯示選區尺寸";
+"settings.general.section_title" = "通用選項";
+"settings.general.enable_annotations" = "啟用標註";
+"settings.general.enable_annotations.help" = "儲存前為截圖添加箭頭和文字";
 "settings.general.features_section" = "功能";
-"settings.general.show_tutorial" = "启动时显示教程";
-"settings.general.show_tutorial.help" = "启动 PastScreen-CN 时显示提示";
-"settings.general.help_section" = "帮助与支持";
-"settings.general.help.prompt" = "需要入门帮助？";
-"settings.general.help.view_tutorial" = "查看教程";
-"settings.general.privacy_section" = "隐私";
-"settings.general.privacy.title" = "你的隐私很重要";
-"settings.general.privacy.description" = "PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。";
-"settings.general.privacy.bullets" = "• 无分析或追踪\n• 无云端上传\n• 无第三方服务\n• 仅本地运行";
-"settings.general.privacy.view_policy" = "查看完整隐私政策";
-"settings.general.language" = "语言";
-"settings.general.language.system" = "跟随系统";
-"settings.general.language.zh_hans" = "简体中文";
+"settings.general.show_tutorial" = "啟動時顯示教學";
+"settings.general.show_tutorial.help" = "啟動 PastScreen-CN 時顯示提示";
+"settings.general.help_section" = "說明與支援";
+"settings.general.help.prompt" = "需要入門說明？";
+"settings.general.help.view_tutorial" = "查看教學";
+"settings.general.privacy_section" = "隱私";
+"settings.general.privacy.title" = "你的隱私很重要";
+"settings.general.privacy.description" = "PastScreen-CN 不收集任何資料，所有內容僅儲存在你的 Mac 上。";
+"settings.general.privacy.bullets" = "• 無分析或追蹤\n• 無雲端上傳\n• 無第三方服務\n• 僅在本機執行";
+"settings.general.privacy.view_policy" = "查看完整隱私政策";
+"settings.general.language" = "語言";
+"settings.general.language.system" = "跟隨系統";
+"settings.general.language.zh_hans" = "簡體中文";
 "settings.general.language.english" = "English";
-"settings.general.language.note" = "更改后重启应用生效。";
+"settings.general.language.note" = "更改後重啟應用程式生效。";
 
 /* Settings - Capture */
-"settings.capture.format_section" = "图片格式";
+"settings.capture.format_section" = "圖片格式";
 "settings.capture.image_format" = "格式：";
-"settings.capture.format_png" = "PNG（无损）";
-"settings.capture.format_jpeg" = "JPEG（压缩）";
-"settings.capture.format_help" = "PNG 质量更好但体积更大，JPEG 更小。";
-"settings.capture.shortcuts_section" = "快捷键";
-"settings.capture.enable_hotkey" = "启用全局快捷键";
-"settings.capture.enable_hotkey.help" = "允许快捷键在全系统范围生效";
-"settings.capture.capture_area_label" = "截取选区：";
-"settings.capture.click_icon_label" = "或点击菜单栏图标";
-"settings.capture.open_menu" = "打开菜单";
-"settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
-"settings.capture.quick_screenshot" = "快速截图";
-"settings.capture.advanced_screenshot" = "高级截图";
+"settings.capture.format_png" = "PNG（無損）";
+"settings.capture.format_jpeg" = "JPEG（壓縮）";
+"settings.capture.format_help" = "PNG 品質更好但檔案更大，JPEG 較小。";
+"settings.capture.shortcuts_section" = "快捷鍵";
+"settings.capture.enable_hotkey" = "啟用全域快捷鍵";
+"settings.capture.enable_hotkey.help" = "允許快捷鍵在全系統範圍內生效";
+"settings.capture.capture_area_label" = "截取選區：";
+"settings.capture.click_icon_label" = "或點擊選單列圖示";
+"settings.capture.open_menu" = "開啟選單";
+"settings.capture.hotkey_disabled_help" = "啟用快捷鍵即可隨時截圖";
+"settings.capture.quick_screenshot" = "快速截圖";
+"settings.capture.advanced_screenshot" = "進階截圖";
 "settings.capture.window_border" = "視窗邊框";
 "settings.capture.window_border.enable" = "啟用視窗邊框";
 "settings.capture.window_border.width" = "邊框寬度";
@@ -74,135 +74,135 @@
 "settings.capture.window_border.color" = "邊框顏色";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "编辑工具栏";
-"settings.editor.toolbar.description" = "选择在高级截图后的编辑页面里，要显示哪些工具。";
-"settings.editor.toolbar.reorder_hint" = "使用右侧的箭头调整工具顺序。";
-"settings.editor.toolbar.note" = "至少保留一个工具。";
-"settings.editor.radial.title" = "快捷轮盘";
-"settings.editor.radial.description" = "自定义右键呼出的快捷轮盘，添加 1-4 个已启用的常用工具。";
+"settings.editor.toolbar.title" = "編輯工具列";
+"settings.editor.toolbar.description" = "選擇在進階截圖後的編輯頁面中要顯示哪些工具。";
+"settings.editor.toolbar.reorder_hint" = "使用右側的箭頭調整工具順序。";
+"settings.editor.toolbar.note" = "至少保留一個工具。";
+"settings.editor.radial.title" = "快捷輪盤";
+"settings.editor.radial.description" = "自訂右鍵呼出的快捷輪盤，新增 1-4 個已啟用的常用工具。";
 "settings.editor.radial.enabled" = "啟用快捷輪盤";
-"settings.editor.radial.add" = "添加工具";
-"settings.editor.radial.note" = "至少保留 1 个工具，在编辑器里右键打开快捷轮盘。";
+"settings.editor.radial.add" = "新增工具";
+"settings.editor.radial.note" = "至少保留 1 個工具，在編輯器裡按右鍵開啟快捷輪盤。";
 "settings.editor.ocr.title" = "OCR";
 "settings.editor.ocr.description" = "選擇啟用的識別語言，使用時會在已啟用語言中自動識別。";
-"settings.editor.ocr.reset" = "恢復默認";
-"settings.editor.ocr.note" = "不勾選任何語言時，將使用系統默認/自動檢測。";
+"settings.editor.ocr.reset" = "恢復預設";
+"settings.editor.ocr.note" = "不勾選任何語言時，將使用系統預設／自動偵測。";
 
 /* Settings - Storage */
-"settings.storage.section_title" = "存储位置";
-"settings.storage.save_to_disk" = "保存到磁盘";
-"settings.storage.save_to_disk.help" = "除剪贴板外同时保存截图文件";
-"settings.storage.folder_label" = "文件夹：";
+"settings.storage.section_title" = "儲存位置";
+"settings.storage.save_to_disk" = "儲存到磁碟";
+"settings.storage.save_to_disk.help" = "除剪貼簿外也同時儲存截圖檔案";
+"settings.storage.folder_label" = "資料夾：";
 "settings.storage.change_button" = "更改...";
-"settings.storage.open_folder" = "打开文件夹";
-"settings.storage.clear_folder" = "清空文件夹";
-"settings.select_folder.prompt" = "选择";
-"settings.select_folder.message" = "请选择用于保存截图的文件夹";
+"settings.storage.open_folder" = "打開資料夾";
+"settings.storage.clear_folder" = "清空資料夾";
+"settings.select_folder.prompt" = "選擇";
+"settings.select_folder.message" = "請選擇用於儲存截圖的資料夾";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "默认：复制图片到剪贴板";
-"settings.apps.instructions" = "在下面添加应用，如果需要复制文件路径，请将其设置为“路径”（适用于终端）。";
-"settings.apps.rules" = "规则";
-"settings.apps.empty_title" = "暂无应用规则";
-"settings.apps.empty_description" = "添加应用以改变剪贴板行为。\n终端需要文件路径时使用“路径”。";
-"settings.apps.clipboard.image" = "图片";
-"settings.apps.clipboard.path" = "路径";
-"settings.apps.add_rule" = "添加应用规则";
-"settings.apps.select_app_message" = "选择一个应用";
+"settings.apps.default_behavior" = "預設：複製圖片到剪貼簿";
+"settings.apps.instructions" = "在下方新增應用程式，如需複製檔案路徑，請將其設為「路徑」（適用於終端機）。";
+"settings.apps.rules" = "規則";
+"settings.apps.empty_title" = "暫無應用規則";
+"settings.apps.empty_description" = "新增應用程式以變更剪貼簿行為。\n終端機需要檔案路徑時使用「路徑」。";
+"settings.apps.clipboard.image" = "圖片";
+"settings.apps.clipboard.path" = "路徑";
+"settings.apps.add_rule" = "新增應用規則";
+"settings.apps.select_app_message" = "選擇一個應用程式";
 
 /* Onboarding */
-"onboarding.title" = "欢迎使用 PastScreen-CN 📸";
-"onboarding.subtitle" = "面向开发者的极速截图";
-"onboarding.why_title" = "为什么选择 PastScreen-CN？";
-"onboarding.ultrafast" = "⚡ 极速";
-"onboarding.ultrafast.desc" = "秒级截图并粘贴到你的 IDE";
-"onboarding.ultrafast.note" = "无需管理文件，只有速度";
-"onboarding.autoclean" = "🧹 自动清理";
-"onboarding.autoclean.desc" = "截图文件夹在重启时自动清理";
-"onboarding.autoclean.note" = "零维护、零杂乱";
+"onboarding.title" = "歡迎使用 PastScreen-CN 📸";
+"onboarding.subtitle" = "為開發者打造的極速截圖";
+"onboarding.why_title" = "為什麼選擇 PastScreen-CN？";
+"onboarding.ultrafast" = "⚡ 極速";
+"onboarding.ultrafast.desc" = "秒級截圖並貼上到你的 IDE";
+"onboarding.ultrafast.note" = "無需管理檔案，只有速度";
+"onboarding.autoclean" = "🧹 自動清理";
+"onboarding.autoclean.desc" = "截圖資料夾在重啟時自動清理";
+"onboarding.autoclean.note" = "零維護、零雜亂";
 "onboarding.smart_notifications" = "🔔 智能通知";
-"onboarding.smart_notifications.desc" = "提示轻量不打扰";
-"onboarding.smart_notifications.note" = "悄悄告诉你已完成";
-"onboarding.workflow" = "🎯 工作流优先";
-"onboarding.workflow.desc" = "为长期在编辑器里的开发者打造";
-"onboarding.workflow.note" = "截图 → 粘贴 → 继续编码";
-"onboarding.customizable" = "⚙️ 可定制";
-"onboarding.customizable.desc" = "快捷键、格式、存储位置都可配置";
-"onboarding.vs_native" = "相比系统截图：无预览延迟，直接入剪贴板";
-"onboarding.vs_other" = "相比其他工具：无复杂流程、无需管理文件";
-"onboarding.dont_show" = "不再显示";
-"onboarding.got_it" = "明白了，开始吧！";
+"onboarding.smart_notifications.desc" = "提示輕量不打擾";
+"onboarding.smart_notifications.note" = "悄悄告訴你已完成";
+"onboarding.workflow" = "🎯 工作流程優先";
+"onboarding.workflow.desc" = "為長期待在編輯器裡的開發者打造";
+"onboarding.workflow.note" = "截圖 → 貼上 → 繼續編碼";
+"onboarding.customizable" = "⚙️ 可自訂";
+"onboarding.customizable.desc" = "快捷鍵、格式、儲存位置都可設定";
+"onboarding.vs_native" = "相比系統截圖：無預覽延遲，直接進入剪貼簿";
+"onboarding.vs_other" = "相比其他工具：無複雜流程、無需管理檔案";
+"onboarding.dont_show" = "不再顯示";
+"onboarding.got_it" = "明白了，開始吧！";
 
 /* Errors */
-"error.permissions_required.title" = "需要屏幕录制权限";
-"error.permissions_required.message" = "PastScreen-CN 需要屏幕录制权限才能截图。\n\n前往“系统设置 → 隐私与安全性 → 屏幕录制”并允许 PastScreen-CN。";
-"error.open_system_prefs" = "打开系统设置";
-"error.later" = "稍后";
-"error.accessibility_required.title" = "需要辅助功能权限";
-"error.accessibility_required.message" = "PastScreen-CN 需要辅助功能权限以注册全局快捷键。\n\n前往“系统设置 → 隐私与安全性 → 辅助功能”并允许 PastScreen-CN。";
-"error.open_system_settings" = "打开系统设置";
-"error.capture_error" = "截图失败";
-"error.unable_to_launch" = "无法启动 PastScreen-CN";
-"error.file_not_found.title" = "未找到文件";
-"error.file_not_found.message" = "无法找到最近的截图，可能已被删除或移动。";
-"error.invalid_rectangle" = "选区无效";
-"error.permission_denied" = "权限被拒绝";
-"error.capture_interrupted" = "截图被中断";
+"error.permissions_required.title" = "需要螢幕錄製權限";
+"error.permissions_required.message" = "PastScreen-CN 需要螢幕錄製權限才能截圖。\n\n前往「系統設定 → 隱私與安全性 → 螢幕錄製」並允許 PastScreen-CN。";
+"error.open_system_prefs" = "打開系統設定";
+"error.later" = "稍後";
+"error.accessibility_required.title" = "需要輔助使用權限";
+"error.accessibility_required.message" = "PastScreen-CN 需要輔助使用權限以註冊全域快捷鍵。\n\n前往「系統設定 → 隱私與安全性 → 輔助使用」並允許 PastScreen-CN。";
+"error.open_system_settings" = "打開系統設定";
+"error.capture_error" = "截圖失敗";
+"error.unable_to_launch" = "無法啟動 PastScreen-CN";
+"error.file_not_found.title" = "找不到檔案";
+"error.file_not_found.message" = "無法找到最近的截圖，可能已被刪除或移動。";
+"error.invalid_rectangle" = "選區無效";
+"error.permission_denied" = "權限遭拒";
+"error.capture_interrupted" = "截圖已中斷";
 
 /* Notifications */
-"notification.screenshot_ready" = "截图已完成";
-"notification.click_to_reveal" = "点击在 Finder 中显示";
-"notification.screenshot_saved" = "截图已保存到剪贴板";
-"notification.reveal_in_finder" = "在 Finder 中显示";
-"notification.dismiss" = "关闭";
+"notification.screenshot_ready" = "截圖已完成";
+"notification.click_to_reveal" = "點擊在 Finder 中顯示";
+"notification.screenshot_saved" = "截圖已複製到剪貼簿";
+"notification.reveal_in_finder" = "在 Finder 中顯示";
+"notification.dismiss" = "關閉";
 
 /* Onboarding */
 "onboarding.button.previous" = "上一步";
 "onboarding.button.next" = "下一步";
-"onboarding.button.start" = "开始使用";
+"onboarding.button.start" = "開始使用";
 
-"onboarding.page1.title" = "极速";
-"onboarding.page1.description" = "几秒完成截图与粘贴。\n你的热键 → 截图 → ⌘V 粘贴";
+"onboarding.page1.title" = "極速";
+"onboarding.page1.description" = "幾秒完成截圖與貼上。\n你的快捷鍵 → 截圖 → ⌘V 貼上";
 
-"onboarding.page2.title" = "存储位置";
-"onboarding.page2.description" = "选择 PastScreen-CN 保存截图的位置。";
+"onboarding.page2.title" = "儲存位置";
+"onboarding.page2.description" = "選擇 PastScreen-CN 儲存截圖的位置。";
 
-"onboarding.storage.default.title" = "图片文件夹（默认）";
-"onboarding.storage.default.desc" = "保存到“图片”文件夹。\n（需要权限）";
+"onboarding.storage.default.title" = "圖片資料夾（預設）";
+"onboarding.storage.default.desc" = "儲存到「圖片」資料夾。\n（需要權限）";
 
-"onboarding.storage.temp.title" = "临时（自动清理）";
-"onboarding.storage.temp.desc" = "适合快速复制粘贴。\n重启后自动删除。";
+"onboarding.storage.temp.title" = "暫存（自動清理）";
+"onboarding.storage.temp.desc" = "適合快速複製貼上。\n重啟後自動刪除。";
 
-"onboarding.page3.title" = "直接剪贴板";
-"onboarding.page3.description" = "自动复制到剪贴板。\n适配 Cursor、VSCode、Zed。";
+"onboarding.page3.title" = "直接剪貼簿";
+"onboarding.page3.description" = "自動複製到剪貼簿。\n相容 Cursor、VSCode、Zed。";
 
-"onboarding.page4.title" = "可定制";
-"onboarding.page4.description" = "快捷键、格式、文件夹...\n菜单栏即可配置。";
+"onboarding.page4.title" = "可自訂";
+"onboarding.page4.description" = "快捷鍵、格式、資料夾...\n選單列即可設定。";
 
-"onboarding.page_apps.title" = "应用规则";
-"onboarding.page_apps.description" = "按应用自定义行为。\nAI 工具用“图片”，代码编辑器用“路径”。";
+"onboarding.page_apps.title" = "應用規則";
+"onboarding.page_apps.description" = "依應用程式自訂行為。\nAI 工具用「圖片」，程式碼編輯器用「路徑」。";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "屏幕录制";
-"onboarding.permissions.screen_recording.description" = "截图需要此权限。\n点击下方授权。";
-"onboarding.permissions.accessibility.title" = "辅助功能";
-"onboarding.permissions.accessibility.description" = "全局快捷键需要此权限。\n点击下方授权。";
-"onboarding.permissions.grant" = "授权";
-"onboarding.permissions.granted" = "已授权";
+"onboarding.permissions.screen_recording.title" = "螢幕錄製";
+"onboarding.permissions.screen_recording.description" = "截圖需要此權限。\n點擊下方授權。";
+"onboarding.permissions.accessibility.title" = "輔助使用";
+"onboarding.permissions.accessibility.description" = "全域快捷鍵需要此權限。\n點擊下方授權。";
+"onboarding.permissions.grant" = "授權";
+"onboarding.permissions.granted" = "已授權";
 
 /* Permission Alerts */
-"permission.request.header" = "PastScreen-CN 需要以下权限才能正常工作：";
-"permission.request.footer" = "请在“系统设置 → 隐私与安全性”中开启。";
-"permission.max_retries.message" = "PastScreen-CN 已达到权限请求次数上限。\n\n请手动开启";
+"permission.request.header" = "PastScreen-CN 需要以下權限才能正常運作：";
+"permission.request.footer" = "請在「系統設定 → 隱私與安全性」中開啟。";
+"permission.max_retries.message" = "PastScreen-CN 已達到權限請求次數上限。\n\n請手動開啟";
 
 /* Hotkey Labels */
-"hotkey.key.code" = "按键 %d";
-"hotkey.key.space" = "空格";
-"hotkey.key.return" = "回车";
+"hotkey.key.code" = "按鍵 %d";
+"hotkey.key.space" = "空白鍵";
+"hotkey.key.return" = "Return";
 "hotkey.key.tab" = "Tab";
-"hotkey.key.delete" = "删除";
+"hotkey.key.delete" = "刪除";
 "hotkey.key.escape" = "Esc";
-"hotkey.key.forward_delete" = "前向删除";
+"hotkey.key.forward_delete" = "向前刪除";
 "hotkey.key.home" = "Home";
 "hotkey.key.end" = "End";
 "hotkey.key.page_up" = "Page Up";
@@ -211,61 +211,61 @@
 "hotkey.key.right" = "右";
 "hotkey.key.down" = "下";
 "hotkey.key.up" = "上";
-"hotkey.prompt.press" = "请按下快捷键...";
+"hotkey.prompt.press" = "請按下快捷鍵...";
 
 /* Tips */
 "tip.quick_capture.title" = "PastScreen-CN 提示";
-"tip.quick_capture.message" = "使用你的热键或 Apple 快捷指令即可快速截图。";
+"tip.quick_capture.message" = "使用你的快捷鍵或 Apple 捷徑即可快速截圖。";
 
 /* App Intents */
-"intent.capture_area.title" = "选区截图";
-"intent.capture_area.description" = "使用 PastScreen-CN 截取自定义区域并复制图片。";
-"intent.capture_area.phrase1" = "用 \\(.applicationName) 选区截图";
-"intent.capture_area.phrase2" = "使用 \\(.applicationName) 截取选区";
-"intent.capture_area.short_title" = "选区截图";
-"intent.capture_full.title" = "全屏截图";
-"intent.capture_full.description" = "使用 PastScreen-CN 截取全屏并复制结果。";
-"intent.capture_full.phrase1" = "用 \\(.applicationName) 全屏截图";
-"intent.capture_full.phrase2" = "使用 \\(.applicationName) 截取全屏";
-"intent.capture_full.short_title" = "全屏截图";
-"intent.error.app_unavailable" = "PastScreen-CN 需要运行中才能执行此操作。";
+"intent.capture_area.title" = "選區截圖";
+"intent.capture_area.description" = "使用 PastScreen-CN 截取自訂區域並複製圖片。";
+"intent.capture_area.phrase1" = "用 \\(.applicationName) 選區截圖";
+"intent.capture_area.phrase2" = "使用 \\(.applicationName) 截取選區";
+"intent.capture_area.short_title" = "選區截圖";
+"intent.capture_full.title" = "全螢幕截圖";
+"intent.capture_full.description" = "使用 PastScreen-CN 截取全螢幕並複製結果。";
+"intent.capture_full.phrase1" = "用 \\(.applicationName) 全螢幕截圖";
+"intent.capture_full.phrase2" = "使用 \\(.applicationName) 截取全螢幕";
+"intent.capture_full.short_title" = "全螢幕截圖";
+"intent.error.app_unavailable" = "PastScreen-CN 需要在執行中才能進行此操作。";
 
 /* Common Actions */
 "common.cancel" = "取消";
-"common.confirm" = "确定";
+"common.confirm" = "確定";
 "common.done" = "完成";
-"common.ok" = "确定";
+"common.ok" = "確定";
 "common.change" = "更改";
-"common.undo" = "撤销";
+"common.undo" = "撤銷";
 "common.redo" = "重做";
 
 /* Permissions */
-"permission.type.screen_recording" = "屏幕录制";
-"permission.type.accessibility" = "辅助功能";
+"permission.type.screen_recording" = "螢幕錄製";
+"permission.type.accessibility" = "輔助使用";
 "permission.type.notifications" = "通知";
 
 /* Editor */
-"editor.window.title" = "编辑截图";
+"editor.window.title" = "編輯截圖";
 "editor.text.size" = "大小";
-"editor.mosaic.size" = "马赛克大小";
-"editor.stroke.width" = "粗细";
-"editor.text.title" = "输入文字";
-"editor.text.placeholder" = "请输入文字";
+"editor.mosaic.size" = "馬賽克大小";
+"editor.stroke.width" = "粗細";
+"editor.text.title" = "輸入文字";
+"editor.text.placeholder" = "請輸入文字";
 "editor.ocr.title" = "OCR";
-"editor.ocr.hint" = "拖拽选择区域进行 OCR";
-"editor.ocr.full_image" = "全图 OCR";
-"editor.ocr.copy" = "复制";
-"editor.ocr.empty" = "未识别到文字";
+"editor.ocr.hint" = "拖曳選擇區域進行 OCR";
+"editor.ocr.full_image" = "全圖 OCR";
+"editor.ocr.copy" = "複製";
+"editor.ocr.empty" = "未辨識到文字";
 "editor.ocr.processing" = "識別中…";
-"editor.ocr.error.invalid_image" = "无法读取图片数据";
-"editor.ocr.error.cgimage" = "无法创建图像用于识别";
+"editor.ocr.error.invalid_image" = "無法讀取圖片資料";
+"editor.ocr.error.cgimage" = "無法建立影像用於辨識";
 
 /* Tools */
-"tool.pen" = "画笔";
-"tool.line" = "直线";
+"tool.pen" = "畫筆";
+"tool.line" = "直線";
 "tool.rectangle" = "矩形";
-"tool.circle" = "圆形";
-"tool.arrow" = "箭头";
-"tool.mosaic" = "马赛克";
+"tool.circle" = "圓形";
+"tool.arrow" = "箭頭";
+"tool.mosaic" = "馬賽克";
 "tool.text" = "文字";
 "tool.ocr" = "OCR";
