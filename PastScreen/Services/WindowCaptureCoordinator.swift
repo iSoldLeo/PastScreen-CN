@@ -63,6 +63,16 @@ final class WindowCaptureCoordinator {
     static let shared = WindowCaptureCoordinator()
     private let selfPID: pid_t = getpid()
 
+    private struct WindowCandidate {
+        let windowID: CGWindowID
+        let quartzBounds: CGRect
+        let ownerPID: pid_t
+        let ownerName: String?
+        let layer: Int
+
+        var area: CGFloat { quartzBounds.width * quartzBounds.height }
+    }
+
     private struct QuartzSpace {
         static var mainHeight: CGFloat { CGDisplayBounds(CGMainDisplayID()).height }
 
@@ -95,6 +105,10 @@ final class WindowCaptureCoordinator {
         guard let windowInfoList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             throw WindowCaptureError.noWindowAtPoint
         }
+
+        var frontmostCandidate: WindowCandidate?
+        var bestCandidate: WindowCandidate?
+        var frontmostBoundsForContainment: CGRect?
 
         for info in windowInfoList {
             guard
@@ -145,14 +159,47 @@ final class WindowCaptureCoordinator {
                 continue
             }
 
-            let appKitBounds = QuartzSpace.appKitRect(fromQuartz: quartzBounds)
-
-            return WindowHitTestResult(
+            let candidate = WindowCandidate(
                 windowID: windowID,
-                bounds: appKitBounds,
+                quartzBounds: quartzBounds,
                 ownerPID: ownerPID,
                 ownerName: ownerName,
                 layer: layer
+            )
+
+            // First match is the frontmost window under the point.
+            if frontmostCandidate == nil {
+                frontmostCandidate = candidate
+                bestCandidate = candidate
+                frontmostBoundsForContainment = quartzBounds.insetBy(dx: -1, dy: -1) // tolerate tiny rounding/shadow differences
+                continue
+            }
+
+            // Promote Chromium/Electron "child windows" to the top-level app window for a consistent
+            // selection preview and capture result. Only consider same-PID windows that fully contain
+            // the frontmost window bounds; this avoids promoting unrelated overlapping windows.
+            guard
+                let frontmostCandidate,
+                candidate.ownerPID == frontmostCandidate.ownerPID,
+                let containmentBounds = frontmostBoundsForContainment,
+                candidate.quartzBounds.contains(containmentBounds)
+            else {
+                continue
+            }
+
+            if let currentBest = bestCandidate, candidate.area > currentBest.area {
+                bestCandidate = candidate
+            }
+        }
+
+        if let bestCandidate {
+            let appKitBounds = QuartzSpace.appKitRect(fromQuartz: bestCandidate.quartzBounds)
+            return WindowHitTestResult(
+                windowID: bestCandidate.windowID,
+                bounds: appKitBounds,
+                ownerPID: bestCandidate.ownerPID,
+                ownerName: bestCandidate.ownerName,
+                layer: bestCandidate.layer
             )
         }
 
