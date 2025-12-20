@@ -529,10 +529,20 @@ struct ImageEditingView: View {
                 .onAppear {
                     // Setup keyboard shortcuts for undo/redo
                     keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                        if event.modifierFlags.contains(.command) {
+                        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+                        // Handle plain Return/Enter to finish editing
+                        if modifiers.isEmpty && (event.keyCode == 36 || event.keyCode == 76) {
+                            if !showTextInput && !showOCRResult && !waitingForTextPlacement {
+                                saveEditedImage()
+                                return nil
+                            }
+                        }
+
+                        if modifiers.contains(.command) {
                             switch event.charactersIgnoringModifiers {
                             case "z":
-                                if event.modifierFlags.contains(.shift) {
+                                if modifiers.contains(.shift) {
                                     redo()
                                 } else {
                                     undo()

@@ -194,9 +194,10 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
-    private let defaultBorderColor = RGBAColor(r: 1, g: 1, b: 1, a: 1)
-    private let defaultBorderWidth: Double = 16
-    private let defaultBorderCornerRadius: Double = 20
+    // Defaults for window border (off-white with a hint of gray)
+    private let defaultBorderColor = RGBAColor(r: 0.97, g: 0.97, b: 0.97, a: 1.0)
+    private let defaultBorderWidth: Double = 10
+    private let defaultBorderCornerRadius: Double = 22
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
     private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
     private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]

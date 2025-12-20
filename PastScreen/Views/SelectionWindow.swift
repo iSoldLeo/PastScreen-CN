@@ -38,9 +38,14 @@ class SelectionWindow: NSWindow {
     // Multi-screen support: one window per screen
     private var overlayWindows: [NSWindow] = []
     private let overlayConfiguration: SelectionOverlayView.Configuration
+    private var frozenScreenshots: [CGDirectDisplayID: CGImage]
 
-    init(overlayConfiguration: SelectionOverlayView.Configuration = .screenshot) {
+    init(
+        frozenScreenshots: [CGDirectDisplayID: CGImage] = [:],
+        overlayConfiguration: SelectionOverlayView.Configuration = .screenshot
+    ) {
         self.overlayConfiguration = overlayConfiguration
+        self.frozenScreenshots = frozenScreenshots
         // Create main window (first screen) for NSWindow inheritance
         let mainScreen = NSScreen.main ?? NSScreen.screens.first!
 
@@ -76,9 +81,18 @@ class SelectionWindow: NSWindow {
             // Manually position window to this screen's frame
             window.setFrame(screen.frame, display: false)
 
+            // Resolve snapshot for this screen if available
+            let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+            let snapshot = displayID.flatMap { frozenScreenshots[$0] }
+
             // Create overlay view for this screen - frame must be relative to window (0,0 origin)
             let overlayFrame = NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height)
-            let overlayView = SelectionOverlayView(frame: overlayFrame, configuration: overlayConfiguration)
+            let overlayView = SelectionOverlayView(
+                frame: overlayFrame,
+                configuration: overlayConfiguration,
+                displayID: displayID,
+                backgroundImage: snapshot
+            )
             overlayView.onComplete = { [weak self] rect in
                 guard let self = self else { return }
                 self.selectionDelegate?.selectionWindow(self, didSelectRect: rect)
@@ -141,6 +155,15 @@ class SelectionWindow: NSWindow {
         }
         return windowIDs
     }
+
+    func updateBackgroundSnapshots(_ snapshots: [CGDirectDisplayID: CGImage]) {
+        frozenScreenshots = snapshots
+        for window in overlayWindows {
+            guard let overlayView = window.contentView as? SelectionOverlayView else { continue }
+            guard let displayID = overlayView.displayID else { continue }
+            overlayView.updateBackground(snapshots[displayID])
+        }
+    }
 }
 
 // Vue simple pour dessiner la sélection
@@ -159,6 +182,8 @@ class SelectionOverlayView: NSView {
     }
 
     private let configuration: Configuration
+    private(set) var displayID: CGDirectDisplayID?
+    private var backgroundImage: CGImage?
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
@@ -167,9 +192,12 @@ class SelectionOverlayView: NSView {
     private var hoverWindowHit: WindowHitTestResult?
     private var highlightRect: NSRect?
     private var trackingArea: NSTrackingArea?
+    private var didReceiveMouseMove = false
 
-    init(frame: NSRect, configuration: Configuration = .screenshot) {
+    init(frame: NSRect, configuration: Configuration = .screenshot, displayID: CGDirectDisplayID? = nil, backgroundImage: CGImage? = nil) {
         self.configuration = configuration
+        self.displayID = displayID
+        self.backgroundImage = backgroundImage
         super.init(frame: frame)
         self.wantsLayer = true
         // Keep layer clear; dimming is drawn in draw(_:) to allow full transparency in the selection hole
@@ -182,8 +210,18 @@ class SelectionOverlayView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        hoverWindowHit = resolveWindowHit()
-        pendingWindowHit = hoverWindowHit
+        if let scale = window?.backingScaleFactor {
+            layer?.contentsScale = scale
+        }
+        hoverWindowHit = nil
+        pendingWindowHit = nil
+        highlightRect = nil
+        didReceiveMouseMove = false
+        needsDisplay = true
+    }
+
+    func updateBackground(_ image: CGImage?) {
+        backgroundImage = image
         needsDisplay = true
     }
 
@@ -212,6 +250,7 @@ class SelectionOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
+        didReceiveMouseMove = true
         hoverWindowHit = resolveWindowHit()
         pendingWindowHit = hoverWindowHit
         needsDisplay = true
@@ -323,6 +362,10 @@ class SelectionOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
+        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
+            context.draw(backgroundImage, in: bounds)
+        }
+
         // Fond semi-transparent plus marqué
         NSColor.black.withAlphaComponent(configuration.overlayOpacity).setFill()
         bounds.fill()
@@ -342,9 +385,13 @@ class SelectionOverlayView: NSView {
 
         guard let rect = holeRect else { return }
 
-        // Zone claire
-        NSColor.clear.setFill()
-        rect.fill(using: .copy)
+        // Redraw snapshot inside selection to keep it bright (no dimming)
+        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+            context.clip(to: rect)
+            context.draw(backgroundImage, in: bounds)
+            context.restoreGState()
+        }
 
         // Bordure
         NSColor.systemBlue.setStroke()

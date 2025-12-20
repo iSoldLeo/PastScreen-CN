@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import CoreGraphics
+import QuartzCore
 import ScreenCaptureKit
 
 struct WindowHitTestResult {
@@ -284,17 +285,15 @@ final class WindowCaptureCoordinator {
             return nil
         }
 
-        // Fill border area with rounded corners; transparent outside. Apply shadow to border only.
-        context.setFillColor(color)
-        let outerRect = CGRect(x: 0, y: 0, width: newWidth, height: newHeight)
-        let path = CGPath(
-            roundedRect: outerRect,
-            cornerWidth: cornerRadiusPixels,
-            cornerHeight: cornerRadiusPixels,
-            transform: nil
-        )
-        context.addPath(path)
-        context.fillPath()
+        // Fill border area with rounded corners using continuous curve
+        let shapeLayer = CALayer()
+        shapeLayer.frame = CGRect(x: 0, y: 0, width: newWidth, height: newHeight)
+        shapeLayer.backgroundColor = color
+        shapeLayer.cornerRadius = cornerRadiusPixels
+        shapeLayer.cornerCurve = .continuous
+        shapeLayer.masksToBounds = true
+        shapeLayer.contentsScale = scale
+        shapeLayer.render(in: context)
 
         // Draw original image inside the border
         context.draw(
