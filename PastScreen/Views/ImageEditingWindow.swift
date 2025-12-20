@@ -112,6 +112,14 @@ struct ImageEditingView: View {
     @State private var waitingForTextPlacement = false
     @State private var previewTextPosition: CGPoint? = nil
     @State private var mousePosition: CGPoint = .zero
+
+    // OCR tool properties
+    @State private var ocrSelectedRect: CGRect? = nil
+    @State private var ocrIsProcessing = false
+    @State private var showOCRResult = false
+    @State private var ocrResultText = ""
+    @State private var showOCRError = false
+    @State private var ocrErrorMessage = ""
     
     // Undo/Redo state
     @State private var undoStack: [EditAction] = []
@@ -195,27 +203,44 @@ struct ImageEditingView: View {
                     .frame(height: 36)
                 
                 // Color picker and stroke controls
-                HStack(spacing: 20) {
-                    // Color picker
-                    ColorPicker("", selection: $selectedColor)
-                        .labelsHidden()
-                        .frame(width: 28, height: 28)
-                    
-                    // Stroke width/Text size
-                    let sliderMax = sliderMaximum(for: selectedTool)
-                    VStack(spacing: 2) {
-                        Text(sliderLabel(for: selectedTool))
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        HStack(spacing: 4) {
-                            Text("1")
-                                .font(.system(size: 9))
-                                .foregroundColor(Color.secondary.opacity(0.6))
-                            Slider(value: $strokeWidth, in: 1...sliderMax, step: 1)
-                                .frame(width: 100)
-                            Text("\(Int(sliderMax))")
-                                .font(.system(size: 9))
-                                .foregroundColor(Color.secondary.opacity(0.6))
+                Group {
+                    if selectedTool == .ocr {
+                        HStack(spacing: 10) {
+                            Text(NSLocalizedString("editor.ocr.hint", value: "拖拽选择区域进行 OCR", comment: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button(NSLocalizedString("editor.ocr.full_image", value: "全图 OCR", comment: "")) {
+                                ocrSelectedRect = nil
+                                startOCR(region: nil)
+                            }
+                            .controlSize(.small)
+                            .disabled(ocrIsProcessing)
+                        }
+                    } else {
+                        HStack(spacing: 20) {
+                            // Color picker
+                            ColorPicker("", selection: $selectedColor)
+                                .labelsHidden()
+                                .frame(width: 28, height: 28)
+
+                            // Stroke width/Text size
+                            let sliderMax = sliderMaximum(for: selectedTool)
+                            VStack(spacing: 2) {
+                                Text(sliderLabel(for: selectedTool))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("1")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(Color.secondary.opacity(0.6))
+                                    Slider(value: $strokeWidth, in: 1...sliderMax, step: 1)
+                                        .frame(width: 100)
+                                    Text("\(Int(sliderMax))")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(Color.secondary.opacity(0.6))
+                                }
+                            }
                         }
                     }
                 }
@@ -313,6 +338,7 @@ struct ImageEditingView: View {
                 )
 
                 let previewRegion = currentMosaicPreviewRegion()
+                let ocrPreviewRect = currentOCRPreviewRect()
                 let baseImage = previewRegion != nil
                     ? renderMosaicImage(additionalRegions: [previewRegion!])
                     : editedImage
@@ -336,7 +362,30 @@ struct ImageEditingView: View {
                         .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
                         .allowsHitTesting(false)
                     }
-                    
+
+                    // OCR selection outline (live + last selection)
+                    if selectedTool == .ocr, let rectToShow = ocrPreviewRect ?? ocrSelectedRect {
+                        let displayRect = convertImageRectToDisplayRect(
+                            rectToShow,
+                            canvasSize: canvasSize,
+                            imageSize: editedImage.size
+                        )
+                        Path { path in
+                            path.addRect(displayRect)
+                        }
+                        .stroke(Color.accentColor.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
+                        .allowsHitTesting(false)
+                    }
+
+                    if selectedTool == .ocr, ocrIsProcessing {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .controlSize(.small)
+                            .padding(10)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                            .allowsHitTesting(false)
+                    }
+
                     // Drawing overlay
                     Canvas { context, size in
                         // Calculate image display properties
@@ -371,7 +420,7 @@ struct ImageEditingView: View {
                         }
                         
                         // Draw the current path being drawn
-                        if let currentPath = currentPath {
+                        if let currentPath = currentPath, currentPath.tool != .ocr {
                             var contextCopy = context
                             contextCopy.translateBy(x: offsetX, y: offsetY)
                             contextCopy.scaleBy(x: imageToDisplayScale, y: imageToDisplayScale)
@@ -516,6 +565,55 @@ struct ImageEditingView: View {
         .onChangeCompat(of: settings.enabledEditingTools) {
             ensureValidSelectedTool()
         }
+        .sheet(isPresented: $showOCRResult) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(NSLocalizedString("editor.ocr.title", value: "OCR", comment: ""))
+                        .font(.headline)
+                    Spacer()
+                }
+
+                Group {
+                    if ocrIsProcessing {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.large)
+                            Text(NSLocalizedString("editor.ocr.processing", value: "识别中…", comment: ""))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    } else if ocrResultText.isEmpty {
+                        Text(NSLocalizedString("editor.ocr.empty", value: "未识别到文字", comment: ""))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    } else {
+                        TextEditor(text: $ocrResultText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 240)
+                    }
+                }
+
+                HStack {
+                    Button(NSLocalizedString("common.done", comment: "")) {
+                        showOCRResult = false
+                    }
+                    Spacer()
+                    Button(NSLocalizedString("editor.ocr.copy", value: "复制", comment: "")) {
+                        copyOCRResultToPasteboard()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(ocrIsProcessing || ocrResultText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(16)
+            .frame(width: 520, height: 360)
+        }
+        .alert(NSLocalizedString("editor.ocr.title", value: "OCR", comment: ""), isPresented: $showOCRError) {
+            Button(NSLocalizedString("common.ok", comment: "")) {}
+        } message: {
+            Text(ocrErrorMessage)
+        }
     }
     
     private func handleDragChanged(value: DragGesture.Value, canvasSize: CGSize) {
@@ -573,6 +671,8 @@ struct ImageEditingView: View {
             case .mosaic:
                 newPath.move(to: imageLocation)
             case .text:
+                newPath.move(to: imageLocation)
+            case .ocr:
                 newPath.move(to: imageLocation)
             }
             
@@ -635,6 +735,17 @@ struct ImageEditingView: View {
                 }
             case .text:
                 updatedPath = currentPath!.path
+            case .ocr:
+                let startPoint = currentPath!.startPoint
+                let rect = CGRect(
+                    x: min(startPoint.x, imageLocation.x),
+                    y: min(startPoint.y, imageLocation.y),
+                    width: abs(imageLocation.x - startPoint.x),
+                    height: abs(imageLocation.y - startPoint.y)
+                )
+                updatedPath = Path { path in
+                    path.addRect(rect)
+                }
             }
             
             path.path = updatedPath
@@ -713,13 +824,27 @@ struct ImageEditingView: View {
                     height: abs(imageLocation.y - startPoint.y)
                 )
                 let clampedRect = clampRectToImage(rect: rect, imageSize: imageSize)
-                
+
                 if clampedRect.width > 1 && clampedRect.height > 1 {
                     let region = MosaicRegion(rect: clampedRect, scale: mosaicScale(from: strokeWidth))
                     mosaicRegions.append(region)
                     undoStack.append(.addMosaic(region))
                     saveState()
                     refreshEditedImage()
+                }
+            case .ocr:
+                if ocrIsProcessing { break }
+                let startPoint = path.startPoint
+                let rect = CGRect(
+                    x: min(startPoint.x, imageLocation.x),
+                    y: min(startPoint.y, imageLocation.y),
+                    width: abs(imageLocation.x - startPoint.x),
+                    height: abs(imageLocation.y - startPoint.y)
+                )
+                let clampedRect = clampRectToImage(rect: rect, imageSize: imageSize)
+                if clampedRect.width > 1 && clampedRect.height > 1 {
+                    ocrSelectedRect = clampedRect
+                    startOCR(region: clampedRect)
                 }
             default:
                 drawingPaths.append(path)
@@ -810,6 +935,8 @@ struct ImageEditingView: View {
             return NSLocalizedString("editor.text.size", comment: "")
         case .mosaic:
             return NSLocalizedString("editor.mosaic.size", comment: "")
+        case .ocr:
+            return NSLocalizedString("editor.ocr.hint", value: "拖拽选择区域进行 OCR", comment: "")
         default:
             return NSLocalizedString("editor.stroke.width", comment: "")
         }
@@ -819,6 +946,8 @@ struct ImageEditingView: View {
         switch tool {
         case .text, .mosaic:
             return 50
+        case .ocr:
+            return 10
         default:
             return 10
         }
@@ -837,6 +966,13 @@ struct ImageEditingView: View {
             if waitingForTextPlacement {
                 waitingForTextPlacement = false
             }
+        }
+
+        if previousTool == .ocr && newTool != .ocr {
+            ocrSelectedRect = nil
+        }
+        if newTool == .ocr && previousTool != .ocr {
+            ocrResultText = ""
         }
         
         let maxStroke = sliderMaximum(for: newTool)
@@ -890,6 +1026,7 @@ struct ImageEditingView: View {
         case .arrow: return NSLocalizedString("tool.arrow", comment: "")
         case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
         case .text: return NSLocalizedString("tool.text", comment: "")
+        case .ocr: return NSLocalizedString("tool.ocr", value: "OCR", comment: "")
         }
     }
     
@@ -1014,7 +1151,44 @@ struct ImageEditingView: View {
         guard rect.width > 1, rect.height > 1 else { return nil }
         return MosaicRegion(rect: rect, scale: mosaicScale(from: strokeWidth))
     }
-    
+
+    private func currentOCRPreviewRect() -> CGRect? {
+        guard selectedTool == .ocr, isDrawing, let path = currentPath else { return nil }
+        let rect = clampRectToImage(rect: path.path.boundingRect, imageSize: editedImage.size)
+        guard rect.width > 1, rect.height > 1 else { return nil }
+        return rect
+    }
+
+    private func startOCR(region: CGRect?) {
+        ocrIsProcessing = true
+        ocrResultText = ""
+        showOCRResult = true
+
+        Task { @MainActor in
+            defer { ocrIsProcessing = false }
+            do {
+                let text = try await OCRService.recognizeText(
+                    in: editedImage,
+                    region: region,
+                    preferredLanguages: settings.ocrRecognitionLanguages
+                )
+                ocrResultText = text
+                copyOCRResultToPasteboard()
+            } catch {
+                showOCRResult = false
+                ocrErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                showOCRError = true
+            }
+        }
+    }
+
+    private func copyOCRResultToPasteboard() {
+        let content = ocrResultText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(content, forType: .string)
+    }
+
     private func convertImageRectToDisplayRect(_ rect: CGRect, canvasSize: CGSize, imageSize: CGSize) -> CGRect {
         let aspectRatio = imageSize.width / imageSize.height
         let canvasAspectRatio = canvasSize.width / canvasSize.height
@@ -1163,6 +1337,7 @@ enum DrawingTool: String, CaseIterable, Codable {
     case arrow
     case mosaic
     case text
+    case ocr
     
     static var defaultRadialTools: [DrawingTool] { [.arrow, .rectangle, .circle, .line] }
     static var defaultRadialIdentifiers: [String] { defaultRadialTools.map { $0.identifier } }
@@ -1205,6 +1380,7 @@ enum DrawingTool: String, CaseIterable, Codable {
         case "arrow": self = .arrow
         case "mosaic": self = .mosaic
         case "text": self = .text
+        case "ocr": self = .ocr
         default: return nil
         }
     }
@@ -1218,6 +1394,7 @@ enum DrawingTool: String, CaseIterable, Codable {
         case .arrow: return "arrow"
         case .mosaic: return "mosaic"
         case .text: return "text"
+        case .ocr: return "ocr"
         }
     }
     
@@ -1230,6 +1407,7 @@ enum DrawingTool: String, CaseIterable, Codable {
         case .arrow: return "arrow.right"
         case .mosaic: return "square.grid.3x3"
         case .text: return "textformat"
+        case .ocr: return "text.magnifyingglass"
         }
     }
     
@@ -1242,6 +1420,7 @@ enum DrawingTool: String, CaseIterable, Codable {
         case .arrow: return NSLocalizedString("tool.arrow", comment: "")
         case .mosaic: return NSLocalizedString("tool.mosaic", comment: "")
         case .text: return NSLocalizedString("tool.text", comment: "")
+        case .ocr: return NSLocalizedString("tool.ocr", value: "OCR", comment: "")
         }
     }
 }

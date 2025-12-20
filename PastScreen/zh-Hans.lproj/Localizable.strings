@@ -83,6 +83,10 @@
 "settings.editor.radial.enabled" = "启用快捷轮盘";
 "settings.editor.radial.add" = "添加工具";
 "settings.editor.radial.note" = "至少保留 1 个工具，在编辑器里右键打开快捷轮盘。";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "选择启用的识别语言，使用时会在已启用语言中自动识别。";
+"settings.editor.ocr.reset" = "恢复默认";
+"settings.editor.ocr.note" = "不勾选任何语言时，将使用系统默认/自动检测。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";
@@ -247,6 +251,14 @@
 "editor.stroke.width" = "粗细";
 "editor.text.title" = "输入文字";
 "editor.text.placeholder" = "请输入文字";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "拖拽选择区域进行 OCR";
+"editor.ocr.full_image" = "全图 OCR";
+"editor.ocr.copy" = "复制";
+"editor.ocr.empty" = "未识别到文字";
+"editor.ocr.processing" = "识别中…";
+"editor.ocr.error.invalid_image" = "无法读取图片数据";
+"editor.ocr.error.cgimage" = "无法创建图像用于识别";
 
 /* Tools */
 "tool.pen" = "画笔";
@@ -256,3 +268,4 @@
 "tool.arrow" = "箭头";
 "tool.mosaic" = "马赛克";
 "tool.text" = "文字";
+"tool.ocr" = "OCR";

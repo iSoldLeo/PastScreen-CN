@@ -193,6 +193,7 @@ class AppSettings: ObservableObject {
     private let defaultBorderCornerRadius: Double = 20
     private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
     private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
+    private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
 
     @Published var saveToFile: Bool {
@@ -363,6 +364,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var ocrRecognitionLanguages: [String] {
+        didSet {
+            UserDefaults.standard.set(ocrRecognitionLanguages, forKey: "ocrRecognitionLanguages")
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
         get { UserDefaults.standard.data(forKey: "saveFolderBookmark") }
@@ -458,6 +465,7 @@ class AppSettings: ObservableObject {
         }
         self.enabledEditingTools = resolvedEnabledTools
         self.radialWheelEnabled = UserDefaults.standard.object(forKey: "radialWheelEnabled") as? Bool ?? true
+        self.ocrRecognitionLanguages = UserDefaults.standard.stringArray(forKey: "ocrRecognitionLanguages") ?? Self.defaultOCRRecognitionLanguages
 
         let defaultRadials = DrawingTool.defaultRadialIdentifiers
         let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials
@@ -473,6 +481,20 @@ class AppSettings: ObservableObject {
         applyAppLanguage()
         restoreFolderAccess()
         ensureFolderExists()
+    }
+
+    func setOCRLanguageEnabled(_ code: String, enabled: Bool) {
+        var updated = ocrRecognitionLanguages
+        if enabled {
+            if !updated.contains(code) { updated.append(code) }
+        } else {
+            updated.removeAll { $0 == code }
+        }
+        ocrRecognitionLanguages = updated
+    }
+
+    func resetOCRLanguagesToDefault() {
+        ocrRecognitionLanguages = Self.defaultOCRRecognitionLanguages
     }
 
     func ensureFolderExists() {

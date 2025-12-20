@@ -83,6 +83,10 @@
 "settings.editor.radial.enabled" = "Use quick wheel";
 "settings.editor.radial.add" = "Add tool";
 "settings.editor.radial.note" = "Keep at least one tool. Right-click in the editor to open the wheel.";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "Choose enabled recognition languages. OCR auto-detects within the enabled languages.";
+"settings.editor.ocr.reset" = "Reset";
+"settings.editor.ocr.note" = "If no language is selected, system default/auto detection is used.";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "Save location";
@@ -247,6 +251,14 @@
 "editor.stroke.width" = "Stroke width";
 "editor.text.title" = "Enter text";
 "editor.text.placeholder" = "Please enter text";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "Drag to select an area for OCR";
+"editor.ocr.full_image" = "OCR Full Image";
+"editor.ocr.copy" = "Copy";
+"editor.ocr.empty" = "No text recognized";
+"editor.ocr.processing" = "Recognizing…";
+"editor.ocr.error.invalid_image" = "Unable to read image data";
+"editor.ocr.error.cgimage" = "Unable to create image for recognition";
 
 /* Tools */
 "tool.pen" = "Pen";
@@ -256,3 +268,4 @@
 "tool.arrow" = "Arrow";
 "tool.mosaic" = "Mosaic";
 "tool.text" = "Text";
+"tool.ocr" = "OCR";
