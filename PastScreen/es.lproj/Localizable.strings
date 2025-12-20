@@ -1,0 +1,286 @@
+/* Menu Items */
+"menu.tooltip" = "PastScreen-CN - Captura rápida";
+"menu.capture_area" = "Captura rápida";
+"menu.capture_fullscreen" = "Capturar pantalla completa";
+"menu.capture_advanced" = "Captura avanzada";
+"menu.show_last" = "Mostrar última captura";
+"menu.history" = "Historial";
+"menu.history.empty" = "Sin capturas";
+"menu.history.clear" = "Borrar historial";
+"menu.destination" = "Cambiar carpeta de guardado...";
+"menu.preferences" = "Preferencias...";
+"menu.check_updates" = "Buscar actualizaciones...";
+"menu.quit" = "Salir de PastScreen-CN";
+
+/* Window Titles */
+"window.preferences" = "Preferencias de PastScreen-CN";
+
+/* Settings - Tabs */
+"settings.tab.general" = "General";
+"settings.tab.capture" = "Captura";
+"settings.tab.editor" = "Editor";
+"settings.tab.storage" = "Almacenamiento";
+"settings.tab.apps" = "Apps";
+
+/* Settings - General */
+"settings.general.options" = "Opciones";
+"settings.general.launch_at_login" = "Abrir al iniciar sesión";
+"settings.general.show_in_dock" = "Mostrar en el Dock";
+"settings.general.copy_clipboard" = "Copiar al portapapeles";
+"settings.general.copy_clipboard.help" = "Copiar automáticamente tras capturar";
+"settings.general.play_sound" = "Reproducir sonido de obturador";
+"settings.general.play_sound.help" = "Reproducir sonido de cámara al capturar";
+"settings.general.show_dimensions" = "Mostrar dimensiones";
+"settings.general.show_dimensions.help" = "Mostrar tamaño de la selección al capturar";
+"settings.general.section_title" = "Opciones generales";
+"settings.general.enable_annotations" = "Habilitar anotaciones";
+"settings.general.enable_annotations.help" = "Agregar flechas y texto antes de guardar";
+"settings.general.features_section" = "Funciones";
+"settings.general.show_tutorial" = "Mostrar tutorial al iniciar";
+"settings.general.show_tutorial.help" = "Mostrar consejos cuando se inicia PastScreen-CN";
+"settings.general.help_section" = "Ayuda y soporte";
+"settings.general.help.prompt" = "¿Necesitas un inicio rápido?";
+"settings.general.help.view_tutorial" = "Ver tutorial";
+"settings.general.privacy_section" = "Privacidad";
+"settings.general.privacy.title" = "Tu privacidad importa";
+"settings.general.privacy.description" = "PastScreen-CN no recoge nada; todo permanece en tu Mac.";
+"settings.general.privacy.bullets" = "• Sin analítica ni seguimiento\n• Sin cargas a la nube\n• Sin servicios de terceros\n• Solo en local";
+"settings.general.privacy.view_policy" = "Ver política de privacidad";
+"settings.general.language" = "Idioma";
+"settings.general.language.system" = "Seguir el sistema";
+"settings.general.language.zh_hans" = "简体中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
+"settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "Antártico (con sonido)";
+"settings.general.language.note" = "Reinicia la app para aplicar el cambio de idioma.";
+
+/* Settings - Capture */
+"settings.capture.format_section" = "Formato de imagen";
+"settings.capture.image_format" = "Formato:";
+"settings.capture.format_png" = "PNG (sin pérdida)";
+"settings.capture.format_jpeg" = "JPEG (comprimido)";
+"settings.capture.format_help" = "PNG es de mayor calidad pero más pesado; JPEG es más ligero.";
+"settings.capture.shortcuts_section" = "Atajos";
+"settings.capture.enable_hotkey" = "Activar atajo global";
+"settings.capture.enable_hotkey.help" = "Permitir atajos en todo el sistema";
+"settings.capture.capture_area_label" = "Captura de selección:";
+"settings.capture.click_icon_label" = "o haz clic en el ícono de la barra de menús";
+"settings.capture.open_menu" = "Abrir menú";
+"settings.capture.hotkey_disabled_help" = "Activa los atajos para capturar en cualquier momento";
+"settings.capture.quick_screenshot" = "Captura rápida";
+"settings.capture.advanced_screenshot" = "Captura avanzada";
+"settings.capture.ocr_capture" = "OCR";
+"settings.capture.window_border" = "Borde de ventana";
+"settings.capture.window_border.enable" = "Activar borde de ventana";
+"settings.capture.window_border.width" = "Ancho de borde";
+"settings.capture.window_border.corner" = "Radio de esquina";
+"settings.capture.window_border.color" = "Color del borde";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "Barra de edición";
+"settings.editor.toolbar.description" = "Elige las herramientas que aparecen tras una captura avanzada.";
+"settings.editor.toolbar.reorder_hint" = "Usa las flechas de la derecha para reordenar.";
+"settings.editor.toolbar.note" = "Deja al menos una herramienta activada.";
+"settings.editor.radial.title" = "Rueda rápida";
+"settings.editor.radial.description" = "Personaliza la rueda de clic derecho con 1-4 herramientas activadas.";
+"settings.editor.radial.enabled" = "Usar rueda rápida";
+"settings.editor.radial.add" = "Agregar herramienta";
+"settings.editor.radial.note" = "Mantén al menos una. Clic derecho en el editor para abrir la rueda.";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "Elige idiomas de reconocimiento. OCR detecta dentro de los idiomas activados.";
+"settings.editor.ocr.reset" = "Restablecer";
+"settings.editor.ocr.note" = "Si no se elige ninguno, se usa el sistema/auto detección.";
+
+/* Settings - Storage */
+"settings.storage.section_title" = "Ubicación de guardado";
+"settings.storage.save_to_disk" = "Guardar en disco";
+"settings.storage.save_to_disk.help" = "Guardar también archivos además del portapapeles";
+"settings.storage.folder_label" = "Carpeta:";
+"settings.storage.change_button" = "Cambiar...";
+"settings.storage.open_folder" = "Abrir carpeta";
+"settings.storage.clear_folder" = "Vaciar carpeta";
+"settings.select_folder.prompt" = "Elegir";
+"settings.select_folder.message" = "Elige una carpeta para guardar las capturas";
+
+/* Settings - Apps */
+"settings.apps.default_behavior" = "Predeterminado: copiar imagen al portapapeles";
+"settings.apps.instructions" = "Añade apps abajo. Usa \"Path\" si la app necesita la ruta (ej. terminal).";
+"settings.apps.rules" = "Reglas";
+"settings.apps.empty_title" = "Sin reglas de apps";
+"settings.apps.empty_description" = "Añade apps para cambiar el comportamiento del portapapeles.\nUsa \"Path\" para terminales que necesiten rutas.";
+"settings.apps.clipboard.image" = "Imagen";
+"settings.apps.clipboard.path" = "Path";
+"settings.apps.add_rule" = "Agregar regla de app";
+"settings.apps.select_app_message" = "Elige una app";
+
+/* Onboarding */
+"onboarding.title" = "Bienvenido a PastScreen-CN 📸";
+"onboarding.subtitle" = "Capturas rapidísimas para desarrolladores";
+"onboarding.why_title" = "¿Por qué PastScreen-CN?";
+"onboarding.ultrafast" = "⚡ Ultrarrápido";
+"onboarding.ultrafast.desc" = "Captura y pega en tu IDE en segundos.";
+"onboarding.ultrafast.note" = "Sin gestión de archivos, solo velocidad.";
+"onboarding.autoclean" = "🧹 Limpieza automática";
+"onboarding.autoclean.desc" = "La carpeta de capturas se limpia al reiniciar.";
+"onboarding.autoclean.note" = "Cero mantenimiento, cero desorden.";
+"onboarding.smart_notifications" = "🔔 Notificaciones inteligentes";
+"onboarding.smart_notifications.desc" = "Ligeras y nada intrusivas.";
+"onboarding.smart_notifications.note" = "Un aviso suave al terminar.";
+"onboarding.workflow" = "🎯 Flujo de trabajo primero";
+"onboarding.workflow.desc" = "Pensado para desarrolladores que viven en su editor.";
+"onboarding.workflow.note" = "Capturar → Pegar → Seguir codificando.";
+"onboarding.customizable" = "⚙️ Personalizable";
+"onboarding.customizable.desc" = "Atajos, formato y almacenamiento configurables.";
+"onboarding.vs_native" = "Versus captura del sistema: sin espera de vista previa, directo al portapapeles.";
+"onboarding.vs_other" = "Versus otras herramientas: sin pasos complejos, sin gestión de archivos.";
+"onboarding.dont_show" = "No mostrar de nuevo";
+"onboarding.got_it" = "Entendido, ¡vamos!";
+
+/* Errors */
+"error.permissions_required.title" = "Se requiere grabar pantalla";
+"error.permissions_required.message" = "PastScreen-CN necesita permiso de grabación de pantalla para capturar.\n\nVe a Ajustes del sistema → Privacidad y seguridad → Grabación de pantalla y permite PastScreen-CN.";
+"error.open_system_prefs" = "Abrir Ajustes del sistema";
+"error.later" = "Después";
+"error.accessibility_required.title" = "Se requiere Accesibilidad";
+"error.accessibility_required.message" = "PastScreen-CN necesita Accesibilidad para registrar atajos globales.\n\nVe a Ajustes del sistema → Privacidad y seguridad → Accesibilidad y permite PastScreen-CN.";
+"error.open_system_settings" = "Abrir Ajustes del sistema";
+"error.capture_error" = "Error al capturar";
+"error.unable_to_launch" = "No se pudo iniciar PastScreen-CN";
+"error.file_not_found.title" = "Archivo no encontrado";
+"error.file_not_found.message" = "No se encontró la última captura; quizá fue eliminada o movida.";
+"error.invalid_rectangle" = "Selección inválida";
+"error.permission_denied" = "Permiso denegado";
+"error.capture_interrupted" = "Captura interrumpida";
+
+/* Notifications */
+"notification.screenshot_ready" = "Captura completa";
+"notification.click_to_reveal" = "Mostrar en Finder";
+"notification.screenshot_saved" = "Imagen capturada guardada en el portapapeles";
+"notification.reveal_in_finder" = "Mostrar en Finder";
+"notification.dismiss" = "Cerrar";
+
+/* Onboarding */
+"onboarding.button.previous" = "Anterior";
+"onboarding.button.next" = "Siguiente";
+"onboarding.button.start" = "Empezar";
+
+"onboarding.page1.title" = "Velocidad";
+"onboarding.page1.description" = "Termina la captura y pega en segundos.\nTu atajo → Capturar → ⌘V pegar";
+
+"onboarding.page2.title" = "Ubicación de guardado";
+"onboarding.page2.description" = "Elige dónde guarda PastScreen-CN.";
+
+"onboarding.storage.default.title" = "Carpeta Imágenes (por defecto)";
+"onboarding.storage.default.desc" = "Guardar en la carpeta Imágenes.\n(Se requieren permisos)";
+
+"onboarding.storage.temp.title" = "Temporal (limpieza auto)";
+"onboarding.storage.temp.desc" = "Ideal para copiar/pegar rápido.\nSe elimina tras reiniciar.";
+
+"onboarding.page3.title" = "Portapapeles primero";
+"onboarding.page3.description" = "Copia automática al portapapeles.\nFunciona con Cursor, VSCode, Zed.";
+
+"onboarding.page4.title" = "Personalizable";
+"onboarding.page4.description" = "Atajos, formato, carpetas...\nTodo desde la barra de menús.";
+
+"onboarding.page_apps.title" = "Reglas por app";
+"onboarding.page_apps.description" = "Personaliza el comportamiento por app.\n\"Image\" para IA, \"Path\" para editores/terminales.";
+
+/* Onboarding - Permissions */
+"onboarding.permissions.screen_recording.title" = "Grabación de pantalla";
+"onboarding.permissions.screen_recording.description" = "Requerido para capturar.\nHaz clic abajo para permitir.";
+"onboarding.permissions.accessibility.title" = "Accesibilidad";
+"onboarding.permissions.accessibility.description" = "Necesario para atajos globales.\nHaz clic abajo para permitir.";
+"onboarding.permissions.grant" = "Permitir";
+"onboarding.permissions.granted" = "Permitido";
+
+/* Permission Alerts */
+"permission.request.header" = "PastScreen-CN necesita estos permisos:";
+"permission.request.footer" = "Habilítalos en Ajustes del sistema → Privacidad y seguridad.";
+"permission.max_retries.message" = "PastScreen-CN alcanzó el límite de solicitudes de permiso.\n\nActiva manualmente";
+
+/* Hotkey Labels */
+"hotkey.key.code" = "Tecla %d";
+"hotkey.key.space" = "Espacio";
+"hotkey.key.return" = "Return";
+"hotkey.key.tab" = "Tab";
+"hotkey.key.delete" = "Delete";
+"hotkey.key.escape" = "Esc";
+"hotkey.key.forward_delete" = "Forward Delete";
+"hotkey.key.home" = "Inicio";
+"hotkey.key.end" = "Fin";
+"hotkey.key.page_up" = "Re Pág";
+"hotkey.key.page_down" = "Av Pág";
+"hotkey.key.left" = "Izquierda";
+"hotkey.key.right" = "Derecha";
+"hotkey.key.down" = "Abajo";
+"hotkey.key.up" = "Arriba";
+"hotkey.prompt.press" = "Pulsa un atajo...";
+
+/* Tips */
+"tip.quick_capture.title" = "Truco de PastScreen-CN";
+"tip.quick_capture.message" = "Usa tu atajo o un Atajo de Apple para capturar rápido.";
+
+/* OCR Hotkey */
+"toast.ocr.success" = "OCR copiado";
+"toast.ocr.failure" = "OCR falló";
+"toast.ocr.no_text" = "No se encontró texto";
+
+/* App Intents */
+"intent.capture_area.title" = "Capturar selección";
+"intent.capture_area.description" = "Captura un área con PastScreen-CN y copia la imagen.";
+"intent.capture_area.phrase1" = "Capturar selección con \\(.applicationName)";
+"intent.capture_area.phrase2" = "Usar \\(.applicationName) para capturar selección";
+"intent.capture_area.short_title" = "Capturar selección";
+"intent.capture_full.title" = "Capturar pantalla completa";
+"intent.capture_full.description" = "Captura toda la pantalla con PastScreen-CN y copia el resultado.";
+"intent.capture_full.phrase1" = "Captura de pantalla completa con \\(.applicationName)";
+"intent.capture_full.phrase2" = "Usar \\(.applicationName) para pantalla completa";
+"intent.capture_full.short_title" = "Pantalla completa";
+"intent.error.app_unavailable" = "PastScreen-CN debe estar en ejecución para esta acción.";
+
+/* Common Actions */
+"common.cancel" = "Cancelar";
+"common.confirm" = "Confirmar";
+"common.done" = "Listo";
+"common.ok" = "OK";
+"common.change" = "Cambiar";
+"common.undo" = "Deshacer";
+"common.redo" = "Rehacer";
+
+/* Permissions */
+"permission.type.screen_recording" = "Grabación de pantalla";
+"permission.type.accessibility" = "Accesibilidad";
+"permission.type.notifications" = "Notificaciones";
+
+/* Editor */
+"editor.window.title" = "Editar captura";
+"editor.text.size" = "Tamaño";
+"editor.mosaic.size" = "Tamaño del mosaico";
+"editor.stroke.width" = "Grosor de trazo";
+"editor.text.title" = "Ingresar texto";
+"editor.text.placeholder" = "Ingresa texto";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "Arrastra para seleccionar un área para OCR";
+"editor.ocr.full_image" = "OCR de imagen completa";
+"editor.ocr.copy" = "Copiar";
+"editor.ocr.empty" = "No se reconoció texto";
+"editor.ocr.processing" = "Reconociendo…";
+"editor.ocr.error.invalid_image" = "No se pueden leer los datos de imagen";
+"editor.ocr.error.cgimage" = "No se puede crear imagen para reconocimiento";
+
+/* Tools */
+"tool.pen" = "Pluma";
+"tool.line" = "Línea";
+"tool.rectangle" = "Rectángulo";
+"tool.circle" = "Círculo";
+"tool.arrow" = "Flecha";
+"tool.mosaic" = "Mosaico";
+"tool.text" = "Texto";
+"tool.ocr" = "OCR";

@@ -1,0 +1,286 @@
+/* Menu Items */
+"menu.tooltip" = "PastScreen-CN - クイックキャプチャ";
+"menu.capture_area" = "クイックキャプチャ";
+"menu.capture_fullscreen" = "フルスクリーンをキャプチャ";
+"menu.capture_advanced" = "高度なキャプチャ";
+"menu.show_last" = "直前のキャプチャを表示";
+"menu.history" = "履歴";
+"menu.history.empty" = "キャプチャなし";
+"menu.history.clear" = "履歴をクリア";
+"menu.destination" = "保存フォルダを変更...";
+"menu.preferences" = "設定...";
+"menu.check_updates" = "アップデートを確認...";
+"menu.quit" = "PastScreen-CN を終了";
+
+/* Window Titles */
+"window.preferences" = "PastScreen-CN 設定";
+
+/* Settings - Tabs */
+"settings.tab.general" = "一般";
+"settings.tab.capture" = "キャプチャ";
+"settings.tab.editor" = "エディタ";
+"settings.tab.storage" = "保存";
+"settings.tab.apps" = "アプリ";
+
+/* Settings - General */
+"settings.general.options" = "オプション";
+"settings.general.launch_at_login" = "ログイン時に起動";
+"settings.general.show_in_dock" = "Dock に表示";
+"settings.general.copy_clipboard" = "クリップボードにコピー";
+"settings.general.copy_clipboard.help" = "キャプチャ後に自動コピー";
+"settings.general.play_sound" = "シャッター音を再生";
+"settings.general.play_sound.help" = "キャプチャ時にカメラ音を鳴らす";
+"settings.general.show_dimensions" = "サイズを表示";
+"settings.general.show_dimensions.help" = "キャプチャ中に選択サイズを表示";
+"settings.general.section_title" = "一般設定";
+"settings.general.enable_annotations" = "注釈を有効化";
+"settings.general.enable_annotations.help" = "保存前に矢印やテキストを追加";
+"settings.general.features_section" = "機能";
+"settings.general.show_tutorial" = "起動時にチュートリアルを表示";
+"settings.general.show_tutorial.help" = "PastScreen-CN 起動時にヒントを表示";
+"settings.general.help_section" = "ヘルプとサポート";
+"settings.general.help.prompt" = "クイックスタートが必要ですか？";
+"settings.general.help.view_tutorial" = "チュートリアルを見る";
+"settings.general.privacy_section" = "プライバシー";
+"settings.general.privacy.title" = "あなたのプライバシーを重視します";
+"settings.general.privacy.description" = "PastScreen-CN は何も収集せず、すべて Mac に残ります。";
+"settings.general.privacy.bullets" = "• 解析や追跡なし\n• クラウドへのアップロードなし\n• サードパーティなし\n• すべてローカル動作";
+"settings.general.privacy.view_policy" = "プライバシーポリシーを表示";
+"settings.general.language" = "言語";
+"settings.general.language.system" = "システムに従う";
+"settings.general.language.zh_hans" = "简体中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
+"settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "南極語（音あり）";
+"settings.general.language.note" = "言語変更は再起動後に反映されます。";
+
+/* Settings - Capture */
+"settings.capture.format_section" = "画像フォーマット";
+"settings.capture.image_format" = "形式:";
+"settings.capture.format_png" = "PNG（非圧縮）";
+"settings.capture.format_jpeg" = "JPEG（圧縮）";
+"settings.capture.format_help" = "PNG は高品質だがサイズが大きめ、JPEG は小さめ。";
+"settings.capture.shortcuts_section" = "ショートカット";
+"settings.capture.enable_hotkey" = "グローバルショートカットを有効にする";
+"settings.capture.enable_hotkey.help" = "ショートカットをシステム全体で使えるようにする";
+"settings.capture.capture_area_label" = "選択範囲キャプチャ:";
+"settings.capture.click_icon_label" = "またはメニューバーのアイコンをクリック";
+"settings.capture.open_menu" = "メニューを開く";
+"settings.capture.hotkey_disabled_help" = "いつでもキャプチャできるようショートカットを有効化";
+"settings.capture.quick_screenshot" = "クイックキャプチャ";
+"settings.capture.advanced_screenshot" = "高度なキャプチャ";
+"settings.capture.ocr_capture" = "OCR";
+"settings.capture.window_border" = "ウィンドウ枠";
+"settings.capture.window_border.enable" = "ウィンドウ枠を有効にする";
+"settings.capture.window_border.width" = "枠の太さ";
+"settings.capture.window_border.corner" = "角の丸み";
+"settings.capture.window_border.color" = "枠の色";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "編集ツールバー";
+"settings.editor.toolbar.description" = "高度なキャプチャ後に表示するツールを選択。";
+"settings.editor.toolbar.reorder_hint" = "右側の矢印でツールバーの順序を変更。";
+"settings.editor.toolbar.note" = "少なくとも1つのツールを有効にしてください。";
+"settings.editor.radial.title" = "クイックホイール";
+"settings.editor.radial.description" = "右クリックのクイックホイールに1〜4個のツールを設定。";
+"settings.editor.radial.enabled" = "クイックホイールを使う";
+"settings.editor.radial.add" = "ツールを追加";
+"settings.editor.radial.note" = "ツールは最低1つ有効に。エディタ内で右クリックすると開きます。";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "認識に使う言語を選択。選択した言語内で自動検出します。";
+"settings.editor.ocr.reset" = "リセット";
+"settings.editor.ocr.note" = "未選択の場合、システム既定/自動検出が使われます。";
+
+/* Settings - Storage */
+"settings.storage.section_title" = "保存先";
+"settings.storage.save_to_disk" = "ディスクに保存";
+"settings.storage.save_to_disk.help" = "クリップボードに加えファイルも保存";
+"settings.storage.folder_label" = "フォルダ:";
+"settings.storage.change_button" = "変更...";
+"settings.storage.open_folder" = "フォルダを開く";
+"settings.storage.clear_folder" = "フォルダをクリア";
+"settings.select_folder.prompt" = "選択";
+"settings.select_folder.message" = "キャプチャを保存するフォルダを選択";
+
+/* Settings - Apps */
+"settings.apps.default_behavior" = "デフォルト: 画像をクリップボードにコピー";
+"settings.apps.instructions" = "下にアプリを追加してください。ファイルパスが必要な場合は「Path」を選択（例: ターミナル）。";
+"settings.apps.rules" = "ルール";
+"settings.apps.empty_title" = "アプリのルールなし";
+"settings.apps.empty_description" = "アプリを追加してクリップボード動作を変更。\nパスが必要なターミナルには \"Path\" を使用。";
+"settings.apps.clipboard.image" = "画像";
+"settings.apps.clipboard.path" = "Path";
+"settings.apps.add_rule" = "アプリのルールを追加";
+"settings.apps.select_app_message" = "アプリを選択";
+
+/* Onboarding */
+"onboarding.title" = "PastScreen-CN へようこそ 📸";
+"onboarding.subtitle" = "開発者のための超高速スクリーンショット";
+"onboarding.why_title" = "PastScreen-CN の理由";
+"onboarding.ultrafast" = "⚡ 超高速";
+"onboarding.ultrafast.desc" = "数秒でキャプチャして IDE に貼り付け。";
+"onboarding.ultrafast.note" = "ファイル管理なし、ただ速い。";
+"onboarding.autoclean" = "🧹 自動クリーン";
+"onboarding.autoclean.desc" = "再起動時にスクリーンショットフォルダを自動整理。";
+"onboarding.autoclean.note" = "手間ゼロ、散らからない。";
+"onboarding.smart_notifications" = "🔔 スマート通知";
+"onboarding.smart_notifications.desc" = "軽量で邪魔しない通知。";
+"onboarding.smart_notifications.note" = "完了時に静かにお知らせ。";
+"onboarding.workflow" = "🎯 ワークフロー優先";
+"onboarding.workflow.desc" = "エディタに張り付く開発者のために設計。";
+"onboarding.workflow.note" = "キャプチャ → 貼り付け → コーディング継続。";
+"onboarding.customizable" = "⚙️ カスタマイズ可能";
+"onboarding.customizable.desc" = "ショートカット、形式、保存先を設定可能。";
+"onboarding.vs_native" = "システムのキャプチャより: プレビュー待ちなし、すぐクリップボードへ。";
+"onboarding.vs_other" = "他ツールより: 複雑な手順なし、ファイル管理不要。";
+"onboarding.dont_show" = "今後表示しない";
+"onboarding.got_it" = "了解、始める！";
+
+/* Errors */
+"error.permissions_required.title" = "画面収録が必要です";
+"error.permissions_required.message" = "PastScreen-CN でキャプチャするには画面収録の許可が必要です。\n\nシステム設定 → プライバシーとセキュリティ → 画面収録で PastScreen-CN を許可してください。";
+"error.open_system_prefs" = "システム設定を開く";
+"error.later" = "後で";
+"error.accessibility_required.title" = "アクセシビリティが必要です";
+"error.accessibility_required.message" = "グローバルショートカットを登録するにはアクセシビリティの許可が必要です。\n\nシステム設定 → プライバシーとセキュリティ → アクセシビリティで PastScreen-CN を許可してください。";
+"error.open_system_settings" = "システム設定を開く";
+"error.capture_error" = "キャプチャに失敗しました";
+"error.unable_to_launch" = "PastScreen-CN を起動できません";
+"error.file_not_found.title" = "ファイルが見つかりません";
+"error.file_not_found.message" = "最新のキャプチャが見つかりません。削除または移動された可能性があります。";
+"error.invalid_rectangle" = "選択範囲が無効です";
+"error.permission_denied" = "権限が拒否されました";
+"error.capture_interrupted" = "キャプチャが中断されました";
+
+/* Notifications */
+"notification.screenshot_ready" = "キャプチャ完了";
+"notification.click_to_reveal" = "Finder で表示";
+"notification.screenshot_saved" = "キャプチャ画像をクリップボードに保存";
+"notification.reveal_in_finder" = "Finder で表示";
+"notification.dismiss" = "閉じる";
+
+/* Onboarding */
+"onboarding.button.previous" = "前へ";
+"onboarding.button.next" = "次へ";
+"onboarding.button.start" = "開始";
+
+"onboarding.page1.title" = "速度";
+"onboarding.page1.description" = "数秒でキャプチャして貼り付け。\nホットキー → キャプチャ → ⌘V で貼り付け";
+
+"onboarding.page2.title" = "保存先";
+"onboarding.page2.description" = "PastScreen-CN の保存先を選択。";
+
+"onboarding.storage.default.title" = "ピクチャフォルダ（デフォルト）";
+"onboarding.storage.default.desc" = "ピクチャフォルダに保存。\n（権限が必要）";
+
+"onboarding.storage.temp.title" = "一時保存（自動クリーン）";
+"onboarding.storage.temp.desc" = "素早いコピペに最適。\n再起動後に削除。";
+
+"onboarding.page3.title" = "クリップボード優先";
+"onboarding.page3.description" = "自動でクリップボードにコピー。\nCursor、VSCode、Zed と相性抜群。";
+
+"onboarding.page4.title" = "カスタマイズ";
+"onboarding.page4.description" = "ショートカット、形式、フォルダ...\nすべてメニューバーから。";
+
+"onboarding.page_apps.title" = "アプリ別ルール";
+"onboarding.page_apps.description" = "アプリごとに動作をカスタマイズ。\nAI には \"Image\"、エディタ/ターミナルには \"Path\"。";
+
+/* Onboarding - Permissions */
+"onboarding.permissions.screen_recording.title" = "画面収録";
+"onboarding.permissions.screen_recording.description" = "キャプチャに必須。\n下をクリックして許可。";
+"onboarding.permissions.accessibility.title" = "アクセシビリティ";
+"onboarding.permissions.accessibility.description" = "グローバルショートカットに必要。\n下をクリックして許可。";
+"onboarding.permissions.grant" = "許可する";
+"onboarding.permissions.granted" = "許可済み";
+
+/* Permission Alerts */
+"permission.request.header" = "PastScreen-CN を正しく動作させるには以下の権限が必要です:";
+"permission.request.footer" = "システム設定 → プライバシーとセキュリティで有効にしてください。";
+"permission.max_retries.message" = "PastScreen-CN が権限要求の上限に達しました。\n\n手動で有効にしてください";
+
+/* Hotkey Labels */
+"hotkey.key.code" = "キー %d";
+"hotkey.key.space" = "スペース";
+"hotkey.key.return" = "リターン";
+"hotkey.key.tab" = "タブ";
+"hotkey.key.delete" = "Delete";
+"hotkey.key.escape" = "Esc";
+"hotkey.key.forward_delete" = "Forward Delete";
+"hotkey.key.home" = "Home";
+"hotkey.key.end" = "End";
+"hotkey.key.page_up" = "Page Up";
+"hotkey.key.page_down" = "Page Down";
+"hotkey.key.left" = "左";
+"hotkey.key.right" = "右";
+"hotkey.key.down" = "下";
+"hotkey.key.up" = "上";
+"hotkey.prompt.press" = "ショートカットを押してください...";
+
+/* Tips */
+"tip.quick_capture.title" = "PastScreen-CN ヒント";
+"tip.quick_capture.message" = "ホットキーや Apple ショートカットで素早くキャプチャ。";
+
+/* OCR Hotkey */
+"toast.ocr.success" = "OCR をコピーしました";
+"toast.ocr.failure" = "OCR に失敗";
+"toast.ocr.no_text" = "テキストが見つかりません";
+
+/* App Intents */
+"intent.capture_area.title" = "範囲をキャプチャ";
+"intent.capture_area.description" = "PastScreen-CN で任意の範囲をキャプチャし画像をコピー。";
+"intent.capture_area.phrase1" = "\\(.applicationName) で範囲をキャプチャ";
+"intent.capture_area.phrase2" = "\\(.applicationName) を使って範囲をキャプチャ";
+"intent.capture_area.short_title" = "範囲キャプチャ";
+"intent.capture_full.title" = "全画面をキャプチャ";
+"intent.capture_full.description" = "PastScreen-CN で全画面をキャプチャし結果をコピー。";
+"intent.capture_full.phrase1" = "\\(.applicationName) で全画面キャプチャ";
+"intent.capture_full.phrase2" = "\\(.applicationName) で全画面をキャプチャ";
+"intent.capture_full.short_title" = "全画面";
+"intent.error.app_unavailable" = "この操作には PastScreen-CN が起動している必要があります。";
+
+/* Common Actions */
+"common.cancel" = "キャンセル";
+"common.confirm" = "確認";
+"common.done" = "完了";
+"common.ok" = "OK";
+"common.change" = "変更";
+"common.undo" = "取り消す";
+"common.redo" = "やり直す";
+
+/* Permissions */
+"permission.type.screen_recording" = "画面収録";
+"permission.type.accessibility" = "アクセシビリティ";
+"permission.type.notifications" = "通知";
+
+/* Editor */
+"editor.window.title" = "スクリーンショットを編集";
+"editor.text.size" = "サイズ";
+"editor.mosaic.size" = "モザイクサイズ";
+"editor.stroke.width" = "線の太さ";
+"editor.text.title" = "テキストを入力";
+"editor.text.placeholder" = "テキストを入力してください";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "OCR する範囲をドラッグで選択";
+"editor.ocr.full_image" = "画像全体を OCR";
+"editor.ocr.copy" = "コピー";
+"editor.ocr.empty" = "テキストが認識されませんでした";
+"editor.ocr.processing" = "認識中…";
+"editor.ocr.error.invalid_image" = "画像データを読み込めません";
+"editor.ocr.error.cgimage" = "認識用の画像を作成できません";
+
+/* Tools */
+"tool.pen" = "ペン";
+"tool.line" = "直線";
+"tool.rectangle" = "四角形";
+"tool.circle" = "円";
+"tool.arrow" = "矢印";
+"tool.mosaic" = "モザイク";
+"tool.text" = "テキスト";
+"tool.ocr" = "OCR";

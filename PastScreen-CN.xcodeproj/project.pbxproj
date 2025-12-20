@@ -21,6 +21,7 @@
 		9ECB8B05C4C6441B8703E040 /* PastScreen/PastScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AA8D1B48F74216B3EF908B /* PastScreen/PastScreenApp.swift */; };
 		C01192DCC563407D92C8930B /* PastScreen/AppIntents/PastScreenShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C0658E24DE4556A0FE4CBE /* PastScreen/AppIntents/PastScreenShortcuts.swift */; };
 		C8B5098401454383965ADB3D /* PastScreen/Models/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FE17A971284945A4DC90DA /* PastScreen/Models/AppSettings.swift */; };
+		C8B50E7E6CFA6290360FE9F4 /* PastScreen/Utils/Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */; };
 		CC0289C6787D45B7AFB04B32 /* PastScreen/Services/LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 468CFD7B61B54F9BA38528F4 /* PastScreen/Services/LaunchAtLoginManager.swift */; };
 		D5DA92A15A2349E8BA67B6B5 /* PastScreen/Views/SelectionWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A0386D860F4F3B95A3518C /* PastScreen/Views/SelectionWindow.swift */; };
 		DFB16B632497443D8ADF9834 /* PastScreen/Utils/Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD553F54AD9E4E7D9476D2B6 /* PastScreen/Utils/Logger.swift */; };
@@ -47,6 +48,7 @@
 		BB5E6EECF8874B83905847A6 /* PastScreen/Views/DynamicIslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Views/DynamicIslandView.swift; sourceTree = "<group>"; };
 		C6CBEA9F9EF4411F89100D8C /* PastScreen/Services/PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/PermissionManager.swift; sourceTree = "<group>"; };
 		C707E9632EF67679006FC368 /* PastScreen-CN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PastScreen-CN.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Utils/Localization.swift; sourceTree = "<group>"; };
 		D78B85EA3A0C408DA488EBFE /* PastScreen/Models/OCRLanguageOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Models/OCRLanguageOption.swift; sourceTree = "<group>"; };
 		DD553F54AD9E4E7D9476D2B6 /* PastScreen/Utils/Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Utils/Logger.swift; sourceTree = "<group>"; };
 		E4E24D352C764766B10A1D44 /* PastScreen/Services/ScreenshotIntentBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/ScreenshotIntentBridge.swift; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 				Services/ScreenshotService.swift,
 				Services/WindowCaptureCoordinator.swift,
 				Tips/QuickCaptureTip.swift,
+				Utils/Localization.swift,
 				Utils/Logger.swift,
 				Views/CustomNotificationView.swift,
 				Views/DynamicIslandView.swift,
@@ -137,6 +140,7 @@
 				815929E48D914C43A95E5B2C /* PastScreen/Views/OnboardingView.swift */,
 				76A0386D860F4F3B95A3518C /* PastScreen/Views/SelectionWindow.swift */,
 				F67FAEFE56B64000A3ABC003 /* PastScreen/Views/SettingsView.swift */,
+				C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -182,10 +186,15 @@
 			knownRegions = (
 				en,
 				Base,
+				ja,
+				ko,
 				fr,
 				es,
 				de,
 				it,
+				nl,
+				lzh,
+				aq,
 				"zh-Hans",
 				"zh-Hant",
 			);
@@ -232,6 +241,7 @@
 				035F477F625E4A3981955C15 /* PastScreen/Services/WindowCaptureCoordinator.swift in Sources */,
 				FBB9CAE21BB143DD9237FB7F /* PastScreen/Tips/QuickCaptureTip.swift in Sources */,
 				DFB16B632497443D8ADF9834 /* PastScreen/Utils/Logger.swift in Sources */,
+				C8B50E7E6CFA6290360FE9F4 /* PastScreen/Utils/Localization.swift in Sources */,
 				378BA9360C2946F9ABB183FA /* PastScreen/Views/CustomNotificationView.swift in Sources */,
 				96BEC0093CFD4EEB8BFE0233 /* PastScreen/Views/DynamicIslandView.swift in Sources */,
 				ECCD54322A50493EA960B69B /* PastScreen/Views/ImageEditingWindow.swift in Sources */,

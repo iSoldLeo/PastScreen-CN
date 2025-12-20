@@ -49,7 +49,16 @@
 "settings.general.language" = "語言";
 "settings.general.language.system" = "跟隨系統";
 "settings.general.language.zh_hans" = "簡體中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
 "settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "南極語（有聲音）";
 "settings.general.language.note" = "更改後重啟應用程式生效。";
 
 /* Settings - Capture */

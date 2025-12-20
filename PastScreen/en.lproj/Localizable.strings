@@ -49,7 +49,16 @@
 "settings.general.language" = "Language";
 "settings.general.language.system" = "Follow System";
 "settings.general.language.zh_hans" = "简体中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
 "settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "Antarctic (sound)";
 "settings.general.language.note" = "Restart app to apply language change.";
 
 /* Settings - Capture */
