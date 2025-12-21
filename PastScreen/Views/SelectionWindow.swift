@@ -17,9 +17,22 @@ protocol SelectionWindowDelegate: AnyObject {
 
 // MARK: - Overlay Window for Multi-Screen Support
 
-class OverlayWindow: NSWindow {
+final class OverlayWindow: NSPanel {
+    init(contentRect: NSRect, backing: NSWindow.BackingStoreType, defer flag: Bool) {
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: backing,
+            defer: flag
+        )
+
+        isFloatingPanel = true
+        becomesKeyOnlyIfNeeded = true
+        hidesOnDeactivate = false
+    }
+
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
 
     override func keyDown(with event: NSEvent) {
         // Allow ESC to propagate to parent SelectionWindow
@@ -36,9 +49,10 @@ class SelectionWindow: NSWindow {
     weak var selectionDelegate: SelectionWindowDelegate?
 
     // Multi-screen support: one window per screen
-    private var overlayWindows: [NSWindow] = []
+    private var overlayWindows: [OverlayWindow] = []
     private let overlayConfiguration: SelectionOverlayView.Configuration
     private var frozenScreenshots: [CGDirectDisplayID: CGImage]
+    private var escapeKeyMonitor: Any?
 
     init(
         frozenScreenshots: [CGDirectDisplayID: CGImage] = [:],
@@ -63,12 +77,7 @@ class SelectionWindow: NSWindow {
         // Create one window per screen
         for screen in NSScreen.screens {
             // Create window WITHOUT screen parameter to avoid auto-repositioning
-            let window = OverlayWindow(
-                contentRect: screen.frame,
-                styleMask: .borderless,
-                backing: .buffered,
-                defer: false
-            )
+            let window = OverlayWindow(contentRect: screen.frame, backing: .buffered, defer: false)
 
             window.isOpaque = false
             window.backgroundColor = .clear
@@ -124,21 +133,30 @@ class SelectionWindow: NSWindow {
 
     // Convenience methods for showing/hiding
     func show() {
-        // S'assurer que PastScreen devient app active pour capter le premier clic
-        NSApp.activate(ignoringOtherApps: true)
-
-        // Show all overlay windows - use orderFrontRegardless to force display
-        for (index, window) in overlayWindows.enumerated() {
-            // First window becomes key, others just order front
-            if index == 0 {
-                window.makeKeyAndOrderFront(nil)
-            } else {
-                window.orderFrontRegardless()
+        if escapeKeyMonitor == nil {
+            escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard event.keyCode == 53 else { return } // ESC
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.selectionDelegate?.selectionWindowDidCancel(self)
+                }
             }
+        }
+
+        // Show all overlay windows without activating the app (prevents stealing focus).
+        // SelectionOverlayView.acceptsFirstMouse(for:) ensures the first click is still handled.
+        for window in overlayWindows {
+            window.ignoresMouseEvents = false
+            window.orderFrontRegardless()
         }
     }
 
     func hide() {
+        if let escapeKeyMonitor {
+            NSEvent.removeMonitor(escapeKeyMonitor)
+            self.escapeKeyMonitor = nil
+        }
+
         // Hide all overlay windows immediately
         for window in overlayWindows {
             window.orderOut(nil)

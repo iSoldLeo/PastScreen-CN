@@ -43,6 +43,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     private var captureMode: CaptureMode = .quick
+    private var selectionSessionID: UUID?
+    private var windowSnapshotTask: Task<Void, Never>?
+    private let appBundleID = Bundle.main.bundleIdentifier
     private let saveQueue = DispatchQueue(label: "com.pastscreencn.screenshot.save", qos: .utility)
     private var maxFrozenWindowSnapshotsPerDisplay: Int {
         max(AppSettings.shared.frozenWindowLimitPerDisplay, 5)
@@ -111,6 +114,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // (prevents overlay windows from persisting if user takes multiple screenshots rapidly)
         if let existingWindow = selectionWindow {
             existingWindow.hide()
+            endSelectionSession()
             selectionWindow = nil
         }
 
@@ -122,6 +126,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // CRITICAL: Force cleanup of any existing selection window before creating new one
         if let existingWindow = selectionWindow {
             existingWindow.hide()
+            endSelectionSession()
             selectionWindow = nil
         }
 
@@ -132,6 +137,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     func captureOCRScreenshot() {
         if let existingWindow = selectionWindow {
             existingWindow.hide()
+            endSelectionSession()
             selectionWindow = nil
         }
 
@@ -155,6 +161,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // Hide all selection windows
         window.hide()
 
+        // If we're not going into an in-app editor, restore focus immediately so the previously
+        // active window doesn't remain unfocused while we capture/copy in the background.
+        if captureMode != .advanced {
+            restorePreviousAppFocus()
+        }
+
         // CRITICAL: Wait for windows to be visually hidden before capturing
         // ScreenCaptureKit captures everything on screen, including overlays
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
@@ -171,8 +183,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.selectionWindow = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.endSelectionSession()
+                    self?.selectionWindow = nil
                 }
                 return
             }
@@ -190,8 +203,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             self.frozenDisplaySnapshots.removeAll()
             self.frozenWindowSnapshots.removeAll()
             // Cleanup window reference
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.selectionWindow = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.endSelectionSession()
+                self?.selectionWindow = nil
             }
         }
     }
@@ -200,6 +214,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let overlayWindowIDs = window.getOverlayWindowIDs()
 
         window.hide()
+
+        if captureMode != .advanced {
+            restorePreviousAppFocus()
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             guard let self = self else { return }
@@ -231,8 +249,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.selectionWindow = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    self?.endSelectionSession()
+                    self?.selectionWindow = nil
                 }
                 return
             }
@@ -248,8 +267,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             self.frozenDisplaySnapshots.removeAll()
             self.frozenWindowSnapshots.removeAll()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.selectionWindow = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.endSelectionSession()
+                self?.selectionWindow = nil
             }
         }
     }
@@ -259,8 +279,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         window.hide()
 
         captureMode = .quick
+        restorePreviousAppFocus()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.endSelectionSession()
             self?.selectionWindow = nil
             self?.frozenDisplaySnapshots.removeAll()
             self?.frozenWindowSnapshots.removeAll()
@@ -274,54 +296,100 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         alert.runModal()
     }
 
-    // MARK: - Frozen screenshot helpers
+    // MARK: - Selection session lifecycle
 
-    private struct FrozenSnapshots {
-        let displaySnapshots: [CGDirectDisplayID: CGImage]
-        let windowSnapshots: [CGWindowID: FrozenWindowSnapshot]
+    private func beginSelectionSession() -> UUID {
+        windowSnapshotTask?.cancel()
+        windowSnapshotTask = nil
+        let id = UUID()
+        selectionSessionID = id
+        return id
     }
 
+    private func endSelectionSession() {
+        windowSnapshotTask?.cancel()
+        windowSnapshotTask = nil
+        selectionSessionID = nil
+    }
+
+    private func isCurrentSelectionSession(_ id: UUID) -> Bool {
+        selectionSessionID == id
+    }
+
+    // MARK: - Frozen screenshot helpers
+
     private func startSelectionFlow(overlayConfiguration: SelectionOverlayView.Configuration) {
+        let sessionID = beginSelectionSession()
         Task { [weak self] in
             guard let self = self else { return }
-            var overlayWindowIDs: [CGWindowID] = await MainActor.run { [weak self] in
-                guard let self = self else { return [] }
-                let window = SelectionWindow(
-                    frozenScreenshots: self.frozenDisplaySnapshots,
-                    overlayConfiguration: overlayConfiguration
-                )
-                window.selectionDelegate = self
-                // Keep overlay invisible until frozen snapshots are ready to avoid double-dimming.
-                window.setOverlayAlpha(0)
-                window.show()
-                self.selectionWindow = window
-                return window.getOverlayWindowIDs()
-            }
-            // 有时窗口刚创建时 windowNumber 还没准备好，导致排除列表为空；稍等一帧再取一次，避免把遮罩本身截图进背景导致“双重遮罩”。
-            if overlayWindowIDs.isEmpty {
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms
-                overlayWindowIDs = await MainActor.run { [weak self] in
-                    guard let self = self else { return [] }
-                    return self.selectionWindow?.getOverlayWindowIDs() ?? []
-                }
-            }
-            if overlayWindowIDs.isEmpty {
-                await MainActor.run { [weak self] in
-                    self?.selectionWindow?.setOverlayAlpha(1)
-                }
-                return
-            }
             do {
-                let snapshots = try await self.prepareFrozenSnapshotsWithScreenCaptureKit(excludingWindowIDs: overlayWindowIDs)
+                // Capture display snapshots BEFORE showing overlays, so the dimming mask never gets baked into the frozen background.
+                let displaySnapshots = try await self.prepareFrozenDisplaySnapshotsWithScreenCaptureKit()
+                guard self.isCurrentSelectionSession(sessionID) else { return }
+
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
-                    self.frozenDisplaySnapshots = snapshots.displaySnapshots
-                    self.frozenWindowSnapshots = snapshots.windowSnapshots
-                    self.selectionWindow?.updateBackgroundSnapshots(snapshots.displaySnapshots)
-                    self.selectionWindow?.setOverlayAlpha(1)
+                    guard self.isCurrentSelectionSession(sessionID) else { return }
+                    self.frozenDisplaySnapshots = displaySnapshots
+                    self.frozenWindowSnapshots.removeAll()
+
+                    let window = SelectionWindow(
+                        frozenScreenshots: displaySnapshots,
+                        overlayConfiguration: overlayConfiguration
+                    )
+                    window.selectionDelegate = self
+                    window.show()
+                    self.selectionWindow = window
+                }
+
+                // Window snapshots are optional and can be expensive; compute them after the UI is visible.
+                self.windowSnapshotTask = Task { [weak self] in
+                    guard let self else { return }
+                    guard self.isCurrentSelectionSession(sessionID) else { return }
+                    var overlayWindowIDs = await MainActor.run { [weak self] () -> [CGWindowID] in
+                        guard let self else { return [] }
+                        return self.selectionWindow?.getOverlayWindowIDs() ?? []
+                    }
+                    // 有时窗口刚创建时 windowNumber 还没准备好，导致排除列表为空；稍等一帧再取一次，避免把遮罩本身截图进背景导致“双重遮罩”。
+                    if overlayWindowIDs.isEmpty {
+                        try? await Task.sleep(nanoseconds: 50_000_000) // 50 ms
+                        guard self.isCurrentSelectionSession(sessionID) else { return }
+                        overlayWindowIDs = await MainActor.run { [weak self] in
+                            guard let self else { return [] }
+                            return self.selectionWindow?.getOverlayWindowIDs() ?? []
+                        }
+                    }
+
+                    do {
+                        let windowSnapshots = try await self.prepareFrozenWindowSnapshotsWithScreenCaptureKit(
+                            excludingWindowIDs: overlayWindowIDs
+                        )
+                        guard self.isCurrentSelectionSession(sessionID) else { return }
+                        await MainActor.run { [weak self] in
+                            guard let self else { return }
+                            guard self.isCurrentSelectionSession(sessionID) else { return }
+                            self.frozenWindowSnapshots = windowSnapshots
+                        }
+                    } catch {
+                        // Best-effort: window capture fallback paths still work without frozen window snapshots.
+                    }
                 }
             } catch {
-                await MainActor.run {
+                guard self.isCurrentSelectionSession(sessionID) else { return }
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    guard self.isCurrentSelectionSession(sessionID) else { return }
+                    self.frozenDisplaySnapshots.removeAll()
+                    self.frozenWindowSnapshots.removeAll()
+
+                    let window = SelectionWindow(
+                        frozenScreenshots: [:],
+                        overlayConfiguration: overlayConfiguration
+                    )
+                    window.selectionDelegate = self
+                    window.show()
+                    self.selectionWindow = window
+
                     self.showErrorAlert(error.localizedDescription)
                     self.selectionWindow?.setOverlayAlpha(1)
                 }
@@ -329,14 +397,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func prepareFrozenSnapshotsWithScreenCaptureKit(excludingWindowIDs: [CGWindowID]) async throws -> FrozenSnapshots {
+    private func prepareFrozenDisplaySnapshotsWithScreenCaptureKit() async throws -> [CGDirectDisplayID: CGImage] {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-        let excludeSet = Set(excludingWindowIDs)
-        let excludedWindows: [SCWindow] = excludeSet.isEmpty
-            ? []
-            : content.windows.filter { excludeSet.contains(CGWindowID($0.windowID)) }
-        let visibleWindowIDsByDisplay = self.visibleWindowIDsByDisplay(excludingWindowIDs: excludeSet)
-        let prioritizedWindowIDs = Set(visibleWindowIDsByDisplay.values.flatMap { $0 })
 
         var displaySnapshots: [CGDirectDisplayID: CGImage] = [:]
         for screen in NSScreen.screens {
@@ -345,15 +407,29 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let scDisplay = content.displays.first(where: { $0.displayID == displayID })
             else { continue }
 
-            if let image = try? await captureDisplaySnapshot(screen: screen, scDisplay: scDisplay, excludedWindows: excludedWindows) {
+            if let image = try? await captureDisplaySnapshot(
+                screen: screen,
+                scDisplay: scDisplay,
+                excludedWindows: []
+            ) {
                 displaySnapshots[displayID] = image
             }
         }
+
+        return displaySnapshots
+    }
+
+    private func prepareFrozenWindowSnapshotsWithScreenCaptureKit(excludingWindowIDs: [CGWindowID]) async throws -> [CGWindowID: FrozenWindowSnapshot] {
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        let excludeSet = Set(excludingWindowIDs)
+        let visibleWindowIDsByDisplay = self.visibleWindowIDsByDisplay(excludingWindowIDs: excludeSet)
+        let prioritizedWindowIDs = Set(visibleWindowIDsByDisplay.values.flatMap { $0 })
 
         var windowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:]
         for window in content.windows {
             let windowID = CGWindowID(window.windowID)
             if excludeSet.contains(windowID) { continue }
+            if let appBundleID, window.owningApplication?.bundleIdentifier == appBundleID { continue }
             // Only freeze a limited set of frontmost visible windows per display; if the
             // prioritization failed, fall back to freezing all (old behavior).
             if !prioritizedWindowIDs.isEmpty && !prioritizedWindowIDs.contains(windowID) {
@@ -363,12 +439,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let snapshot = try await captureWindowSnapshot(window: window, applyBorder: false)
                 windowSnapshots[windowID] = snapshot
             } catch {
-                // Skip windows that fail to capture to avoid blocking the whole flow
                 continue
             }
         }
 
-        return FrozenSnapshots(displaySnapshots: displaySnapshots, windowSnapshots: windowSnapshots)
+        return windowSnapshots
     }
 
     /// Return front-to-back window IDs grouped by display, capped per display to avoid freezing every window.
@@ -1158,6 +1233,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         previousApp = NSWorkspace.shared.frontmostApplication
     }
 
+    private func restorePreviousAppFocus() {
+        guard let app = previousApp else { return }
+        if let appBundleID, app.bundleIdentifier == appBundleID { return }
+        app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    }
+
     /// Detect the application category based on previously captured app
     private func detectFrontmostApp() -> AppCategory {
         guard let app = previousApp,
@@ -1277,7 +1358,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         // Save next sequence number
-        AppSettings.shared.screenshotSequence = seq + 1
+        if Thread.isMainThread {
+            AppSettings.shared.screenshotSequence = seq + 1
+        } else {
+            DispatchQueue.main.sync {
+                AppSettings.shared.screenshotSequence = seq + 1
+            }
+        }
 
         do {
             try data.write(to: URL(fileURLWithPath: savePath))

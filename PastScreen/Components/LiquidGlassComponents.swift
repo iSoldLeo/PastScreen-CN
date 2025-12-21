@@ -150,6 +150,6 @@ extension Animation {
     }
 
     static var quickSpring: Animation {
-        .spring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.2)
+        .spring(response: 0.1, dampingFraction: 0.8, blendDuration: 0.1)
     }
 }
