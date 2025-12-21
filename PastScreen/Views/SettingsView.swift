@@ -240,19 +240,17 @@ struct CaptureSettingsView: View {
                         HotKeyRecorderView(hotkey: $settings.globalHotkey)
                     }
 
-                    Toggle(NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: ""), isOn: $settings.advancedHotkeyEnabled)
+                    HotKeyToggleRow(
+                        title: NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: ""),
+                        isEnabled: $settings.advancedHotkeyEnabled,
+                        hotkey: $settings.advancedHotkey
+                    )
 
-                    LabeledContent(NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: "")) {
-                        HotKeyRecorderView(hotkey: $settings.advancedHotkey)
-                            .disabled(!settings.advancedHotkeyEnabled)
-                    }
-
-                    Toggle(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""), isOn: $settings.ocrHotkeyEnabled)
-
-                    LabeledContent(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: "")) {
-                        HotKeyRecorderView(hotkey: $settings.ocrHotkey)
-                            .disabled(!settings.ocrHotkeyEnabled)
-                    }
+                    HotKeyToggleRow(
+                        title: NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""),
+                        isEnabled: $settings.ocrHotkeyEnabled,
+                        hotkey: $settings.ocrHotkey
+                    )
                 }
             }
         }
@@ -264,6 +262,8 @@ struct CaptureSettingsView: View {
 struct EditorSettingsView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var radialTools: [DrawingTool] = DrawingTool.defaultRadialTools
+    @State private var draggedEditingTool: DrawingTool?
+    @State private var draggedRadialTool: DrawingTool?
 
     private var availableRadialTools: [DrawingTool] { settings.radialAvailableTools }
     private var maxRadialCount: Int { min(4, availableRadialTools.count) }
@@ -280,16 +280,24 @@ struct EditorSettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                List($settings.editingToolOrder, id: \.self, editActions: .move) { $tool in
-                    Toggle(isOn: binding(for: tool)) {
-                        Label(tool.localizedName, systemImage: tool.systemImage)
+                VStack(spacing: 0) {
+                    ForEach(Array(settings.editingToolOrder.enumerated()), id: \.element) { index, tool in
+                        EditingToolRow(
+                            tool: tool,
+                            isEnabled: binding(for: tool),
+                            draggedTool: $draggedEditingTool
+                        ) {
+                            settings.editingToolOrder
+                        } setOrder: { newOrder in
+                            settings.updateEditingToolOrder(newOrder)
+                        }
+
+                        if index != settings.editingToolOrder.count - 1 {
+                            Divider()
+                                .padding(.leading, 38)
+                        }
                     }
                 }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-                .scrollDisabled(true)
-                .frame(maxHeight: CGFloat(max(settings.editingToolOrder.count, 1)) * 34 + 12)
-                .toggleStyle(TrailingSwitchToggleStyle())
                 .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
             }
 
@@ -305,45 +313,33 @@ struct EditorSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Group {
-                    ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
-                        LabeledContent {
-                            ControlGroup {
-                                Button {
-                                    moveRadialTool(at: index, offset: -1)
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                }
-                                .disabled(index == 0)
-
-                                Button {
-                                    moveRadialTool(at: index, offset: 1)
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                }
-                                .disabled(index == radialTools.count - 1)
-
-                                Button {
-                                    removeRadialTool(at: index)
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .disabled(radialTools.count <= 1)
+                    VStack(spacing: 0) {
+                        ForEach(radialTools.indices, id: \.self) { index in
+                            let tool = radialTools[index]
+                            RadialToolRow(
+                                tool: tool,
+                                canReorder: settings.radialWheelEnabled,
+                                availableTools: availableRadialTools,
+                                selection: Binding(
+                                    get: { radialTools[index] },
+                                    set: { newValue in updateRadialTool(at: index, with: newValue) }
+                                ),
+                                canRemove: radialTools.count > 1,
+                                onRemove: { removeRadialTool(at: index) },
+                                draggedTool: $draggedRadialTool
+                            ) {
+                                radialTools
+                            } setOrder: { newOrder in
+                                applyRadialTools(newOrder)
                             }
-                            .controlSize(.small)
-                        } label: {
-                            Picker("", selection: Binding(
-                                get: { radialTools[index] },
-                                set: { newValue in updateRadialTool(at: index, with: newValue) }
-                            )) {
-                                ForEach(availableRadialTools, id: \.self) { option in
-                                    Label(option.localizedName, systemImage: option.systemImage)
-                                        .tag(option)
-                                }
+
+                            if index != radialTools.count - 1 {
+                                Divider()
+                                    .padding(.leading, 28)
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
                         }
                     }
+                    .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
 
                     if radialTools.count < maxRadialCount {
                         Button {
@@ -419,16 +415,6 @@ struct EditorSettingsView: View {
         guard radialTools.count > 1, radialTools.indices.contains(index) else { return }
         var updated = radialTools
         updated.remove(at: index)
-        applyRadialTools(updated)
-    }
-
-    private func moveRadialTool(at index: Int, offset: Int) {
-        var updated = radialTools
-        let destination = index + offset
-
-        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
-
-        updated.swapAt(index, destination)
         applyRadialTools(updated)
     }
 
@@ -522,36 +508,290 @@ struct StorageSettingsView: View {
 
                 if settings.saveToFile {
                     LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
                             Text(settings.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                            HStack {
-                                Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
-                                    if let newPath = settings.selectFolder() {
-                                        settings.saveFolderPath = newPath
-                                    }
+                            Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
+                                if let newPath = settings.selectFolder() {
+                                    settings.saveFolderPath = newPath
                                 }
-
-                                Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
-                                    NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
-                                }
-
-                                Spacer()
-
-                                Button(NSLocalizedString("settings.storage.clear_folder", comment: "")) {
-                                    settings.clearSaveFolder()
-                                }
-                                .foregroundColor(.red)
                             }
+                            .controlSize(.small)
+
+                            Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
+                            }
+                            .controlSize(.small)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private struct HotKeyToggleRow: View {
+    let title: String
+    @Binding var isEnabled: Bool
+    @Binding var hotkey: HotKey
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                HotKeyRecorderView(hotkey: $hotkey)
+                    .disabled(!isEnabled)
+                    .opacity(isEnabled ? 1 : 0.55)
+            }
+        }
+    }
+}
+
+private struct EditingToolRow: View {
+    let tool: DrawingTool
+    let isEnabled: Binding<Bool>
+    @Binding var draggedTool: DrawingTool?
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    @State private var isDropTargeted = false
+
+    init(
+        tool: DrawingTool,
+        isEnabled: Binding<Bool>,
+        draggedTool: Binding<DrawingTool?>,
+        getOrder: @escaping () -> [DrawingTool],
+        setOrder: @escaping ([DrawingTool]) -> Void
+    ) {
+        self.tool = tool
+        self.isEnabled = isEnabled
+        self._draggedTool = draggedTool
+        self.getOrder = getOrder
+        self.setOrder = setOrder
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.secondary)
+                .frame(width: 18, alignment: .leading)
+                .onDrag {
+                    draggedTool = tool
+                    return NSItemProvider(object: tool.identifier as NSString)
+                }
+
+            Label(tool.localizedName, systemImage: tool.systemImage)
+
+            Spacer()
+
+            Toggle("", isOn: isEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            }
+        }
+        .onDrop(
+            of: [.text],
+            delegate: EditingToolDropDelegate(
+                item: tool,
+                draggedTool: $draggedTool,
+                isTargeted: $isDropTargeted,
+                getOrder: getOrder,
+                setOrder: setOrder
+            )
+        )
+    }
+}
+
+private struct EditingToolDropDelegate: DropDelegate {
+    let item: DrawingTool
+    @Binding var draggedTool: DrawingTool?
+    @Binding var isTargeted: Bool
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        true
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = true
+        guard let draggedTool, draggedTool != item else { return }
+
+        var order = getOrder()
+        guard let fromIndex = order.firstIndex(of: draggedTool),
+              let toIndex = order.firstIndex(of: item) else {
+            return
+        }
+
+        if fromIndex == toIndex { return }
+
+        withAnimation(.smoothSpring) {
+            order.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            setOrder(order)
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        draggedTool = nil
+        return true
+    }
+}
+
+private struct RadialToolRow: View {
+    let tool: DrawingTool
+    let canReorder: Bool
+    let availableTools: [DrawingTool]
+    let selection: Binding<DrawingTool>
+    let canRemove: Bool
+    let onRemove: () -> Void
+    @Binding var draggedTool: DrawingTool?
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    @State private var isDropTargeted = false
+
+    init(
+        tool: DrawingTool,
+        canReorder: Bool,
+        availableTools: [DrawingTool],
+        selection: Binding<DrawingTool>,
+        canRemove: Bool,
+        onRemove: @escaping () -> Void,
+        draggedTool: Binding<DrawingTool?>,
+        getOrder: @escaping () -> [DrawingTool],
+        setOrder: @escaping ([DrawingTool]) -> Void
+    ) {
+        self.tool = tool
+        self.canReorder = canReorder
+        self.availableTools = availableTools
+        self.selection = selection
+        self.canRemove = canRemove
+        self.onRemove = onRemove
+        self._draggedTool = draggedTool
+        self.getOrder = getOrder
+        self.setOrder = setOrder
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                if canReorder {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, alignment: .leading)
+                        .onDrag {
+                            draggedTool = tool
+                            return NSItemProvider(object: tool.identifier as NSString)
+                        }
+                } else {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundStyle(.secondary.opacity(0.4))
+                        .frame(width: 18, alignment: .leading)
+                }
+            }
+
+            Picker("", selection: selection) {
+                ForEach(availableTools, id: \.self) { option in
+                    Label(option.localizedName, systemImage: option.systemImage)
+                        .tag(option)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+
+            Spacer()
+
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(!canRemove)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            }
+        }
+        .onDrop(
+            of: [.text],
+            delegate: RadialToolDropDelegate(
+                item: tool,
+                draggedTool: $draggedTool,
+                isTargeted: $isDropTargeted,
+                getOrder: getOrder,
+                setOrder: setOrder
+            )
+        )
+    }
+}
+
+private struct RadialToolDropDelegate: DropDelegate {
+    let item: DrawingTool
+    @Binding var draggedTool: DrawingTool?
+    @Binding var isTargeted: Bool
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedTool != nil && draggedTool != item
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = true
+        guard let draggedTool, draggedTool != item else { return }
+
+        var order = getOrder()
+        guard let fromIndex = order.firstIndex(of: draggedTool),
+              let toIndex = order.firstIndex(of: item) else {
+            return
+        }
+
+        if fromIndex == toIndex { return }
+
+        withAnimation(.smoothSpring) {
+            order.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            setOrder(order)
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        draggedTool = nil
+        return true
     }
 }
 
