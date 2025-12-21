@@ -1289,10 +1289,28 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             }
         } else {
             // IMAGE ONLY - Default behavior (works with AI agents, browsers, etc.)
-            pasteboard.writeObjects([image])
+            if let pngData = makePNGClipboardData(cgImage: cgImage, pointSize: pointSize) {
+                let item = NSPasteboardItem()
+                item.setData(pngData, forType: .png)
+
+                // Keep a TIFF fallback for apps that expect the legacy type
+                if let tiffData = image.tiffRepresentation {
+                    item.setData(tiffData, forType: .tiff)
+                }
+
+                pasteboard.writeObjects([item])
+            } else {
+                pasteboard.writeObjects([image])
+            }
         }
 
         return filePath
+    }
+
+    private func makePNGClipboardData(cgImage: CGImage, pointSize: CGSize) -> Data? {
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        rep.size = pointSize
+        return rep.representation(using: .png, properties: [:])
     }
 
     /// Save to disk on a background queue, then hop back to main for UI/notifications.
