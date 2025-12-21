@@ -1,0 +1,287 @@
+/* Menu Items */
+"menu.tooltip" = "PastScreen-CN - Snelle capture";
+"menu.capture_area" = "Snelle capture";
+"menu.capture_fullscreen" = "Volledig scherm vastleggen";
+"menu.capture_advanced" = "Geavanceerde capture";
+"menu.show_last" = "Laatste capture tonen";
+"menu.history" = "Geschiedenis";
+"menu.history.empty" = "Geen captures";
+"menu.history.clear" = "Geschiedenis wissen";
+"menu.destination" = "Opslagmap wijzigen...";
+"menu.preferences" = "Voorkeuren...";
+"menu.check_updates" = "Op updates controleren...";
+"menu.quit" = "PastScreen-CN afsluiten";
+
+/* Window Titles */
+"window.preferences" = "PastScreen-CN-voorkeuren";
+
+/* Settings - Tabs */
+"settings.tab.general" = "Algemeen";
+"settings.tab.capture" = "Capture";
+"settings.tab.editor" = "Editor";
+"settings.tab.storage" = "Opslag";
+"settings.tab.apps" = "Apps";
+
+/* Settings - General */
+"settings.general.options" = "Opties";
+"settings.general.launch_at_login" = "Starten bij inloggen";
+"settings.general.show_in_dock" = "Weergeven in Dock";
+"settings.general.copy_clipboard" = "Kopiëren naar klembord";
+"settings.general.copy_clipboard.help" = "Automatisch kopiëren na capture";
+"settings.general.play_sound" = "Sluitergeluid afspelen";
+"settings.general.play_sound.help" = "Camerageluid afspelen tijdens capture";
+"settings.general.show_dimensions" = "Afmetingen tonen";
+"settings.general.show_dimensions.help" = "Grootte van selectie tonen tijdens capture";
+"settings.general.section_title" = "Algemene opties";
+"settings.general.enable_annotations" = "Aantekeningen inschakelen";
+"settings.general.enable_annotations.help" = "Pijlen en tekst toevoegen vóór opslaan";
+"settings.general.features_section" = "Functies";
+"settings.general.show_tutorial" = "Tutorial tonen bij start";
+"settings.general.show_tutorial.help" = "Tips tonen wanneer PastScreen-CN start";
+"settings.general.help_section" = "Hulp & Support";
+"settings.general.help.prompt" = "Een snelle start nodig?";
+"settings.general.help.view_tutorial" = "Tutorial bekijken";
+"settings.general.privacy_section" = "Privacy";
+"settings.general.privacy.title" = "Je privacy telt";
+"settings.general.privacy.description" = "PastScreen-CN verzamelt niets; alles blijft op je Mac.";
+"settings.general.privacy.bullets" = "• Geen analytics of tracking\n• Geen clouduploads\n• Geen diensten van derden\n• Alles draait lokaal";
+"settings.general.privacy.view_policy" = "Volledig privacybeleid";
+"settings.general.language" = "Taal";
+"settings.general.language.system" = "Volg systeem";
+"settings.general.language.zh_hans" = "简体中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
+"settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "Antarctisch (met geluid)";
+"settings.general.language.note" = "Herstart de app om de taalwijziging toe te passen.";
+
+/* Settings - Capture */
+"settings.capture.format_section" = "Beeldformaat";
+"settings.capture.image_format" = "Formaat:";
+"settings.capture.format_png" = "PNG (verliesvrij)";
+"settings.capture.format_jpeg" = "JPEG (gecomprimeerd)";
+"settings.capture.format_help" = "PNG is beter van kwaliteit maar groter; JPEG is kleiner.";
+"settings.capture.shortcuts_section" = "Sneltoetsen";
+"settings.capture.enable_hotkey" = "Globale sneltoets inschakelen";
+"settings.capture.enable_hotkey.help" = "Sneltoetsen overal in het systeem toestaan";
+"settings.capture.capture_area_label" = "Selectie vastleggen:";
+"settings.capture.click_icon_label" = "of klik op het menubalkpictogram";
+"settings.capture.open_menu" = "Menu openen";
+"settings.capture.hotkey_disabled_help" = "Schakel sneltoetsen in om altijd te kunnen capturen";
+"settings.capture.quick_screenshot" = "Snelle capture";
+"settings.capture.advanced_screenshot" = "Geavanceerde capture";
+"settings.capture.ocr_capture" = "OCR";
+"settings.capture.window_border" = "Vensterrand";
+"settings.capture.window_border.enable" = "Vensterrand inschakelen";
+"settings.capture.window_border.width" = "Randbreedte";
+"settings.capture.window_border.corner" = "Hoekradius";
+"settings.capture.window_border.color" = "Randkleur";
+
+/* Settings - Editor */
+"settings.editor.toolbar.title" = "Bewerkingswerkbalk";
+"settings.editor.toolbar.description" = "Kies welke tools verschijnen na een geavanceerde capture.";
+"settings.editor.toolbar.reorder_hint" = "Sleep om de werkbalk opnieuw te ordenen.";
+"settings.editor.toolbar.note" = "Houd minstens één tool actief.";
+"settings.editor.radial.title" = "Snelle wiel";
+"settings.editor.radial.description" = "Stel het rechterklik-wiel in met 1-4 ingeschakelde tools.";
+"settings.editor.radial.enabled" = "Snelle wiel gebruiken";
+"settings.editor.radial.add" = "Tool toevoegen";
+"settings.editor.radial.note" = "Houd minstens één tool. Rechtsklik in de editor om het wiel te openen.";
+"settings.editor.ocr.title" = "OCR";
+"settings.editor.ocr.description" = "Kies herkentalen. OCR detecteert binnen de ingeschakelde talen.";
+"settings.editor.ocr.reset" = "Reset";
+"settings.editor.ocr.note" = "Zonder selectie wordt systeem/auto-detectie gebruikt.";
+
+/* Settings - Storage */
+"settings.storage.section_title" = "Opslaglocatie";
+"settings.storage.save_to_disk" = "Opslaan op schijf";
+"settings.storage.save_to_disk.help" = "Ook bestanden bewaren naast het klembord";
+"settings.storage.save_folder.label" = "Opslaglocatie";
+"settings.storage.folder_label" = "Map:";
+"settings.storage.change_button" = "Wijzigen...";
+"settings.storage.open_folder" = "Map openen";
+"settings.storage.clear_folder" = "Map leegmaken";
+"settings.select_folder.prompt" = "Kiezen";
+"settings.select_folder.message" = "Kies een map om captures op te slaan";
+
+/* Settings - Apps */
+"settings.apps.default_behavior" = "Standaard: afbeelding naar klembord";
+"settings.apps.instructions" = "Voeg hieronder apps toe. Gebruik \"Path\" als de app het bestandspad nodig heeft (bijv. terminal).";
+"settings.apps.rules" = "Regels";
+"settings.apps.empty_title" = "Geen app-regels";
+"settings.apps.empty_description" = "Voeg apps toe om het klembordgedrag te wijzigen.\nGebruik \"Path\" voor terminals die een pad nodig hebben.";
+"settings.apps.clipboard.image" = "Afbeelding";
+"settings.apps.clipboard.path" = "Path";
+"settings.apps.add_rule" = "App-regel toevoegen";
+"settings.apps.select_app_message" = "Kies een app";
+
+/* Onboarding */
+"onboarding.title" = "Welkom bij PastScreen-CN 📸";
+"onboarding.subtitle" = "Razendsnelle screenshots voor ontwikkelaars";
+"onboarding.why_title" = "Waarom PastScreen-CN?";
+"onboarding.ultrafast" = "⚡ Supersnel";
+"onboarding.ultrafast.desc" = "Leg vast en plak in je IDE in seconden.";
+"onboarding.ultrafast.note" = "Geen bestandsbeheer, alleen snelheid.";
+"onboarding.autoclean" = "🧹 Automatisch opruimen";
+"onboarding.autoclean.desc" = "Screenshotmap wordt bij herstart opgeschoond.";
+"onboarding.autoclean.note" = "Geen gedoe, geen rommel.";
+"onboarding.smart_notifications" = "🔔 Slimme meldingen";
+"onboarding.smart_notifications.desc" = "Licht en niet opdringerig.";
+"onboarding.smart_notifications.note" = "Een stille melding als het klaar is.";
+"onboarding.workflow" = "🎯 Workflow eerst";
+"onboarding.workflow.desc" = "Gemaakt voor ontwikkelaars die in hun editor leven.";
+"onboarding.workflow.note" = "Capturen → Plakken → Verder coderen.";
+"onboarding.customizable" = "⚙️ Aanpasbaar";
+"onboarding.customizable.desc" = "Sneltoetsen, formaat en opslag zijn instelbaar.";
+"onboarding.vs_native" = "Tegenover systeemcapture: geen preview-wachttijd, direct naar klembord.";
+"onboarding.vs_other" = "Tegenover andere tools: geen complexe stappen, geen bestandsbeheer.";
+"onboarding.dont_show" = "Niet meer tonen";
+"onboarding.got_it" = "Begrepen, aan de slag!";
+
+/* Errors */
+"error.permissions_required.title" = "Schermopname vereist";
+"error.permissions_required.message" = "PastScreen-CN heeft schermopname-rechten nodig om te capturen.\n\nGa naar Systeeminstellingen → Privacy en beveiliging → Schermopname en sta PastScreen-CN toe.";
+"error.open_system_prefs" = "Systeeminstellingen openen";
+"error.later" = "Later";
+"error.accessibility_required.title" = "Toegankelijkheid vereist";
+"error.accessibility_required.message" = "PastScreen-CN heeft Toegankelijkheid nodig om globale sneltoetsen te registreren.\n\nGa naar Systeeminstellingen → Privacy en beveiliging → Toegankelijkheid en sta PastScreen-CN toe.";
+"error.open_system_settings" = "Systeeminstellingen openen";
+"error.capture_error" = "Capture mislukt";
+"error.unable_to_launch" = "PastScreen-CN kan niet worden gestart";
+"error.file_not_found.title" = "Bestand niet gevonden";
+"error.file_not_found.message" = "Laatste capture niet gevonden; mogelijk verwijderd of verplaatst.";
+"error.invalid_rectangle" = "Ongeldige selectie";
+"error.permission_denied" = "Toestemming geweigerd";
+"error.capture_interrupted" = "Capture onderbroken";
+
+/* Notifications */
+"notification.screenshot_ready" = "Capture voltooid";
+"notification.click_to_reveal" = "In Finder tonen";
+"notification.screenshot_saved" = "Vastgelegde afbeelding opgeslagen op klembord";
+"notification.reveal_in_finder" = "In Finder tonen";
+"notification.dismiss" = "Sluiten";
+
+/* Onboarding */
+"onboarding.button.previous" = "Vorige";
+"onboarding.button.next" = "Volgende";
+"onboarding.button.start" = "Start";
+
+"onboarding.page1.title" = "Snelheid";
+"onboarding.page1.description" = "Rond captures af en plak in seconden.\nJe hotkey → Capture → ⌘V plakken";
+
+"onboarding.page2.title" = "Opslaglocatie";
+"onboarding.page2.description" = "Kies waar PastScreen-CN opslaat.";
+
+"onboarding.storage.default.title" = "Mappen Afbeeldingen (standaard)";
+"onboarding.storage.default.desc" = "Opslaan in de map Afbeeldingen.\n(Permissies vereist)";
+
+"onboarding.storage.temp.title" = "Tijdelijk (auto-clean)";
+"onboarding.storage.temp.desc" = "Ideaal voor snel kopiëren/plakken.\nVerwijderd na herstart.";
+
+"onboarding.page3.title" = "Klembord eerst";
+"onboarding.page3.description" = "Automatisch naar het klembord kopiëren.\nWerkt met Cursor, VSCode, Zed.";
+
+"onboarding.page4.title" = "Aanpasbaar";
+"onboarding.page4.description" = "Sneltoetsen, formaat, mappen...\nAlles via de menubalk.";
+
+"onboarding.page_apps.title" = "App-regels";
+"onboarding.page_apps.description" = "Gedrag per app aanpassen.\n\"Image\" voor AI, \"Path\" voor editors/terminals.";
+
+/* Onboarding - Permissions */
+"onboarding.permissions.screen_recording.title" = "Schermopname";
+"onboarding.permissions.screen_recording.description" = "Vereist om te capturen.\nKlik hieronder om toe te staan.";
+"onboarding.permissions.accessibility.title" = "Toegankelijkheid";
+"onboarding.permissions.accessibility.description" = "Nodig voor globale sneltoetsen.\nKlik hieronder om toe te staan.";
+"onboarding.permissions.grant" = "Toestaan";
+"onboarding.permissions.granted" = "Toegestaan";
+
+/* Permission Alerts */
+"permission.request.header" = "PastScreen-CN heeft deze rechten nodig:";
+"permission.request.footer" = "Activeer in Systeeminstellingen → Privacy en beveiliging.";
+"permission.max_retries.message" = "PastScreen-CN heeft de limiet voor aanvragen bereikt.\n\nActiveer handmatig";
+
+/* Hotkey Labels */
+"hotkey.key.code" = "Toets %d";
+"hotkey.key.space" = "Spatie";
+"hotkey.key.return" = "Return";
+"hotkey.key.tab" = "Tab";
+"hotkey.key.delete" = "Delete";
+"hotkey.key.escape" = "Esc";
+"hotkey.key.forward_delete" = "Forward Delete";
+"hotkey.key.home" = "Home";
+"hotkey.key.end" = "End";
+"hotkey.key.page_up" = "Page Up";
+"hotkey.key.page_down" = "Page Down";
+"hotkey.key.left" = "Links";
+"hotkey.key.right" = "Rechts";
+"hotkey.key.down" = "Omlaag";
+"hotkey.key.up" = "Omhoog";
+"hotkey.prompt.press" = "Druk een sneltoets...";
+
+/* Tips */
+"tip.quick_capture.title" = "PastScreen-CN Tip";
+"tip.quick_capture.message" = "Gebruik je hotkey of een Apple Shortcut om snel te capturen.";
+
+/* OCR Hotkey */
+"toast.ocr.success" = "OCR gekopieerd";
+"toast.ocr.failure" = "OCR mislukt";
+"toast.ocr.no_text" = "Geen tekst gevonden";
+
+/* App Intents */
+"intent.capture_area.title" = "Selectie vastleggen";
+"intent.capture_area.description" = "Leg een eigen gebied vast met PastScreen-CN en kopieer het beeld.";
+"intent.capture_area.phrase1" = "Selectie vastleggen met \\(.applicationName)";
+"intent.capture_area.phrase2" = "Gebruik \\(.applicationName) om selectie vast te leggen";
+"intent.capture_area.short_title" = "Selectie";
+"intent.capture_full.title" = "Volledig scherm vastleggen";
+"intent.capture_full.description" = "Leg het volledige scherm vast met PastScreen-CN en kopieer het resultaat.";
+"intent.capture_full.phrase1" = "Volledig scherm met \\(.applicationName)";
+"intent.capture_full.phrase2" = "Gebruik \\(.applicationName) voor volledig scherm";
+"intent.capture_full.short_title" = "Volledig scherm";
+"intent.error.app_unavailable" = "PastScreen-CN moet actief zijn om dit uit te voeren.";
+
+/* Common Actions */
+"common.cancel" = "Annuleren";
+"common.confirm" = "Bevestigen";
+"common.done" = "Klaar";
+"common.ok" = "OK";
+"common.change" = "Wijzigen";
+"common.undo" = "Ongedaan";
+"common.redo" = "Opnieuw";
+
+/* Permissions */
+"permission.type.screen_recording" = "Schermopname";
+"permission.type.accessibility" = "Toegankelijkheid";
+"permission.type.notifications" = "Meldingen";
+
+/* Editor */
+"editor.window.title" = "Screenshot bewerken";
+"editor.text.size" = "Grootte";
+"editor.mosaic.size" = "Mozaïekgrootte";
+"editor.stroke.width" = "Lijndikte";
+"editor.text.title" = "Voer tekst in";
+"editor.text.placeholder" = "Voer tekst in";
+"editor.ocr.title" = "OCR";
+"editor.ocr.hint" = "Sleep om OCR-gebied te kiezen";
+"editor.ocr.full_image" = "Volledige afbeelding OCR";
+"editor.ocr.copy" = "Kopiëren";
+"editor.ocr.empty" = "Geen tekst herkend";
+"editor.ocr.processing" = "Bezig met herkennen…";
+"editor.ocr.error.invalid_image" = "Kan afbeeldingsdata niet lezen";
+"editor.ocr.error.cgimage" = "Kan afbeelding voor herkenning niet maken";
+
+/* Tools */
+"tool.pen" = "Pen";
+"tool.line" = "Lijn";
+"tool.rectangle" = "Rechthoek";
+"tool.circle" = "Cirkel";
+"tool.arrow" = "Pijl";
+"tool.mosaic" = "Mozaïek";
+"tool.text" = "Tekst";
+"tool.ocr" = "OCR";

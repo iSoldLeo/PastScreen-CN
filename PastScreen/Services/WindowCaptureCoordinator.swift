@@ -171,13 +171,12 @@ final class WindowCaptureCoordinator {
             if frontmostCandidate == nil {
                 frontmostCandidate = candidate
                 bestCandidate = candidate
-                frontmostBoundsForContainment = quartzBounds.insetBy(dx: -1, dy: -1) // tolerate tiny rounding/shadow differences
+                // Tolerate tiny rounding/shadow differences for containment checks.
+                frontmostBoundsForContainment = quartzBounds.insetBy(dx: -1, dy: -1)
                 continue
             }
 
-            // Promote Chromium/Electron "child windows" to the top-level app window for a consistent
-            // selection preview and capture result. Only consider same-PID windows that fully contain
-            // the frontmost window bounds; this avoids promoting unrelated overlapping windows.
+            // Promote Chromium/Electron child windows to a larger same-PID parent that fully contains the frontmost window for consistent selection/preview.
             guard
                 let frontmostCandidate,
                 candidate.ownerPID == frontmostCandidate.ownerPID,

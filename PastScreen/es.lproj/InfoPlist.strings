@@ -1,0 +1,8 @@
+/* Bundle names */
+"CFBundleDisplayName" = "PastScreen-CN";
+"CFBundleName" = "PastScreen-CN";
+
+/* Permission descriptions */
+"NSAppleEventsUsageDescription" = "PastScreen-CN necesita acceso a Apple Events para registrar atajos globales.";
+"NSScreenCaptureUsageDescription" = "PastScreen-CN necesita permiso de grabación de pantalla para capturar.";
+"NSUserNotificationsUsageDescription" = "PastScreen-CN usa notificaciones para avisar que la captura terminó.";

@@ -15,6 +15,14 @@
 		<string>en</string>
 		<string>zh-Hans</string>
 		<string>zh-Hant</string>
+		<string>lzh</string>
+		<string>ja</string>
+		<string>ko</string>
+		<string>de</string>
+		<string>fr</string>
+		<string>es</string>
+		<string>nl</string>
+		<string>aq</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>PastScreen-CN</string>

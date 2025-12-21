@@ -1,0 +1,8 @@
+/* Bundle names */
+"CFBundleDisplayName" = "PastScreen-CN";
+"CFBundleName" = "PastScreen-CN";
+
+/* Permission descriptions */
+"NSAppleEventsUsageDescription" = "PastScreen-CN doit accéder aux Apple Events pour enregistrer des raccourcis globaux.";
+"NSScreenCaptureUsageDescription" = "PastScreen-CN nécessite l’autorisation d’enregistrement de l’écran pour prendre des captures.";
+"NSUserNotificationsUsageDescription" = "PastScreen-CN utilise des notifications pour confirmer la fin des captures.";

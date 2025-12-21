@@ -1,0 +1,8 @@
+/* Bundle names */
+"CFBundleDisplayName" = "咕咕嘎嘎";
+"CFBundleName" = "咕咕嘎嘎";
+
+/* Permission descriptions */
+"NSAppleEventsUsageDescription" = "咕咕嘎嘎";
+"NSScreenCaptureUsageDescription" = "咕咕嘎嘎";
+"NSUserNotificationsUsageDescription" = "咕咕嘎嘎";

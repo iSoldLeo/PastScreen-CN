@@ -245,6 +245,7 @@ struct OnboardingContentView: View {
     @State private var opacity: Double = 0
     @State private var screenRecordingGranted = false
     @State private var accessibilityGranted = false
+    @State private var isMovingForward = true
 
     var body: some View {
         ZStack {
@@ -461,8 +462,12 @@ struct OnboardingContentView: View {
         }
         .frame(maxWidth: .infinity)
         .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
+            insertion: isMovingForward
+                ? .move(edge: .trailing).combined(with: .opacity)
+                : .move(edge: .leading).combined(with: .opacity),
+            removal: isMovingForward
+                ? .move(edge: .leading).combined(with: .opacity)
+                : .move(edge: .trailing).combined(with: .opacity)
         ))
         .id(currentPage)
     }
@@ -549,6 +554,7 @@ struct OnboardingContentView: View {
         if currentPage == .clipboard {
             onDismiss()
         } else {
+            isMovingForward = true
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 if let nextIndex = OnboardingPage(rawValue: currentPage.rawValue + 1) {
                     currentPage = nextIndex
@@ -558,6 +564,7 @@ struct OnboardingContentView: View {
     }
 
     private func previousPage() {
+        isMovingForward = false
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             if let prevIndex = OnboardingPage(rawValue: currentPage.rawValue - 1) {
                 currentPage = prevIndex

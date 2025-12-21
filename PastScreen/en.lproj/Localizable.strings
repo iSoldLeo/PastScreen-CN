@@ -49,7 +49,16 @@
 "settings.general.language" = "Language";
 "settings.general.language.system" = "Follow System";
 "settings.general.language.zh_hans" = "简体中文";
+"settings.general.language.zh_hant" = "繁體中文";
+"settings.general.language.classical_chinese" = "文言文";
 "settings.general.language.english" = "English";
+"settings.general.language.japanese" = "日本語";
+"settings.general.language.korean" = "한국어";
+"settings.general.language.german" = "Deutsch";
+"settings.general.language.french" = "Français";
+"settings.general.language.spanish" = "Español";
+"settings.general.language.dutch" = "Nederlands";
+"settings.general.language.antarctic" = "Antarctic (sound)";
 "settings.general.language.note" = "Restart app to apply language change.";
 
 /* Settings - Capture */
@@ -77,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Editing toolbar";
 "settings.editor.toolbar.description" = "Choose which tools appear after taking an advanced capture.";
-"settings.editor.toolbar.reorder_hint" = "Use the arrows on the right to reorder the toolbar.";
+"settings.editor.toolbar.reorder_hint" = "Drag to reorder the toolbar.";
 "settings.editor.toolbar.note" = "Keep at least one tool enabled.";
 "settings.editor.radial.title" = "Quick wheel";
 "settings.editor.radial.description" = "Customize the right-click quick wheel with 1-4 enabled tools.";
@@ -93,6 +102,7 @@
 "settings.storage.section_title" = "Save location";
 "settings.storage.save_to_disk" = "Save to disk";
 "settings.storage.save_to_disk.help" = "Also save screenshot files besides clipboard";
+"settings.storage.save_folder.label" = "Save location";
 "settings.storage.folder_label" = "Folder:";
 "settings.storage.change_button" = "Change...";
 "settings.storage.open_folder" = "Open folder";
