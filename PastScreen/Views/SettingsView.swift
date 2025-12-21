@@ -906,7 +906,7 @@ struct AppsSettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             if let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier {
                 let name = FileManager.default.displayName(atPath: url.path)
-                let override = AppOverride(bundleIdentifier: bundleID, appName: name, format: .image)
+                let override = AppOverride(bundleIdentifier: bundleID, appName: name, format: .path)
                 settings.addAppOverride(override)
             }
         }
