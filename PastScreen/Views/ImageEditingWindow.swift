@@ -83,12 +83,38 @@ class ImageEditingWindow: NSWindow {
     }
 }
 
+private struct EditingToolButton: View {
+    let tool: DrawingTool
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let iconStyle: AnyShapeStyle = isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary)
+        Button(action: action) {
+            Image(systemName: tool.systemImage)
+                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(iconStyle)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .glassContainer(
+            material: isSelected ? .regularMaterial : .thinMaterial,
+            cornerRadius: 8,
+            borderOpacity: isSelected ? 0.20 : 0.12,
+            shadowOpacity: 0.05
+        )
+        .help(tool.localizedName)
+    }
+}
+
 struct ImageEditingView: View {
     let image: NSImage
     let onCompletion: (NSImage) -> Void
     let onCancel: () -> Void
     let radialTools: [DrawingTool]
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     
     @State private var editedImage: NSImage
     @State private var selectedTool: DrawingTool = ImageEditingView.defaultTool()
@@ -175,219 +201,189 @@ struct ImageEditingView: View {
     // MARK: - Body View
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Toolbar
-            HStack(spacing: 16) {
-                // Drawing tools
-                HStack(spacing: 6) {
-                    ForEach(toolbarTools, id: \.self) { tool in
-                        Button(action: { 
-                            selectTool(tool)
-                        }) {
-                            Image(systemName: tool.systemImage)
-                                .font(.system(size: 16))
-                                .foregroundColor(selectedTool == tool ? .white : .primary)
-                                .frame(width: 32, height: 32)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(selectedTool == tool ? Color.accentColor : Color.clear)
-                                )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .help(tool.localizedName)
-                    }
+        ZStack {
+            Group {
+                if reduceTransparency {
+                    Color(nsColor: .windowBackgroundColor)
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
                 }
-                .padding(.leading, 4)
-                
-                Divider()
-                    .frame(height: 36)
-                
-                // Color picker and stroke controls
-                Group {
-                    if selectedTool == .ocr {
-                        HStack(spacing: 10) {
-                            Text(NSLocalizedString("editor.ocr.hint", value: "拖拽选择区域进行 OCR", comment: ""))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            }
+            .ignoresSafeArea()
 
-                            Button(NSLocalizedString("editor.ocr.full_image", value: "全图 OCR", comment: "")) {
-                                ocrSelectedRect = nil
-                                startOCR(region: nil)
-                            }
-                            .controlSize(.small)
-                            .disabled(ocrIsProcessing)
-                        }
-                    } else {
-                        HStack(spacing: 20) {
-                            // Color picker
-                            ColorPicker("", selection: $selectedColor)
-                                .labelsHidden()
-                                .frame(width: 28, height: 28)
-
-                            // Stroke width/Text size
-                            let sliderMax = sliderMaximum(for: selectedTool)
-                            VStack(spacing: 2) {
-                                Text(sliderLabel(for: selectedTool))
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                                HStack(spacing: 4) {
-                                    Text("1")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(Color.secondary.opacity(0.6))
-                                    Slider(value: $strokeWidth, in: 1...sliderMax, step: 1)
-                                        .frame(width: 100)
-                                    Text("\(Int(sliderMax))")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(Color.secondary.opacity(0.6))
-                                }
+            VStack(spacing: 0) {
+                // Toolbar
+                HStack(spacing: 16) {
+                    // Drawing tools
+                    HStack(spacing: 6) {
+                        ForEach(toolbarTools, id: \.self) { tool in
+                            EditingToolButton(tool: tool, isSelected: selectedTool == tool) {
+                                selectTool(tool)
                             }
                         }
                     }
-                }
-                
-                Spacer()
-                
-                // Action buttons
-                HStack(spacing: 10) {
-                    // Undo/Redo buttons
-                    Group {
-                        Button(action: undo) {
-                            Image(systemName: "arrow.uturn.backward")
-                                .font(.system(size: 14))
-                                .foregroundColor(canUndo ? .primary : .secondary)
-                        }
-                        .disabled(!canUndo)
-                        .help(NSLocalizedString("common.undo", comment: ""))
-                        
-                        Button(action: redo) {
-                            Image(systemName: "arrow.uturn.forward")
-                                .font(.system(size: 14))
-                                .foregroundColor(canRedo ? .primary : .secondary)
-                        }
-                        .disabled(!canRedo)
-                        .help(NSLocalizedString("common.redo", comment: ""))
-                    }
-                    
+                    .padding(.leading, 4)
+
                     Divider()
-                        .frame(height: 28)
-                    
+                        .frame(height: 36)
+
+                    // Color picker and stroke controls
                     Group {
-                        Button(NSLocalizedString("common.cancel", comment: "")) {
-                            onCancel()
-                        }
-                        .keyboardShortcut(.escape)
-                        .controlSize(.small)
-                        
-                        Button(NSLocalizedString("common.done", comment: "")) {
-                            saveEditedImage()
-                        }
-                        .keyboardShortcut(.return)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor))
-            .sheet(isPresented: $showTextInput) {
-                VStack {
-                        Text(NSLocalizedString("editor.text.title", comment: ""))
-                            .font(.headline)
-                            .padding()
-                        
-                        TextField(NSLocalizedString("editor.text.placeholder", comment: ""), text: $currentText)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal)
-                            .onSubmit {
-                                confirmTextAndPreparePlacement()
+                        if selectedTool == .ocr {
+                            HStack(spacing: 10) {
+                                Text(NSLocalizedString("editor.ocr.hint", value: "拖拽选择区域进行 OCR", comment: ""))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Button(NSLocalizedString("editor.ocr.full_image", value: "全图 OCR", comment: "")) {
+                                    ocrSelectedRect = nil
+                                    startOCR(region: nil)
+                                }
+                                .controlSize(.small)
+                                .disabled(ocrIsProcessing)
                             }
-                        
-                        HStack {
-                            Button(NSLocalizedString("common.cancel", comment: "")) {
-                                showTextInput = false
-                                currentText = ""
-                                waitingForTextPlacement = false
-                                // 如果之前选择了文字工具，切换回画笔工具
-                                if selectedTool == .text {
-                                    selectedTool = .pen
-                                    // 确保画笔粗细在合理范围内
-                                    strokeWidth = min(strokeWidth, sliderMaximum(for: selectedTool))
+                        } else {
+                            HStack(spacing: 20) {
+                                // Color picker
+                                ColorPicker("", selection: $selectedColor)
+                                    .labelsHidden()
+                                    .frame(width: 28, height: 28)
+
+                                // Stroke width/Text size
+                                let sliderMax = sliderMaximum(for: selectedTool)
+                                VStack(spacing: 2) {
+                                    Text(sliderLabel(for: selectedTool))
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 4) {
+                                        Text("1")
+                                            .font(.system(size: 9))
+                                            .foregroundColor(Color.secondary.opacity(0.6))
+                                        Slider(value: $strokeWidth, in: 1...sliderMax, step: 1)
+                                            .frame(width: 100)
+                                        Text("\(Int(sliderMax))")
+                                            .font(.system(size: 9))
+                                            .foregroundColor(Color.secondary.opacity(0.6))
+                                    }
                                 }
                             }
-                            .padding()
-                            
-                            Button(NSLocalizedString("common.confirm", comment: "")) {
-                                confirmTextAndPreparePlacement()
+                        }
+                    }
+
+                    Spacer()
+
+                    // Action buttons
+                    HStack(spacing: 10) {
+                        // Undo/Redo buttons
+                        Group {
+                            Button(action: undo) {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(canUndo ? .primary : .secondary)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .padding()
-                        }
-                    }
-                    .frame(width: 300, height: 200)
-            }
-            
-            Divider()
-            
-            // Image editing area
-            GeometryReader { geometry in
-                let inset: CGFloat = 6
-                let canvasSize = CGSize(
-                    width: max(0, geometry.size.width - inset * 2),
-                    height: max(0, geometry.size.height - inset * 2)
-                )
+                            .disabled(!canUndo)
+                            .help(NSLocalizedString("common.undo", comment: ""))
 
-                let previewRegion = currentMosaicPreviewRegion()
-                let ocrPreviewRect = currentOCRPreviewRect()
-                let baseImage = previewRegion != nil
-                    ? renderMosaicImage(additionalRegions: [previewRegion!])
-                    : editedImage
-                
-                ZStack {
-                    // Background image
-                    Image(nsImage: baseImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                    
-                    // Mosaic live preview outline
-                    if let previewRegion {
-                        let displayRect = convertImageRectToDisplayRect(
-                            previewRegion.rect,
-                            canvasSize: canvasSize,
-                            imageSize: editedImage.size
-                        )
-                        Path { path in
-                            path.addRect(displayRect)
+                            Button(action: redo) {
+                                Image(systemName: "arrow.uturn.forward")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(canRedo ? .primary : .secondary)
+                            }
+                            .disabled(!canRedo)
+                            .help(NSLocalizedString("common.redo", comment: ""))
                         }
-                        .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
-                        .allowsHitTesting(false)
-                    }
 
-                    // OCR selection outline (live + last selection)
-                    if selectedTool == .ocr, let rectToShow = ocrPreviewRect ?? ocrSelectedRect {
-                        let displayRect = convertImageRectToDisplayRect(
-                            rectToShow,
-                            canvasSize: canvasSize,
-                            imageSize: editedImage.size
-                        )
-                        Path { path in
-                            path.addRect(displayRect)
-                        }
-                        .stroke(Color.accentColor.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
-                        .allowsHitTesting(false)
-                    }
+                        Divider()
+                            .frame(height: 28)
 
-                    if selectedTool == .ocr, ocrIsProcessing {
-                        ProgressView()
-                            .progressViewStyle(.circular)
+                        Group {
+                            Button(NSLocalizedString("common.cancel", comment: "")) {
+                                onCancel()
+                            }
+                            .keyboardShortcut(.escape)
                             .controlSize(.small)
-                            .padding(10)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-                            .allowsHitTesting(false)
-                    }
 
-                    // Drawing overlay
-                    Canvas { context, size in
+                            Button(NSLocalizedString("common.done", comment: "")) {
+                                saveEditedImage()
+                            }
+                            .keyboardShortcut(.return)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.regularMaterial)
+                .overlay(alignment: .bottom) {
+                    Divider()
+                }
+                .tint(.accentColor)
+                .sheet(isPresented: $showTextInput) {
+                    textInputSheet
+                }
+
+                Divider()
+
+                // Image editing area
+                GeometryReader { geometry in
+                    let inset: CGFloat = 6
+                    let canvasSize = CGSize(
+                        width: max(0, geometry.size.width - inset * 2),
+                        height: max(0, geometry.size.height - inset * 2)
+                    )
+
+                    let previewRegion = currentMosaicPreviewRegion()
+                    let ocrPreviewRect = currentOCRPreviewRect()
+                    let baseImage = previewRegion != nil
+                        ? renderMosaicImage(additionalRegions: [previewRegion!])
+                        : editedImage
+
+                    ZStack {
+                        // Background image
+                        Image(nsImage: baseImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+
+                        // Mosaic live preview outline
+                        if let previewRegion {
+                            let displayRect = convertImageRectToDisplayRect(
+                                previewRegion.rect,
+                                canvasSize: canvasSize,
+                                imageSize: editedImage.size
+                            )
+                            Path { path in
+                                path.addRect(displayRect)
+                            }
+                            .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
+                            .allowsHitTesting(false)
+                        }
+
+                        // OCR selection outline (live + last selection)
+                        if selectedTool == .ocr, let rectToShow = ocrPreviewRect ?? ocrSelectedRect {
+                            let displayRect = convertImageRectToDisplayRect(
+                                rectToShow,
+                                canvasSize: canvasSize,
+                                imageSize: editedImage.size
+                            )
+                            Path { path in
+                                path.addRect(displayRect)
+                            }
+                            .stroke(Color.accentColor.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [6, 3]))
+                            .allowsHitTesting(false)
+                        }
+
+                        if selectedTool == .ocr, ocrIsProcessing {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.small)
+                                .padding(10)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                                .allowsHitTesting(false)
+                        }
+
+                        // Drawing overlay
+                        Canvas { context, size in
                         // Calculate image display properties
                         let imageSize = editedImage.size
                         let aspectRatio = imageSize.width / imageSize.height
@@ -428,107 +424,107 @@ struct ImageEditingView: View {
                             contextCopy.stroke(currentPath.path, with: .color(currentPath.color), lineWidth: width)
                         }
                     }
-                    
-                    // Text inputs overlay
-                    ForEach(Array(textInputs.enumerated()), id: \.element.id) { index, textInput in
-                        let textPositionView = calculateTextPosition(
-                            for: textInput, 
-                            canvasSize: canvasSize, 
-                            with: editedImage.size
-                        )
-                        
-                        Text(textInput.text)
-                            .font(.system(size: textInput.fontSize))
-                            .foregroundColor(textInput.color)
-                            .position(x: textPositionView.x, y: textPositionView.y)
-                    }
-                    
-                    // Preview text for placement
-                    if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
-                        Text(currentText)
-                            .font(.system(size: strokeWidth * 4))
-                            .foregroundColor(selectedColor.opacity(0.5))
-                            .position(x: mousePosition.x, y: mousePosition.y)
-                    }
-                }
-                // Capture right-click gestures for radial tool selection
-                .overlay {
-                    if settings.radialWheelEnabled {
-                        RightClickCaptureView(
-                            onRightDown: { point in
-                                radialCenter = point
-                                radialCurrentPoint = point
-                            },
-                            onRightDrag: { point in
-                                radialCurrentPoint = point
-                            },
-                            onRightUp: { point in
-                                radialCurrentPoint = point
-                                finalizeRadialSelection()
-                            }
-                        )
-                    }
-                }
-                // Radial palette overlay
-                .overlay {
-                    if settings.radialWheelEnabled,
-                       let center = radialCenter,
-                       let current = radialCurrentPoint {
-                        RadialToolPalette(
-                            center: center,
-                            current: current,
-                            tools: radialTools,
-                            deadZoneRadius: 30,
-                            toolNameProvider: toolName(for:),
-                            selectedIndex: radialSelectionIndex()
-                        )
-                    }
-                }
-                .clipped()
-                .contentShape(Rectangle()) // Prevent window dragging in this area
-                .onTapGesture { location in
-                    // Handle tap for text placement
-                    if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
-                        placeTextAt(location: location, canvasSize: canvasSize)
-                    }
-                }
-                .onHover { isHovering in
-                    if isHovering && selectedTool == .text && waitingForTextPlacement {
-                        // We'll handle position tracking in the gesture below
-                    }
-                }
-                .gesture(
-                    // Track mouse movement for text preview
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            // Always track mouse position when using text tool
-                            if selectedTool == .text && waitingForTextPlacement {
-                                mousePosition = value.location
-                                previewTextPosition = value.location
-                            }
-                            // Handle drawing for other tools
-                            if selectedTool != .text {
-                                handleDragChanged(value: value, canvasSize: canvasSize)
-                            }
+
+                        // Text inputs overlay
+                        ForEach(Array(textInputs.enumerated()), id: \.element.id) { _, textInput in
+                            let textPositionView = calculateTextPosition(
+                                for: textInput,
+                                canvasSize: canvasSize,
+                                with: editedImage.size
+                            )
+
+                            Text(textInput.text)
+                                .font(.system(size: textInput.fontSize))
+                                .foregroundColor(textInput.color)
+                                .position(x: textPositionView.x, y: textPositionView.y)
                         }
-                        .onEnded { value in
-                            // Handle text placement on click
-                            if selectedTool == .text && waitingForTextPlacement {
-                                placeTextAt(location: value.location, canvasSize: canvasSize)
-                            } else if selectedTool != .text {
-                                handleDragEnded(value: value, canvasSize: canvasSize)
-                            }
+
+                        // Preview text for placement
+                        if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
+                            Text(currentText)
+                                .font(.system(size: strokeWidth * 4))
+                                .foregroundColor(selectedColor.opacity(0.5))
+                                .position(x: mousePosition.x, y: mousePosition.y)
                         }
-                )
-                .onChange(of: settings.radialWheelEnabled) { _, isEnabled in
-                    if !isEnabled {
-                        radialCenter = nil
-                        radialCurrentPoint = nil
                     }
-                }
-                .onAppear {
-                    // Setup keyboard shortcuts for undo/redo
-                    keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                    // Capture right-click gestures for radial tool selection
+                    .overlay {
+                        if settings.radialWheelEnabled {
+                            RightClickCaptureView(
+                                onRightDown: { point in
+                                    radialCenter = point
+                                    radialCurrentPoint = point
+                                },
+                                onRightDrag: { point in
+                                    radialCurrentPoint = point
+                                },
+                                onRightUp: { point in
+                                    radialCurrentPoint = point
+                                    finalizeRadialSelection()
+                                }
+                            )
+                        }
+                    }
+                    // Radial palette overlay
+                    .overlay {
+                        if settings.radialWheelEnabled,
+                           let center = radialCenter,
+                           let current = radialCurrentPoint {
+                            RadialToolPalette(
+                                center: center,
+                                current: current,
+                                tools: radialTools,
+                                deadZoneRadius: 30,
+                                toolNameProvider: toolName(for:),
+                                selectedIndex: radialSelectionIndex()
+                            )
+                        }
+                    }
+                    .glassContainer(material: .thinMaterial, cornerRadius: 14, borderOpacity: 0.12, shadowOpacity: 0.08)
+                    .contentShape(Rectangle()) // Prevent window dragging in this area
+                    .onTapGesture { location in
+                        // Handle tap for text placement
+                        if selectedTool == .text && waitingForTextPlacement && !currentText.isEmpty {
+                            placeTextAt(location: location, canvasSize: canvasSize)
+                        }
+                    }
+                    .onHover { isHovering in
+                        if isHovering && selectedTool == .text && waitingForTextPlacement {
+                            // We'll handle position tracking in the gesture below
+                        }
+                    }
+                    .gesture(
+                        // Track mouse movement for text preview
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                // Always track mouse position when using text tool
+                                if selectedTool == .text && waitingForTextPlacement {
+                                    mousePosition = value.location
+                                    previewTextPosition = value.location
+                                }
+                                // Handle drawing for other tools
+                                if selectedTool != .text {
+                                    handleDragChanged(value: value, canvasSize: canvasSize)
+                                }
+                            }
+                            .onEnded { value in
+                                // Handle text placement on click
+                                if selectedTool == .text && waitingForTextPlacement {
+                                    placeTextAt(location: value.location, canvasSize: canvasSize)
+                                } else if selectedTool != .text {
+                                    handleDragEnded(value: value, canvasSize: canvasSize)
+                                }
+                            }
+                    )
+                    .onChange(of: settings.radialWheelEnabled) { _, isEnabled in
+                        if !isEnabled {
+                            radialCenter = nil
+                            radialCurrentPoint = nil
+                        }
+                    }
+                    .onAppear {
+                        // Setup keyboard shortcuts for undo/redo
+                        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
                         // Handle plain Return/Enter to finish editing
@@ -567,6 +563,7 @@ struct ImageEditingView: View {
                 }
                 .frame(width: canvasSize.width, height: canvasSize.height)
                 .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                }
             }
         }
         .onAppear {
@@ -601,6 +598,13 @@ struct ImageEditingView: View {
                         TextEditor(text: $ocrResultText)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 240)
+                            .scrollContentBackground(.hidden)
+                            .padding(10)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                            )
                     }
                 }
 
@@ -618,12 +622,59 @@ struct ImageEditingView: View {
             }
             .padding(16)
             .frame(width: 520, height: 360)
+            .glassContainer(material: .regularMaterial, cornerRadius: 16, borderOpacity: 0.14, shadowOpacity: 0.08)
         }
         .alert(NSLocalizedString("editor.ocr.title", value: "OCR", comment: ""), isPresented: $showOCRError) {
             Button(NSLocalizedString("common.ok", comment: "")) {}
         } message: {
             Text(ocrErrorMessage)
         }
+    }
+
+    private var textInputSheet: some View {
+        VStack {
+            Text(NSLocalizedString("editor.text.title", comment: ""))
+                .font(.headline)
+                .padding()
+
+            TextField(NSLocalizedString("editor.text.placeholder", comment: ""), text: $currentText)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .padding(.horizontal)
+                .onSubmit {
+                    confirmTextAndPreparePlacement()
+                }
+
+            HStack {
+                Button(NSLocalizedString("common.cancel", comment: "")) {
+                    showTextInput = false
+                    currentText = ""
+                    waitingForTextPlacement = false
+                    // 如果之前选择了文字工具，切换回画笔工具
+                    if selectedTool == .text {
+                        selectedTool = .pen
+                        // 确保画笔粗细在合理范围内
+                        strokeWidth = min(strokeWidth, sliderMaximum(for: selectedTool))
+                    }
+                }
+                .padding()
+
+                Button(NSLocalizedString("common.confirm", comment: "")) {
+                    confirmTextAndPreparePlacement()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
+            }
+        }
+        .padding(16)
+        .frame(width: 320, height: 220)
+        .glassContainer(material: .regularMaterial, cornerRadius: 12, borderOpacity: 0.16, shadowOpacity: 0.14)
     }
     
     private func handleDragChanged(value: DragGesture.Value, canvasSize: CGSize) {
@@ -1460,6 +1511,76 @@ struct TextInput: Identifiable {
 
 // MARK: - Radial Tool Palette Views
 
+private struct RadialToolPaletteItem: View {
+    let index: Int
+    let tool: DrawingTool
+    let sectorStart: CGFloat
+    let sectorAngle: CGFloat
+    let deadZoneRadius: CGFloat
+    let radius: CGFloat
+    let labelRadius: CGFloat
+    let localCenter: CGPoint
+    let toolNameProvider: (DrawingTool) -> String
+    let isSelected: Bool
+
+    var body: some View {
+        let iconStyle: AnyShapeStyle = isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary)
+        let sectorEnd = sectorStart + sectorAngle
+        let midAngle = (sectorStart + sectorEnd) / 2
+        let labelX = localCenter.x + cos(midAngle) * labelRadius
+        let labelY = localCenter.y + sin(midAngle) * labelRadius
+
+        ZStack {
+            SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                        .fill(Color.accentColor.opacity(isSelected ? 0.20 : 0.06))
+                }
+                .overlay {
+                    SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                }
+
+            VStack(spacing: 4) {
+                Image(systemName: tool.systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(iconStyle)
+                Text(toolNameProvider(tool))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .glassContainer(
+                material: isSelected ? .regularMaterial : .thinMaterial,
+                cornerRadius: 10,
+                borderOpacity: isSelected ? 0.20 : 0.14,
+                shadowOpacity: isSelected ? 0.16 : 0.10
+            )
+            .scaleEffect(isSelected ? 1.08 : 1.0)
+            .position(x: labelX, y: labelY)
+
+            Path { path in
+                path.move(
+                    to: CGPoint(
+                        x: localCenter.x + cos(sectorStart) * deadZoneRadius,
+                        y: localCenter.y + sin(sectorStart) * deadZoneRadius
+                    )
+                )
+                path.addLine(
+                    to: CGPoint(
+                        x: localCenter.x + cos(sectorStart) * radius,
+                        y: localCenter.y + sin(sectorStart) * radius
+                    )
+                )
+            }
+            .stroke(Color.white.opacity(0.24), lineWidth: 1)
+        }
+    }
+}
+
 struct RadialToolPalette: View {
     let center: CGPoint
     let current: CGPoint
@@ -1475,124 +1596,34 @@ struct RadialToolPalette: View {
         let sectorAngle = twoPi / CGFloat(max(1, tools.count))
         let frameSize = (max(labelRadius, radius) + 22) * 2
         let localCenter = CGPoint(x: frameSize / 2, y: frameSize / 2)
-        let highlightVector = CGPoint(x: current.x - center.x, y: current.y - center.y)
-        let maxOffset = radius - 12
-        let clampedVector = CGPoint(
-            x: max(-maxOffset, min(maxOffset, highlightVector.x)),
-            y: max(-maxOffset, min(maxOffset, highlightVector.y))
-        )
-        let highlightPoint = CGPoint(x: localCenter.x + clampedVector.x, y: localCenter.y + clampedVector.y)
-        let highlightUnit = UnitPoint(x: highlightPoint.x / frameSize, y: highlightPoint.y / frameSize)
         
         ZStack {
-            // Moving glow that follows the pointer
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            Color.accentColor.opacity(0.4),
-                            Color.accentColor.opacity(0.12),
-                            Color.accentColor.opacity(0.0)
-                        ]),
-                        center: highlightUnit,
-                        startRadius: 6,
-                        endRadius: radius + 36
-                    )
-                )
-                .blur(radius: 6)
-                .blendMode(.plusLighter)
-                .frame(width: frameSize, height: frameSize)
-                .mask(
-                    Circle()
-                        .frame(width: radius * 2, height: radius * 2)
-                        .position(x: frameSize / 2, y: frameSize / 2)
-                )
-                .allowsHitTesting(false)
-
             // Sectors and labels
             ForEach(Array(tools.enumerated()), id: \.offset) { index, tool in
                 let sectorStart = -CGFloat.pi / 2 + sectorAngle * CGFloat(index)
-                let sectorEnd = sectorStart + sectorAngle
-                let midAngle = (sectorStart + sectorEnd) / 2
                 let isSelected = selectedIndex == index
-                
-                SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.22),
-                                        Color.white.opacity(0.08)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    )
-                    .overlay(
-                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                            .fill(Color.accentColor.opacity(isSelected ? 0.28 : 0.1))
-                            .blendMode(.plusLighter)
-                    )
-                    .overlay(
-                        SectorShape(startAngle: sectorStart, endAngle: sectorEnd, innerRadius: deadZoneRadius, outerRadius: radius)
-                            .stroke(Color.white.opacity(0.22), lineWidth: 0.9)
-                    )
-                
-                let labelX = localCenter.x + cos(midAngle) * labelRadius
-                let labelY = localCenter.y + sin(midAngle) * labelRadius
-                VStack(spacing: 4) {
-                    Image(systemName: tool.systemImage)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(toolNameProvider(tool))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
-                        )
+                RadialToolPaletteItem(
+                    index: index,
+                    tool: tool,
+                    sectorStart: sectorStart,
+                    sectorAngle: sectorAngle,
+                    deadZoneRadius: deadZoneRadius,
+                    radius: radius,
+                    labelRadius: labelRadius,
+                    localCenter: localCenter,
+                    toolNameProvider: toolNameProvider,
+                    isSelected: isSelected
                 )
-                .shadow(color: Color.black.opacity(isSelected ? 0.25 : 0.12), radius: isSelected ? 8 : 5, y: isSelected ? 4 : 2)
-                .scaleEffect(isSelected ? 1.08 : 1.0)
                 .animation(.quickSpring, value: isSelected)
-                .position(x: labelX, y: labelY)
-
-                // Divider line at sector boundary
-                Path { path in
-                    path.move(to: CGPoint(x: localCenter.x + cos(sectorStart) * deadZoneRadius,
-                                          y: localCenter.y + sin(sectorStart) * deadZoneRadius))
-                    path.addLine(to: CGPoint(x: localCenter.x + cos(sectorStart) * radius,
-                                             y: localCenter.y + sin(sectorStart) * radius))
-                }
-                .stroke(Color.white.opacity(0.35), lineWidth: 1)
             }
             
             // Center marker
             Circle()
                 .fill(.regularMaterial)
-                .overlay(
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.7),
-                                    Color.white.opacity(0.25)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1.4
-                        )
-                )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1.2)
+                    )
                 .shadow(color: Color.black.opacity(0.2), radius: 6, y: 4)
                 .frame(width: deadZoneRadius * 2 + 12, height: deadZoneRadius * 2 + 12)
         }
@@ -1600,6 +1631,7 @@ struct RadialToolPalette: View {
         .position(x: center.x, y: center.y)
         .animation(.easeOut(duration: 0.08), value: selectedIndex)
         .allowsHitTesting(false)
+        .tint(.accentColor)
     }
 }
 

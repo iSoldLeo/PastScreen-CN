@@ -239,6 +239,7 @@ enum OnboardingPage: Int, CaseIterable {
 struct OnboardingContentView: View {
     let onDismiss: () -> Void
     @ObservedObject var settings = AppSettings.shared
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @State private var currentPage: OnboardingPage = .welcome
     @State private var scale: CGFloat = 0.9
@@ -249,30 +250,32 @@ struct OnboardingContentView: View {
 
     var body: some View {
         ZStack {
-            // Background blur effect
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                .ignoresSafeArea()
+            Group {
+                if reduceTransparency {
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                } else {
+                    // Background blur effect
+                    BlurOverlay(material: .hudWindow, blendingMode: .behindWindow)
+                        .ignoresSafeArea()
+                }
+            }
 
             VStack(spacing: 0) {
                 // Header
                 VStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 48))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.tint)
 
                     Text("PastScreen-CN")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
 
                     Text(NSLocalizedString("onboarding.subtitle", comment: ""))
                         .font(.system(size: 16))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 72)
                 .padding(.bottom, currentPage == .autoCleanup ? 10 : 40)
@@ -287,7 +290,25 @@ struct OnboardingContentView: View {
                 HStack(spacing: 8) {
                     ForEach(OnboardingPage.allCases, id: \.self) { page in
                         Circle()
-                            .fill(currentPage == page ? currentPage.color : Color.gray.opacity(0.3))
+                            .fill(
+                                reduceTransparency
+                                    ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                                    : AnyShapeStyle(.thinMaterial)
+                            )
+                            .overlay {
+                                Circle()
+                                    .fill(currentPage.color)
+                                    .opacity(currentPage == page ? 0.85 : 0)
+                            }
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(
+                                        reduceTransparency
+                                            ? AnyShapeStyle(Color(nsColor: .separatorColor).opacity(0.8))
+                                            : AnyShapeStyle(Color.white.opacity(0.14)),
+                                        lineWidth: 1
+                                    )
+                            }
                             .frame(width: 8, height: 8)
                             .animation(.spring(response: 0.3), value: currentPage)
                     }
@@ -298,36 +319,17 @@ struct OnboardingContentView: View {
                 // Navigation buttons
                 HStack(spacing: 16) {
                     if currentPage != .welcome {
-                        Button(action: previousPage) {
-                            Text(NSLocalizedString("onboarding.button.previous", comment: ""))
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.gray.opacity(0.2))
-                                .cornerRadius(10)
-                        }
-                        .buttonStyle(.plain)
+                        Button(NSLocalizedString("onboarding.button.previous", comment: ""), action: previousPage)
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity)
                     }
 
-                    Button(action: nextPage) {
-                        Text(buttonTitle)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                LinearGradient(
-                                    colors: canContinue ? [currentPage.color, currentPage.color.opacity(0.8)] : [Color.gray, Color.gray.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(10)
-                            .shadow(color: canContinue ? currentPage.color.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canContinue)
+                    Button(buttonTitle, action: nextPage)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                        .disabled(!canContinue)
                 }
                 .padding(.horizontal, 40)
                 .padding(.bottom, 60)
@@ -335,31 +337,8 @@ struct OnboardingContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 620, height: 800)
-        .background(
-            ZStack {
-                // Opaque background layer to reduce transparency (Liquid Glass fix)
-                Color(nsColor: .windowBackgroundColor).opacity(0.6)
-
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(.ultraThickMaterial)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(color: .black.opacity(0.5), radius: 30, x: 0, y: 15)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.4),
-                            Color.white.opacity(0.15)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
-                )
-        )
+        .glassContainer(material: .ultraThinMaterial, cornerRadius: 20, borderOpacity: 0.18, shadowOpacity: 0.18)
+        .tint(currentPage.color)
         .scaleEffect(scale)
         .opacity(opacity)
         .onAppear {
@@ -380,12 +359,26 @@ struct OnboardingContentView: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(currentPage.color.opacity(0.2))
+                    .fill(
+                        reduceTransparency
+                            ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                            : AnyShapeStyle(.thinMaterial)
+                    )
+                    .overlay {
+                        Circle()
+                            .strokeBorder(
+                                reduceTransparency
+                                    ? AnyShapeStyle(Color(nsColor: .separatorColor).opacity(0.8))
+                                    : AnyShapeStyle(Color.white.opacity(0.14)),
+                                lineWidth: 1
+                            )
+                    }
                     .frame(width: 90, height: 90)
 
                 Image(systemName: currentPage.icon)
                     .font(.system(size: 44))
-                    .foregroundColor(currentPage.color)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
             }
             .padding(.top, 12)
             .padding(.bottom, 18)
@@ -477,17 +470,18 @@ struct OnboardingContentView: View {
             HStack(spacing: 16) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundColor(isSelected ? .white : color)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
                     .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(isSelected ? .white : .primary)
+                        .foregroundStyle(.primary)
 
                     Text(description)
                         .font(.system(size: 12))
-                        .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                 }
@@ -497,40 +491,37 @@ struct OnboardingContentView: View {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundColor(.white)
+                        .foregroundStyle(.tint)
                 }
             }
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? color : Color.gray.opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
+        .tint(color)
+        .glassContainer(material: isSelected ? .regularMaterial : .thinMaterial, cornerRadius: 12, borderOpacity: isSelected ? 0.22 : 0.14, shadowOpacity: 0.10)
     }
 
     private func permissionButton(title: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                if granted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+        Group {
+            if granted {
+                Button {
+                    action()
+                } label: {
+                    Label(NSLocalizedString("onboarding.permissions.granted", comment: ""), systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
                 }
-                Text(granted ? NSLocalizedString("onboarding.permissions.granted", comment: "") : title)
-                    .font(.system(size: 14, weight: .medium))
+                .buttonStyle(.bordered)
+                .tint(.green)
+                .disabled(true)
+            } else {
+                Button(title) {
+                    action()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(currentPage.color)
             }
-            .foregroundColor(granted ? .green : .white)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 10)
-            .background(granted ? Color.green.opacity(0.2) : currentPage.color)
-            .cornerRadius(8)
         }
-        .buttonStyle(.plain)
-        .disabled(granted)
+        .controlSize(.large)
     }
 
     private var buttonTitle: String {
@@ -642,26 +633,6 @@ struct OnboardingContentView: View {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(pane)") {
             NSWorkspace.shared.open(url)
         }
-    }
-}
-
-// MARK: - VisualEffectView (NSVisualEffectView wrapper)
-
-struct VisualEffectView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
     }
 }
 

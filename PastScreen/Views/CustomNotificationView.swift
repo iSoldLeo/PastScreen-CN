@@ -110,23 +110,28 @@ struct CustomNotificationContentView: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(Color.green.opacity(0.2))
+                    .fill(.thinMaterial)
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                    }
                     .frame(width: 48, height: 48)
 
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundColor(.green)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.tint)
             }
 
             // Content
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
 
                 Text(message)
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
 
@@ -140,10 +145,10 @@ struct CustomNotificationContentView: View {
                     }) {
                         Image(systemName: "folder")
                             .font(.system(size: 14))
-                            .foregroundColor(.blue)
                             .frame(width: 24, height: 24)
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(.borderless)
+                    .tint(.accentColor)
                     .help(NSLocalizedString("notification.reveal_in_finder", comment: ""))
                 }
 
@@ -152,19 +157,18 @@ struct CustomNotificationContentView: View {
                 }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
                         .frame(width: 20, height: 20)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.borderless)
+                .tint(.secondary)
                 .help(NSLocalizedString("notification.dismiss", comment: ""))
             }
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
-        )
+        .tint(.green)
+        .glassContainer(material: isHovered ? .regularMaterial : .thinMaterial, cornerRadius: 14, borderOpacity: 0.18, shadowOpacity: 0.14)
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isHovered)
         .onHover { hovering in
             isHovered = hovering
         }

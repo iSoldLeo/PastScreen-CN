@@ -12,32 +12,96 @@ import UniformTypeIdentifiers
 import TipKit
 #endif
 
+private struct SettingsPage<Content: View>: View {
+    private let content: Content
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background {
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
+        }
+    }
+}
+
+private struct SettingsGlassSection<Content: View>: View {
+    private let title: String
+    private let systemImage: String
+    private let footer: String?
+    private let content: Content
+
+    init(_ title: String, systemImage: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+
+                Divider()
+
+                content
+
+                if let footer {
+                    Text(footer)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         TabView {
             GeneralSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.general", value: "通用", comment: ""), systemImage: "gear") }
 
             CaptureSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.capture", value: "截图", comment: ""), systemImage: "camera.fill") }
 
             EditorSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.editor", value: "编辑", comment: ""), systemImage: "paintbrush.pointed") }
 
             StorageSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.storage", value: "存储", comment: ""), systemImage: "folder.fill") }
 
             AppsSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.apps", value: "应用", comment: ""), systemImage: "macwindow") }
         }
         .frame(minWidth: 720, idealWidth: 780, minHeight: 560)
+        .background {
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
                 .font(.caption2)
@@ -57,8 +121,12 @@ struct GeneralSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.options", value: "常规", comment: ""),
+                systemImage: "slider.horizontal.3",
+                footer: NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: "")
+            ) {
                 Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $settings.launchAtLogin)
                 Toggle(NSLocalizedString("settings.general.show_in_dock", value: "在 Dock 栏里显示", comment: ""), isOn: $settings.showInDock)
                 Toggle(NSLocalizedString("settings.general.play_sound", comment: ""), isOn: $settings.playSoundOnCapture)
@@ -68,24 +136,24 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-            } header: {
-                Label(NSLocalizedString("settings.general.options", value: "常规", comment: ""), systemImage: "slider.horizontal.3")
-            } footer: {
-                Text(NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: ""))
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.help_section", value: "帮助", comment: ""),
+                systemImage: "questionmark.circle"
+            ) {
                 Button {
                     OnboardingManager.shared.show()
                 } label: {
                     Label(NSLocalizedString("settings.general.help.view_tutorial", value: "查看教程", comment: ""), systemImage: "play.circle")
                 }
                 .buttonStyle(.bordered)
-            } header: {
-                Label(NSLocalizedString("settings.general.help_section", value: "帮助", comment: ""), systemImage: "questionmark.circle")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.privacy_section", value: "隐私", comment: ""),
+                systemImage: "hand.raised.fill"
+            ) {
                 Text(NSLocalizedString("settings.general.privacy.description", value: "PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。", comment: ""))
                     .foregroundStyle(.secondary)
 
@@ -96,11 +164,8 @@ struct GeneralSettingsView: View {
                 if let url = URL(string: "https://github.com/iSoldLeo/PastScreen-CN/blob/main/PRIVACY.md") {
                     Link(NSLocalizedString("settings.general.privacy.view_policy", value: "查看完整隐私政策", comment: ""), destination: url)
                 }
-            } header: {
-                Label(NSLocalizedString("settings.general.privacy_section", value: "隐私", comment: ""), systemImage: "hand.raised.fill")
             }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -110,18 +175,22 @@ struct CaptureSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.format_section", comment: ""),
+                systemImage: "photo"
+            ) {
                 Picker(NSLocalizedString("settings.capture.image_format", comment: ""), selection: $settings.imageFormat) {
                     Text(NSLocalizedString("settings.capture.format_png", comment: "")).tag("png")
                     Text(NSLocalizedString("settings.capture.format_jpeg", comment: "")).tag("jpeg")
                 }
                 .pickerStyle(.segmented)
-            } header: {
-                Label(NSLocalizedString("settings.capture.format_section", comment: ""), systemImage: "photo")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""),
+                systemImage: "square.on.square.dashed"
+            ) {
                 Toggle(NSLocalizedString("settings.capture.window_border.enable", value: "启用窗口边框", comment: ""), isOn: $settings.windowBorderEnabled)
 
                 if settings.windowBorderEnabled {
@@ -158,11 +227,12 @@ struct CaptureSettingsView: View {
                         supportsOpacity: true
                     )
                 }
-            } header: {
-                Label(NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""), systemImage: "square.on.square.dashed")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.shortcuts_section", comment: ""),
+                systemImage: "keyboard"
+            ) {
                 Toggle(NSLocalizedString("settings.capture.enable_hotkey", comment: ""), isOn: $settings.globalHotkeyEnabled)
 
                 if settings.globalHotkeyEnabled {
@@ -170,25 +240,20 @@ struct CaptureSettingsView: View {
                         HotKeyRecorderView(hotkey: $settings.globalHotkey)
                     }
 
-                    Toggle(NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: ""), isOn: $settings.advancedHotkeyEnabled)
+                    HotKeyToggleRow(
+                        title: NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: ""),
+                        isEnabled: $settings.advancedHotkeyEnabled,
+                        hotkey: $settings.advancedHotkey
+                    )
 
-                    LabeledContent(NSLocalizedString("settings.capture.advanced_screenshot", value: "高级截图", comment: "")) {
-                        HotKeyRecorderView(hotkey: $settings.advancedHotkey)
-                            .disabled(!settings.advancedHotkeyEnabled)
-                    }
-
-                    Toggle(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""), isOn: $settings.ocrHotkeyEnabled)
-
-                    LabeledContent(NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: "")) {
-                        HotKeyRecorderView(hotkey: $settings.ocrHotkey)
-                            .disabled(!settings.ocrHotkeyEnabled)
-                    }
+                    HotKeyToggleRow(
+                        title: NSLocalizedString("settings.capture.ocr_capture", value: "OCR", comment: ""),
+                        isEnabled: $settings.ocrHotkeyEnabled,
+                        hotkey: $settings.ocrHotkey
+                    )
                 }
-            } header: {
-                Label(NSLocalizedString("settings.capture.shortcuts_section", comment: ""), systemImage: "keyboard")
             }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -197,37 +262,49 @@ struct CaptureSettingsView: View {
 struct EditorSettingsView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var radialTools: [DrawingTool] = DrawingTool.defaultRadialTools
+    @State private var draggedEditingTool: DrawingTool?
+    @State private var draggedRadialTool: DrawingTool?
 
-    private var orderedTools: [DrawingTool] { settings.orderedEditingTools }
     private var availableRadialTools: [DrawingTool] { settings.radialAvailableTools }
     private var maxRadialCount: Int { min(4, availableRadialTools.count) }
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.toolbar.title", comment: ""),
+                systemImage: "paintbrush.pointed",
+                footer: NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: "")
+            ) {
                 Text(NSLocalizedString("settings.editor.toolbar.description", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                List($settings.editingToolOrder, id: \.self, editActions: .move) { $tool in
-                    Toggle(isOn: binding(for: tool)) {
-                        Label(tool.localizedName, systemImage: tool.systemImage)
+                VStack(spacing: 0) {
+                    ForEach(Array(settings.editingToolOrder.enumerated()), id: \.element) { index, tool in
+                        EditingToolRow(
+                            tool: tool,
+                            isEnabled: binding(for: tool),
+                            draggedTool: $draggedEditingTool
+                        ) {
+                            settings.editingToolOrder
+                        } setOrder: { newOrder in
+                            settings.updateEditingToolOrder(newOrder)
+                        }
+
+                        if index != settings.editingToolOrder.count - 1 {
+                            Divider()
+                                .padding(.leading, 38)
+                        }
                     }
                 }
-                .listStyle(.inset)
-                .scrollDisabled(true)
-                .frame(maxHeight: CGFloat(max(settings.editingToolOrder.count, 1)) * 34 + 12)
-                .toggleStyle(TrailingSwitchToggleStyle())
-            } header: {
-                Label(NSLocalizedString("settings.editor.toolbar.title", comment: ""), systemImage: "paintbrush.pointed")
-            } footer: {
-                Text(NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.radial.title", comment: ""),
+                systemImage: "circle.grid.3x3.fill"
+            ) {
                 Toggle(NSLocalizedString("settings.editor.radial.enabled", comment: ""), isOn: $settings.radialWheelEnabled)
 
                 Text(NSLocalizedString("settings.editor.radial.description", comment: ""))
@@ -236,45 +313,33 @@ struct EditorSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Group {
-                    ForEach(Array(radialTools.enumerated()), id: \.element) { index, tool in
-                        LabeledContent {
-                            ControlGroup {
-                                Button {
-                                    moveRadialTool(at: index, offset: -1)
-                                } label: {
-                                    Image(systemName: "chevron.up")
-                                }
-                                .disabled(index == 0)
-
-                                Button {
-                                    moveRadialTool(at: index, offset: 1)
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                }
-                                .disabled(index == radialTools.count - 1)
-
-                                Button {
-                                    removeRadialTool(at: index)
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .disabled(radialTools.count <= 1)
+                    VStack(spacing: 0) {
+                        ForEach(radialTools.indices, id: \.self) { index in
+                            let tool = radialTools[index]
+                            RadialToolRow(
+                                tool: tool,
+                                canReorder: settings.radialWheelEnabled,
+                                availableTools: availableRadialTools,
+                                selection: Binding(
+                                    get: { radialTools[index] },
+                                    set: { newValue in updateRadialTool(at: index, with: newValue) }
+                                ),
+                                canRemove: radialTools.count > 1,
+                                onRemove: { removeRadialTool(at: index) },
+                                draggedTool: $draggedRadialTool
+                            ) {
+                                radialTools
+                            } setOrder: { newOrder in
+                                applyRadialTools(newOrder)
                             }
-                            .controlSize(.small)
-                        } label: {
-                            Picker("", selection: Binding(
-                                get: { radialTools[index] },
-                                set: { newValue in updateRadialTool(at: index, with: newValue) }
-                            )) {
-                                ForEach(availableRadialTools, id: \.self) { option in
-                                    Label(option.localizedName, systemImage: option.systemImage)
-                                        .tag(option)
-                                }
+
+                            if index != radialTools.count - 1 {
+                                Divider()
+                                    .padding(.leading, 28)
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
                         }
                     }
+                    .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
 
                     if radialTools.count < maxRadialCount {
                         Button {
@@ -292,13 +357,15 @@ struct EditorSettingsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .disabled(!settings.radialWheelEnabled)
-                .opacity(settings.radialWheelEnabled ? 1 : 0.6)
-            } header: {
-                Label(NSLocalizedString("settings.editor.radial.title", comment: ""), systemImage: "circle.grid.3x3.fill")
+                        .disabled(!settings.radialWheelEnabled)
+                        .opacity(settings.radialWheelEnabled ? 1 : 0.6)
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.ocr.title", value: "OCR", comment: ""),
+                systemImage: "text.viewfinder",
+                footer: NSLocalizedString("settings.editor.ocr.note", value: "不勾选任何语言时，将使用系统默认/自动检测。", comment: "")
+            ) {
                 Text(NSLocalizedString("settings.editor.ocr.description", value: "选择启用的识别语言，使用时会在已启用语言中自动识别。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -315,15 +382,8 @@ struct EditorSettingsView: View {
                         set: { settings.setOCRLanguageEnabled(option.code, enabled: $0) }
                     ))
                 }
-            } header: {
-                Label(NSLocalizedString("settings.editor.ocr.title", value: "OCR", comment: ""), systemImage: "text.viewfinder")
-            } footer: {
-                Text(NSLocalizedString("settings.editor.ocr.note", value: "不勾选任何语言时，将使用系统默认/自动检测。", comment: ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
         .onAppear {
             radialTools = settings.radialDrawingTools
         }
@@ -355,16 +415,6 @@ struct EditorSettingsView: View {
         guard radialTools.count > 1, radialTools.indices.contains(index) else { return }
         var updated = radialTools
         updated.remove(at: index)
-        applyRadialTools(updated)
-    }
-
-    private func moveRadialTool(at index: Int, offset: Int) {
-        var updated = radialTools
-        let destination = index + offset
-
-        guard updated.indices.contains(index), updated.indices.contains(destination) else { return }
-
-        updated.swapAt(index, destination)
         applyRadialTools(updated)
     }
 
@@ -438,8 +488,11 @@ struct StorageSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.storage.section_title", comment: ""),
+                systemImage: "externaldrive"
+            ) {
                 Toggle(NSLocalizedString("settings.storage.save_to_disk", comment: ""), isOn: $settings.saveToFile)
                     .onChange(of: settings.saveToFile) { _, newValue in
                         if newValue {
@@ -455,40 +508,290 @@ struct StorageSettingsView: View {
 
                 if settings.saveToFile {
                     LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
                             Text(settings.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                            HStack {
-                                Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
-                                    if let newPath = settings.selectFolder() {
-                                        settings.saveFolderPath = newPath
-                                    }
+                            Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
+                                if let newPath = settings.selectFolder() {
+                                    settings.saveFolderPath = newPath
                                 }
-
-                                Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
-                                    NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
-                                }
-
-                                Spacer()
-
-                                Button(NSLocalizedString("settings.storage.clear_folder", comment: "")) {
-                                    settings.clearSaveFolder()
-                                }
-                                .foregroundColor(.red)
                             }
+                            .controlSize(.small)
+
+                            Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: settings.saveFolderPath))
+                            }
+                            .controlSize(.small)
                         }
                     }
                 }
-            } header: {
-                Label(NSLocalizedString("settings.storage.section_title", comment: ""), systemImage: "externaldrive")
             }
-            .headerProminence(.increased)
         }
-        .formStyle(.grouped)
+    }
+}
+
+private struct HotKeyToggleRow: View {
+    let title: String
+    @Binding var isEnabled: Bool
+    @Binding var hotkey: HotKey
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                HotKeyRecorderView(hotkey: $hotkey)
+                    .disabled(!isEnabled)
+                    .opacity(isEnabled ? 1 : 0.55)
+            }
+        }
+    }
+}
+
+private struct EditingToolRow: View {
+    let tool: DrawingTool
+    let isEnabled: Binding<Bool>
+    @Binding var draggedTool: DrawingTool?
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    @State private var isDropTargeted = false
+
+    init(
+        tool: DrawingTool,
+        isEnabled: Binding<Bool>,
+        draggedTool: Binding<DrawingTool?>,
+        getOrder: @escaping () -> [DrawingTool],
+        setOrder: @escaping ([DrawingTool]) -> Void
+    ) {
+        self.tool = tool
+        self.isEnabled = isEnabled
+        self._draggedTool = draggedTool
+        self.getOrder = getOrder
+        self.setOrder = setOrder
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.secondary)
+                .frame(width: 18, alignment: .leading)
+                .onDrag {
+                    draggedTool = tool
+                    return NSItemProvider(object: tool.identifier as NSString)
+                }
+
+            Label(tool.localizedName, systemImage: tool.systemImage)
+
+            Spacer()
+
+            Toggle("", isOn: isEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            }
+        }
+        .onDrop(
+            of: [.text],
+            delegate: EditingToolDropDelegate(
+                item: tool,
+                draggedTool: $draggedTool,
+                isTargeted: $isDropTargeted,
+                getOrder: getOrder,
+                setOrder: setOrder
+            )
+        )
+    }
+}
+
+private struct EditingToolDropDelegate: DropDelegate {
+    let item: DrawingTool
+    @Binding var draggedTool: DrawingTool?
+    @Binding var isTargeted: Bool
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        true
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = true
+        guard let draggedTool, draggedTool != item else { return }
+
+        var order = getOrder()
+        guard let fromIndex = order.firstIndex(of: draggedTool),
+              let toIndex = order.firstIndex(of: item) else {
+            return
+        }
+
+        if fromIndex == toIndex { return }
+
+        withAnimation(.smoothSpring) {
+            order.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            setOrder(order)
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        draggedTool = nil
+        return true
+    }
+}
+
+private struct RadialToolRow: View {
+    let tool: DrawingTool
+    let canReorder: Bool
+    let availableTools: [DrawingTool]
+    let selection: Binding<DrawingTool>
+    let canRemove: Bool
+    let onRemove: () -> Void
+    @Binding var draggedTool: DrawingTool?
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    @State private var isDropTargeted = false
+
+    init(
+        tool: DrawingTool,
+        canReorder: Bool,
+        availableTools: [DrawingTool],
+        selection: Binding<DrawingTool>,
+        canRemove: Bool,
+        onRemove: @escaping () -> Void,
+        draggedTool: Binding<DrawingTool?>,
+        getOrder: @escaping () -> [DrawingTool],
+        setOrder: @escaping ([DrawingTool]) -> Void
+    ) {
+        self.tool = tool
+        self.canReorder = canReorder
+        self.availableTools = availableTools
+        self.selection = selection
+        self.canRemove = canRemove
+        self.onRemove = onRemove
+        self._draggedTool = draggedTool
+        self.getOrder = getOrder
+        self.setOrder = setOrder
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Group {
+                if canReorder {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, alignment: .leading)
+                        .onDrag {
+                            draggedTool = tool
+                            return NSItemProvider(object: tool.identifier as NSString)
+                        }
+                } else {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundStyle(.secondary.opacity(0.4))
+                        .frame(width: 18, alignment: .leading)
+                }
+            }
+
+            Picker("", selection: selection) {
+                ForEach(availableTools, id: \.self) { option in
+                    Label(option.localizedName, systemImage: option.systemImage)
+                        .tag(option)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+
+            Spacer()
+
+            Button(role: .destructive) {
+                onRemove()
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(!canRemove)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            }
+        }
+        .onDrop(
+            of: [.text],
+            delegate: RadialToolDropDelegate(
+                item: tool,
+                draggedTool: $draggedTool,
+                isTargeted: $isDropTargeted,
+                getOrder: getOrder,
+                setOrder: setOrder
+            )
+        )
+    }
+}
+
+private struct RadialToolDropDelegate: DropDelegate {
+    let item: DrawingTool
+    @Binding var draggedTool: DrawingTool?
+    @Binding var isTargeted: Bool
+    let getOrder: () -> [DrawingTool]
+    let setOrder: ([DrawingTool]) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggedTool != nil && draggedTool != item
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = true
+        guard let draggedTool, draggedTool != item else { return }
+
+        var order = getOrder()
+        guard let fromIndex = order.firstIndex(of: draggedTool),
+              let toIndex = order.firstIndex(of: item) else {
+            return
+        }
+
+        if fromIndex == toIndex { return }
+
+        withAnimation(.smoothSpring) {
+            order.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+            setOrder(order)
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        draggedTool = nil
+        return true
     }
 }
 
@@ -498,8 +801,19 @@ struct AppsSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        let appRulesAvailable = settings.saveToFile && settings.hasValidSaveFolder
+        let requirementFooter = NSLocalizedString(
+            "settings.apps.disabled.footer",
+            value: "启用并设置“保存到磁盘”后才能使用应用规则。",
+            comment: ""
+        )
+
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.apps.rules", value: "规则", comment: ""),
+                systemImage: "macwindow",
+                footer: appRulesAvailable ? nil : requirementFooter
+            ) {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(NSLocalizedString("settings.apps.default_behavior", value: "默认：复制图片到剪贴板", comment: ""), systemImage: "info.circle.fill")
                         .font(.subheadline)
@@ -507,12 +821,22 @@ struct AppsSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } header: {
-                Label(NSLocalizedString("settings.apps.rules", value: "规则", comment: ""), systemImage: "macwindow")
-            }
 
-            Section {
-                if settings.appOverrides.isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+
+                if !appRulesAvailable {
+                    ContentUnavailableView {
+                        Label(
+                            NSLocalizedString("settings.apps.disabled.title", value: "应用规则不可用", comment: ""),
+                            systemImage: "externaldrive.badge.exclamationmark"
+                        )
+                    } description: {
+                        Text(requirementFooter)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                } else if settings.appOverrides.isEmpty {
                     ContentUnavailableView {
                         Label(NSLocalizedString("settings.apps.empty_title", value: "暂无应用规则", comment: ""), systemImage: "macwindow.badge.plus")
                     } description: {
@@ -548,20 +872,25 @@ struct AppsSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .padding(.vertical, 6)
                     }
                 }
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""),
+                systemImage: "plus",
+                footer: appRulesAvailable ? nil : requirementFooter
+            ) {
                 Button(action: addApp) {
                     Label(NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""), systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(!appRulesAvailable)
             }
         }
-        .formStyle(.grouped)
     }
 
     func addApp() {
@@ -598,14 +927,7 @@ struct KeyboardShortcutView: View {
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 24, minHeight: 24)
                     .padding(.horizontal, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.15))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                    )
+                    .glassContainer(material: .ultraThinMaterial, cornerRadius: 4, borderOpacity: 0.18, shadowOpacity: 0.0)
             }
         }
     }
