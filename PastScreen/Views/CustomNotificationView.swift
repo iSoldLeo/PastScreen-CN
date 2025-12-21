@@ -72,14 +72,9 @@ class CustomNotificationManager {
 
             self.notificationPanel = panel
 
-            // Show with animation
-            panel.alphaValue = 0
+            // Show immediately without fade animation
+            panel.alphaValue = 1
             panel.orderFrontRegardless()
-
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.3
-                panel.animator().alphaValue = 1.0
-            }, completionHandler: nil)
 
             // Auto-dismiss after duration
             self.dismissTimer = Timer.scheduledTimer(withTimeInterval: self.notificationDuration, repeats: false) { [weak self] _ in
@@ -94,13 +89,9 @@ class CustomNotificationManager {
 
         guard let panel = notificationPanel else { return }
 
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            panel.animator().alphaValue = 0.0
-        }, completionHandler: { [weak self, weak panel] in
-            panel?.close()
-            self?.notificationPanel = nil
-        })
+        // Close immediately without fade animation
+        panel.close()
+        notificationPanel = nil
     }
 }
 
