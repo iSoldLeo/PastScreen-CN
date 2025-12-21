@@ -1261,6 +1261,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
+        guard allowSaving else {
+            pasteboard.writeObjects([image])
+            return nil
+        }
+
         let settings = AppSettings.shared
 
         // Only save when user enabled it and a valid folder is configured

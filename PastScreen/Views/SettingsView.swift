@@ -801,10 +801,18 @@ struct AppsSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
+        let appRulesAvailable = settings.saveToFile && settings.hasValidSaveFolder
+        let requirementFooter = NSLocalizedString(
+            "settings.apps.disabled.footer",
+            value: "启用并设置“保存到磁盘”后才能使用应用规则。",
+            comment: ""
+        )
+
         SettingsPage {
             SettingsGlassSection(
                 NSLocalizedString("settings.apps.rules", value: "规则", comment: ""),
-                systemImage: "macwindow"
+                systemImage: "macwindow",
+                footer: appRulesAvailable ? nil : requirementFooter
             ) {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(NSLocalizedString("settings.apps.default_behavior", value: "默认：复制图片到剪贴板", comment: ""), systemImage: "info.circle.fill")
@@ -817,7 +825,18 @@ struct AppsSettingsView: View {
                 Divider()
                     .padding(.vertical, 4)
 
-                if settings.appOverrides.isEmpty {
+                if !appRulesAvailable {
+                    ContentUnavailableView {
+                        Label(
+                            NSLocalizedString("settings.apps.disabled.title", value: "应用规则不可用", comment: ""),
+                            systemImage: "externaldrive.badge.exclamationmark"
+                        )
+                    } description: {
+                        Text(requirementFooter)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                } else if settings.appOverrides.isEmpty {
                     ContentUnavailableView {
                         Label(NSLocalizedString("settings.apps.empty_title", value: "暂无应用规则", comment: ""), systemImage: "macwindow.badge.plus")
                     } description: {
@@ -860,7 +879,8 @@ struct AppsSettingsView: View {
 
             SettingsGlassSection(
                 NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""),
-                systemImage: "plus"
+                systemImage: "plus",
+                footer: appRulesAvailable ? nil : requirementFooter
             ) {
                 Button(action: addApp) {
                     Label(NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""), systemImage: "plus")
@@ -868,6 +888,7 @@ struct AppsSettingsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(!appRulesAvailable)
             }
         }
     }
@@ -885,7 +906,7 @@ struct AppsSettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             if let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier {
                 let name = FileManager.default.displayName(atPath: url.path)
-                let override = AppOverride(bundleIdentifier: bundleID, appName: name, format: .path)
+                let override = AppOverride(bundleIdentifier: bundleID, appName: name, format: .image)
                 settings.addAppOverride(override)
             }
         }
