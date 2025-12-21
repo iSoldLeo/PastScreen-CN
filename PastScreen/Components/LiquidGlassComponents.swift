@@ -8,6 +8,66 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Shared Glass Styling
+
+private struct GlassContainerStyle: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var material: Material
+    var cornerRadius: CGFloat
+    var showBorder: Bool
+    var borderOpacity: Double
+    var shadowOpacity: Double
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .background(fillStyle, in: shape)
+            .clipShape(shape)
+            .overlay {
+                if showBorder {
+                    shape
+                        .strokeBorder(borderStyle, lineWidth: 1)
+                }
+            }
+            .shadow(color: .black.opacity(shadowOpacity), radius: 14, x: 0, y: 8)
+    }
+
+    private var fillStyle: AnyShapeStyle {
+        if reduceTransparency {
+            return AnyShapeStyle(Color(nsColor: .windowBackgroundColor))
+        }
+        return AnyShapeStyle(material)
+    }
+
+    private var borderStyle: AnyShapeStyle {
+        if reduceTransparency {
+            return AnyShapeStyle(Color(nsColor: .separatorColor).opacity(0.7))
+        }
+        return AnyShapeStyle(Color.white.opacity(borderOpacity))
+    }
+}
+
+extension View {
+    func glassContainer(
+        material: Material = .regularMaterial,
+        cornerRadius: CGFloat = 12,
+        showBorder: Bool = true,
+        borderOpacity: Double = 0.14,
+        shadowOpacity: Double = 0.10
+    ) -> some View {
+        modifier(
+            GlassContainerStyle(
+                material: material,
+                cornerRadius: cornerRadius,
+                showBorder: showBorder,
+                borderOpacity: borderOpacity,
+                shadowOpacity: shadowOpacity
+            )
+        )
+    }
+}
+
 // MARK: - Liquid Glass Background
 
 struct LiquidGlassBackground: View {
@@ -15,7 +75,7 @@ struct LiquidGlassBackground: View {
     var cornerRadius: CGFloat = 12
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(material)
     }
 }
@@ -37,22 +97,24 @@ struct GlassButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if let icon = icon {
+            Label {
+                Text(title)
+            } icon: {
+                if let icon {
                     Image(systemName: icon)
                 }
-                Text(title)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovered ? .regularMaterial : .thinMaterial)
-            )
-            .scaleEffect(isHovered ? 1.02 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+            .labelStyle(.titleAndIcon)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .glassContainer(
+            material: isHovered ? .regularMaterial : .thinMaterial,
+            cornerRadius: 10,
+            borderOpacity: 0.16,
+            shadowOpacity: 0.06
+        )
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
         .onHover { hovering in
             isHovered = hovering
         }
@@ -89,11 +151,7 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content
             .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.regularMaterial)
-                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-            )
+            .glassContainer(material: .regularMaterial, cornerRadius: 12)
     }
 }
 
@@ -131,14 +189,10 @@ struct DimensionLabel: View {
             Text(String(format: "%.0f", height))
         }
         .font(.system(size: 12, weight: .medium, design: .monospaced))
-        .foregroundColor(.white)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-        )
+        .glassContainer(material: .ultraThinMaterial, cornerRadius: 8, borderOpacity: 0.18, shadowOpacity: 0.08)
     }
 }
 

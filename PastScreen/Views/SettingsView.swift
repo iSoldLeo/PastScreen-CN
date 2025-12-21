@@ -12,32 +12,96 @@ import UniformTypeIdentifiers
 import TipKit
 #endif
 
+private struct SettingsPage<Content: View>: View {
+    private let content: Content
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background {
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
+        }
+    }
+}
+
+private struct SettingsGlassSection<Content: View>: View {
+    private let title: String
+    private let systemImage: String
+    private let footer: String?
+    private let content: Content
+
+    init(_ title: String, systemImage: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+
+                Divider()
+
+                content
+
+                if let footer {
+                    Text(footer)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         TabView {
             GeneralSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.general", value: "通用", comment: ""), systemImage: "gear") }
 
             CaptureSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.capture", value: "截图", comment: ""), systemImage: "camera.fill") }
 
             EditorSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.editor", value: "编辑", comment: ""), systemImage: "paintbrush.pointed") }
 
             StorageSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.storage", value: "存储", comment: ""), systemImage: "folder.fill") }
 
             AppsSettingsView()
-                .scenePadding()
                 .tabItem { Label(NSLocalizedString("settings.tab.apps", value: "应用", comment: ""), systemImage: "macwindow") }
         }
         .frame(minWidth: 720, idealWidth: 780, minHeight: 560)
+        .background {
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Rectangle().fill(.ultraThinMaterial)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"))")
                 .font(.caption2)
@@ -57,8 +121,12 @@ struct GeneralSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.options", value: "常规", comment: ""),
+                systemImage: "slider.horizontal.3",
+                footer: NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: "")
+            ) {
                 Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $settings.launchAtLogin)
                 Toggle(NSLocalizedString("settings.general.show_in_dock", value: "在 Dock 栏里显示", comment: ""), isOn: $settings.showInDock)
                 Toggle(NSLocalizedString("settings.general.play_sound", comment: ""), isOn: $settings.playSoundOnCapture)
@@ -68,24 +136,24 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-            } header: {
-                Label(NSLocalizedString("settings.general.options", value: "常规", comment: ""), systemImage: "slider.horizontal.3")
-            } footer: {
-                Text(NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: ""))
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.help_section", value: "帮助", comment: ""),
+                systemImage: "questionmark.circle"
+            ) {
                 Button {
                     OnboardingManager.shared.show()
                 } label: {
                     Label(NSLocalizedString("settings.general.help.view_tutorial", value: "查看教程", comment: ""), systemImage: "play.circle")
                 }
                 .buttonStyle(.bordered)
-            } header: {
-                Label(NSLocalizedString("settings.general.help_section", value: "帮助", comment: ""), systemImage: "questionmark.circle")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.general.privacy_section", value: "隐私", comment: ""),
+                systemImage: "hand.raised.fill"
+            ) {
                 Text(NSLocalizedString("settings.general.privacy.description", value: "PastScreen-CN 不收集任何数据，所有内容仅保存在你的 Mac 上。", comment: ""))
                     .foregroundStyle(.secondary)
 
@@ -96,11 +164,8 @@ struct GeneralSettingsView: View {
                 if let url = URL(string: "https://github.com/iSoldLeo/PastScreen-CN/blob/main/PRIVACY.md") {
                     Link(NSLocalizedString("settings.general.privacy.view_policy", value: "查看完整隐私政策", comment: ""), destination: url)
                 }
-            } header: {
-                Label(NSLocalizedString("settings.general.privacy_section", value: "隐私", comment: ""), systemImage: "hand.raised.fill")
             }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -110,18 +175,22 @@ struct CaptureSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.format_section", comment: ""),
+                systemImage: "photo"
+            ) {
                 Picker(NSLocalizedString("settings.capture.image_format", comment: ""), selection: $settings.imageFormat) {
                     Text(NSLocalizedString("settings.capture.format_png", comment: "")).tag("png")
                     Text(NSLocalizedString("settings.capture.format_jpeg", comment: "")).tag("jpeg")
                 }
                 .pickerStyle(.segmented)
-            } header: {
-                Label(NSLocalizedString("settings.capture.format_section", comment: ""), systemImage: "photo")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""),
+                systemImage: "square.on.square.dashed"
+            ) {
                 Toggle(NSLocalizedString("settings.capture.window_border.enable", value: "启用窗口边框", comment: ""), isOn: $settings.windowBorderEnabled)
 
                 if settings.windowBorderEnabled {
@@ -158,11 +227,12 @@ struct CaptureSettingsView: View {
                         supportsOpacity: true
                     )
                 }
-            } header: {
-                Label(NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""), systemImage: "square.on.square.dashed")
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.capture.shortcuts_section", comment: ""),
+                systemImage: "keyboard"
+            ) {
                 Toggle(NSLocalizedString("settings.capture.enable_hotkey", comment: ""), isOn: $settings.globalHotkeyEnabled)
 
                 if settings.globalHotkeyEnabled {
@@ -184,11 +254,8 @@ struct CaptureSettingsView: View {
                             .disabled(!settings.ocrHotkeyEnabled)
                     }
                 }
-            } header: {
-                Label(NSLocalizedString("settings.capture.shortcuts_section", comment: ""), systemImage: "keyboard")
             }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -198,13 +265,16 @@ struct EditorSettingsView: View {
     @EnvironmentObject var settings: AppSettings
     @State private var radialTools: [DrawingTool] = DrawingTool.defaultRadialTools
 
-    private var orderedTools: [DrawingTool] { settings.orderedEditingTools }
     private var availableRadialTools: [DrawingTool] { settings.radialAvailableTools }
     private var maxRadialCount: Int { min(4, availableRadialTools.count) }
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.toolbar.title", comment: ""),
+                systemImage: "paintbrush.pointed",
+                footer: NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: "")
+            ) {
                 Text(NSLocalizedString("settings.editor.toolbar.description", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -216,18 +286,17 @@ struct EditorSettingsView: View {
                     }
                 }
                 .listStyle(.inset)
+                .scrollContentBackground(.hidden)
                 .scrollDisabled(true)
                 .frame(maxHeight: CGFloat(max(settings.editingToolOrder.count, 1)) * 34 + 12)
                 .toggleStyle(TrailingSwitchToggleStyle())
-            } header: {
-                Label(NSLocalizedString("settings.editor.toolbar.title", comment: ""), systemImage: "paintbrush.pointed")
-            } footer: {
-                Text(NSLocalizedString("settings.editor.toolbar.reorder_hint", comment: ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.radial.title", comment: ""),
+                systemImage: "circle.grid.3x3.fill"
+            ) {
                 Toggle(NSLocalizedString("settings.editor.radial.enabled", comment: ""), isOn: $settings.radialWheelEnabled)
 
                 Text(NSLocalizedString("settings.editor.radial.description", comment: ""))
@@ -292,13 +361,15 @@ struct EditorSettingsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .disabled(!settings.radialWheelEnabled)
-                .opacity(settings.radialWheelEnabled ? 1 : 0.6)
-            } header: {
-                Label(NSLocalizedString("settings.editor.radial.title", comment: ""), systemImage: "circle.grid.3x3.fill")
+                        .disabled(!settings.radialWheelEnabled)
+                        .opacity(settings.radialWheelEnabled ? 1 : 0.6)
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.editor.ocr.title", value: "OCR", comment: ""),
+                systemImage: "text.viewfinder",
+                footer: NSLocalizedString("settings.editor.ocr.note", value: "不勾选任何语言时，将使用系统默认/自动检测。", comment: "")
+            ) {
                 Text(NSLocalizedString("settings.editor.ocr.description", value: "选择启用的识别语言，使用时会在已启用语言中自动识别。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -315,15 +386,8 @@ struct EditorSettingsView: View {
                         set: { settings.setOCRLanguageEnabled(option.code, enabled: $0) }
                     ))
                 }
-            } header: {
-                Label(NSLocalizedString("settings.editor.ocr.title", value: "OCR", comment: ""), systemImage: "text.viewfinder")
-            } footer: {
-                Text(NSLocalizedString("settings.editor.ocr.note", value: "不勾选任何语言时，将使用系统默认/自动检测。", comment: ""))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
         .onAppear {
             radialTools = settings.radialDrawingTools
         }
@@ -438,8 +502,11 @@ struct StorageSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.storage.section_title", comment: ""),
+                systemImage: "externaldrive"
+            ) {
                 Toggle(NSLocalizedString("settings.storage.save_to_disk", comment: ""), isOn: $settings.saveToFile)
                     .onChange(of: settings.saveToFile) { _, newValue in
                         if newValue {
@@ -483,12 +550,8 @@ struct StorageSettingsView: View {
                         }
                     }
                 }
-            } header: {
-                Label(NSLocalizedString("settings.storage.section_title", comment: ""), systemImage: "externaldrive")
             }
-            .headerProminence(.increased)
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -498,8 +561,11 @@ struct AppsSettingsView: View {
     @EnvironmentObject var settings: AppSettings
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPage {
+            SettingsGlassSection(
+                NSLocalizedString("settings.apps.rules", value: "规则", comment: ""),
+                systemImage: "macwindow"
+            ) {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(NSLocalizedString("settings.apps.default_behavior", value: "默认：复制图片到剪贴板", comment: ""), systemImage: "info.circle.fill")
                         .font(.subheadline)
@@ -507,11 +573,10 @@ struct AppsSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } header: {
-                Label(NSLocalizedString("settings.apps.rules", value: "规则", comment: ""), systemImage: "macwindow")
-            }
 
-            Section {
+                Divider()
+                    .padding(.vertical, 4)
+
                 if settings.appOverrides.isEmpty {
                     ContentUnavailableView {
                         Label(NSLocalizedString("settings.apps.empty_title", value: "暂无应用规则", comment: ""), systemImage: "macwindow.badge.plus")
@@ -548,11 +613,15 @@ struct AppsSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .padding(.vertical, 6)
                     }
                 }
             }
 
-            Section {
+            SettingsGlassSection(
+                NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""),
+                systemImage: "plus"
+            ) {
                 Button(action: addApp) {
                     Label(NSLocalizedString("settings.apps.add_rule", value: "添加应用规则", comment: ""), systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -561,7 +630,6 @@ struct AppsSettingsView: View {
                 .controlSize(.large)
             }
         }
-        .formStyle(.grouped)
     }
 
     func addApp() {
@@ -598,14 +666,7 @@ struct KeyboardShortcutView: View {
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 24, minHeight: 24)
                     .padding(.horizontal, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.15))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                    )
+                    .glassContainer(material: .ultraThinMaterial, cornerRadius: 4, borderOpacity: 0.18, shadowOpacity: 0.0)
             }
         }
     }
