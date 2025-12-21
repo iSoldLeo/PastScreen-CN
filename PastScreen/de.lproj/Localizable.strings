@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Bearbeitungsleiste";
 "settings.editor.toolbar.description" = "Wählen Sie die Werkzeuge nach einer erweiterten Aufnahme.";
-"settings.editor.toolbar.reorder_hint" = "Mit den Pfeilen rechts die Reihenfolge anpassen.";
+"settings.editor.toolbar.reorder_hint" = "Zum Neuordnen der Symbolleiste ziehen.";
 "settings.editor.toolbar.note" = "Mindestens ein Werkzeug aktiv lassen.";
 "settings.editor.radial.title" = "Schnellrad";
 "settings.editor.radial.description" = "Konfigurieren Sie das Rechtsklick-Rad mit 1–4 Werkzeugen.";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "Speicherort";
 "settings.storage.save_to_disk" = "Auf Festplatte speichern";
 "settings.storage.save_to_disk.help" = "Screenshots zusätzlich als Datei sichern";
+"settings.storage.save_folder.label" = "Speicherort";
 "settings.storage.folder_label" = "Ordner:";
 "settings.storage.change_button" = "Ändern...";
 "settings.storage.open_folder" = "Ordner öffnen";

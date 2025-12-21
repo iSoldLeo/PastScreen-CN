@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "편집 도구 모음";
 "settings.editor.toolbar.description" = "고급 캡처 후 표시할 도구를 선택합니다.";
-"settings.editor.toolbar.reorder_hint" = "오른쪽 화살표로 도구 모음 순서를 변경합니다.";
+"settings.editor.toolbar.reorder_hint" = "끌어서 도구 모음 순서를 바꿉니다.";
 "settings.editor.toolbar.note" = "최소 한 개의 도구는 활성화해야 합니다.";
 "settings.editor.radial.title" = "퀵 휠";
 "settings.editor.radial.description" = "우클릭 퀵 휠에 1-4개의 도구를 설정합니다.";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "저장 위치";
 "settings.storage.save_to_disk" = "디스크에 저장";
 "settings.storage.save_to_disk.help" = "클립보드 외에 파일도 저장";
+"settings.storage.save_folder.label" = "저장 위치";
 "settings.storage.folder_label" = "폴더:";
 "settings.storage.change_button" = "변경...";
 "settings.storage.open_folder" = "폴더 열기";

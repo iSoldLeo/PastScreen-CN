@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Bewerkingswerkbalk";
 "settings.editor.toolbar.description" = "Kies welke tools verschijnen na een geavanceerde capture.";
-"settings.editor.toolbar.reorder_hint" = "Gebruik de pijlen rechts om te herschikken.";
+"settings.editor.toolbar.reorder_hint" = "Sleep om de werkbalk opnieuw te ordenen.";
 "settings.editor.toolbar.note" = "Houd minstens één tool actief.";
 "settings.editor.radial.title" = "Snelle wiel";
 "settings.editor.radial.description" = "Stel het rechterklik-wiel in met 1-4 ingeschakelde tools.";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "Opslaglocatie";
 "settings.storage.save_to_disk" = "Opslaan op schijf";
 "settings.storage.save_to_disk.help" = "Ook bestanden bewaren naast het klembord";
+"settings.storage.save_folder.label" = "Opslaglocatie";
 "settings.storage.folder_label" = "Map:";
 "settings.storage.change_button" = "Wijzigen...";
 "settings.storage.open_folder" = "Map openen";

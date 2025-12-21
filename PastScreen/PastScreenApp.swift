@@ -33,7 +33,8 @@ struct PastScreenApp: App {
 
         // Pas de fenêtre principale ; les préférences s'ouvrent via le menu
         Settings {
-            EmptyView()
+            SettingsView()
+                .environmentObject(AppSettings.shared)
         }
     }
 }
@@ -47,8 +48,6 @@ enum CaptureTrigger: String {
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
     var screenshotService: ScreenshotService?
-    var preferencesWindow: NSWindow?
-    var preferencesWindowDelegate: PreferencesWindowDelegate?  // Strong reference
     private var hasPromptedAccessibility = false
     private var hasPromptedScreenRecording = false
 
@@ -264,51 +263,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @objc func openPreferences() {
-        // Si la fenêtre existe déjà, la mettre au premier plan
-        if let window = preferencesWindow {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        // Créer la fenêtre de préférences
-        let settingsView = SettingsView()
-            .environmentObject(AppSettings.shared)
-
-        let hostingController = NSHostingController(rootView: settingsView)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-
-        window.title = NSLocalizedString("window.preferences", comment: "")
-        window.contentViewController = hostingController
-        window.center()
-        window.setFrameAutosaveName("PreferencesWindow")
-        window.isReleasedWhenClosed = false
-
-        // Gérer la fermeture de la fenêtre
-        let delegate = PreferencesWindowDelegate { [weak self] in
-            self?.preferencesWindow = nil
-            self?.preferencesWindowDelegate = nil
-        }
-        self.preferencesWindowDelegate = delegate
-        window.delegate = delegate
-
-        self.preferencesWindow = window
-
+        // Trigger SwiftUI Settings scene (macOS 14+)
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }
 
     @objc func quit() {
-        // Fermer toutes les fenêtres ouvertes
-        preferencesWindow?.close()
-        preferencesWindow = nil
-
         // Cleanup full screen service if needed
 
         // Terminer l'application (le raccourci reste actif)
@@ -455,20 +415,5 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else {
             NSApp.setActivationPolicy(.accessory)
         }
-    }
-}
-
-// MARK: - Preferences Window Delegate
-
-class PreferencesWindowDelegate: NSObject, NSWindowDelegate {
-    private let onClose: () -> Void
-
-    init(onClose: @escaping () -> Void) {
-        self.onClose = onClose
-        super.init()
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        onClose()
     }
 }

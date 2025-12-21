@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "編輯工具列";
 "settings.editor.toolbar.description" = "選何工具於精取後示之。";
-"settings.editor.toolbar.reorder_hint" = "右箭可移其序。";
+"settings.editor.toolbar.reorder_hint" = "拖移上下可定其序。";
 "settings.editor.toolbar.note" = "至少留一工具。";
 "settings.editor.radial.title" = "速輪";
 "settings.editor.radial.description" = "右擊之速輪，可選一至四工具。";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "存處";
 "settings.storage.save_to_disk" = "存於磁碟";
 "settings.storage.save_to_disk.help" = "除剪貼，亦存檔";
+"settings.storage.save_folder.label" = "存處";
 "settings.storage.folder_label" = "檔夾:";
 "settings.storage.change_button" = "變更...";
 "settings.storage.open_folder" = "開檔夾";

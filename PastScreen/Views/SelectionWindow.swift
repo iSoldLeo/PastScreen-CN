@@ -156,6 +156,13 @@ class SelectionWindow: NSWindow {
         return windowIDs
     }
 
+    /// Adjust alpha for all overlay windows (useful to hide overlays during background capture).
+    func setOverlayAlpha(_ alpha: CGFloat) {
+        for window in overlayWindows {
+            window.alphaValue = alpha
+        }
+    }
+
     func updateBackgroundSnapshots(_ snapshots: [CGDirectDisplayID: CGImage]) {
         frozenScreenshots = snapshots
         for window in overlayWindows {

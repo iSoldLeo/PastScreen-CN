@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct MenuBarContentView: View {
+    @Environment(\.openSettings) private var openSettings
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject var app: AppDelegate
 
@@ -66,7 +67,9 @@ struct MenuBarContentView: View {
                 app.changeDestinationFolder()
             }
             Button(NSLocalizedString("menu.preferences", comment: "")) {
-                app.openPreferences()
+                // Use SwiftUI's settings action to ensure the Settings scene opens reliably (macOS 14+)
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
             }
             Button(NSLocalizedString("menu.quit", comment: "")) {
                 app.quit()

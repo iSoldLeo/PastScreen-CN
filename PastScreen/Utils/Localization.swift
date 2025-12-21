@@ -14,7 +14,7 @@ private let _bundleSwizzleOnce: Void = {
     object_setClass(Bundle.main, SwizzledBundle.self)
 }()
 
-private class SwizzledBundle: Bundle {
+private class SwizzledBundle: Bundle, @unchecked Sendable {
     override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
         if let bundle = activeLanguageBundle {
             return bundle.localizedString(forKey: key, value: value, table: tableName)

@@ -80,7 +80,6 @@
 				Views/ImageEditingWindow.swift,
 				Views/OnboardingView.swift,
 				Views/SelectionWindow.swift,
-				Views/SettingsView.swift,
 			);
 			target = 160D2D552ECCB91300A25E82 /* PastScreen-CN */;
 		};

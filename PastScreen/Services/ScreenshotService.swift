@@ -43,6 +43,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     private var captureMode: CaptureMode = .quick
+    private let saveQueue = DispatchQueue(label: "com.pastscreencn.screenshot.save", qos: .utility)
+    private var maxFrozenWindowSnapshotsPerDisplay: Int {
+        max(AppSettings.shared.frozenWindowLimitPerDisplay, 5)
+    }
 
     // Bundle IDs of known applications
     private let appCategoryMap: [String: AppCategory] = [
@@ -231,23 +235,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     self.selectionWindow = nil
                 }
                 return
-            } else if let frozen = self.frozenCapture(for: windowResult.bounds) {
-                switch self.captureMode {
-                case .advanced:
-                    let sizeRect = CGRect(origin: .zero, size: windowResult.bounds.size)
-                    self.handleAdvancedCapture(cgImage: frozen, selectionRect: sizeRect)
-                case .ocr:
-                    self.performOCRFrozenCapture(cgImage: frozen, selectionRect: windowResult.bounds)
-                case .quick:
-                    let sizeRect = CGRect(origin: .zero, size: windowResult.bounds.size)
-                    self.handleSuccessfulCapture(cgImage: frozen, selectionRect: sizeRect)
-                }
-                self.frozenDisplaySnapshots.removeAll()
-                self.frozenWindowSnapshots.removeAll()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.selectionWindow = nil
-                }
-                return
             }
 
             switch self.captureMode {
@@ -304,6 +291,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     overlayConfiguration: overlayConfiguration
                 )
                 window.selectionDelegate = self
+                // Keep overlay invisible until frozen snapshots are ready to avoid double-dimming.
+                window.setOverlayAlpha(0)
                 window.show()
                 self.selectionWindow = window
                 return window.getOverlayWindowIDs()
@@ -317,6 +306,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
             }
             if overlayWindowIDs.isEmpty {
+                await MainActor.run { [weak self] in
+                    self?.selectionWindow?.setOverlayAlpha(1)
+                }
                 return
             }
             do {
@@ -326,10 +318,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     self.frozenDisplaySnapshots = snapshots.displaySnapshots
                     self.frozenWindowSnapshots = snapshots.windowSnapshots
                     self.selectionWindow?.updateBackgroundSnapshots(snapshots.displaySnapshots)
+                    self.selectionWindow?.setOverlayAlpha(1)
                 }
             } catch {
                 await MainActor.run {
                     self.showErrorAlert(error.localizedDescription)
+                    self.selectionWindow?.setOverlayAlpha(1)
                 }
             }
         }
@@ -338,7 +332,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func prepareFrozenSnapshotsWithScreenCaptureKit(excludingWindowIDs: [CGWindowID]) async throws -> FrozenSnapshots {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         let excludeSet = Set(excludingWindowIDs)
-        let excludedWindows = content.windows.filter { excludeSet.contains(CGWindowID($0.windowID)) }
+        let excludedWindows: [SCWindow] = excludeSet.isEmpty
+            ? []
+            : content.windows.filter { excludeSet.contains(CGWindowID($0.windowID)) }
+        let visibleWindowIDsByDisplay = self.visibleWindowIDsByDisplay(excludingWindowIDs: excludeSet)
+        let prioritizedWindowIDs = Set(visibleWindowIDsByDisplay.values.flatMap { $0 })
 
         var displaySnapshots: [CGDirectDisplayID: CGImage] = [:]
         for screen in NSScreen.screens {
@@ -354,10 +352,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         var windowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:]
         for window in content.windows {
-            if excludeSet.contains(CGWindowID(window.windowID)) { continue }
+            let windowID = CGWindowID(window.windowID)
+            if excludeSet.contains(windowID) { continue }
+            // Only freeze a limited set of frontmost visible windows per display; if the
+            // prioritization failed, fall back to freezing all (old behavior).
+            if !prioritizedWindowIDs.isEmpty && !prioritizedWindowIDs.contains(windowID) {
+                continue
+            }
             do {
                 let snapshot = try await captureWindowSnapshot(window: window, applyBorder: false)
-                windowSnapshots[CGWindowID(window.windowID)] = snapshot
+                windowSnapshots[windowID] = snapshot
             } catch {
                 // Skip windows that fail to capture to avoid blocking the whole flow
                 continue
@@ -365,6 +369,84 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         return FrozenSnapshots(displaySnapshots: displaySnapshots, windowSnapshots: windowSnapshots)
+    }
+
+    /// Return front-to-back window IDs grouped by display, capped per display to avoid freezing every window.
+    private func visibleWindowIDsByDisplay(excludingWindowIDs: Set<CGWindowID>) -> [CGDirectDisplayID: [CGWindowID]] {
+        var result: [CGDirectDisplayID: [CGWindowID]] = [:]
+
+        guard let windowInfoList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return result
+        }
+
+        let normalLevel = Int(CGWindowLevelForKey(.normalWindow))
+        let popupLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        let mainHeight = CGDisplayBounds(CGMainDisplayID()).height
+
+        func appKitRect(fromQuartz rect: CGRect) -> CGRect {
+            let y = mainHeight - rect.origin.y - rect.height
+            return CGRect(x: rect.origin.x, y: y, width: rect.width, height: rect.height)
+        }
+
+        let screens: [(CGDirectDisplayID, NSScreen)] = NSScreen.screens.compactMap { screen in
+            guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+                return nil
+            }
+            return (displayID, screen)
+        }
+
+        func displayID(for rect: CGRect) -> CGDirectDisplayID? {
+            var best: (CGDirectDisplayID, CGFloat)?
+            for (displayID, screen) in screens {
+                let intersection = screen.frame.intersection(rect)
+                let area = intersection.width * intersection.height
+                guard area > 0 else { continue }
+                if let current = best {
+                    if area > current.1 {
+                        best = (displayID, area)
+                    }
+                } else {
+                    best = (displayID, area)
+                }
+            }
+            return best?.0
+        }
+
+        for info in windowInfoList {
+            guard
+                let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                let quartzBounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+                let windowIDNumber = info[kCGWindowNumber as String] as? NSNumber
+            else { continue }
+
+            let windowID = windowIDNumber.uint32Value
+            if excludingWindowIDs.contains(windowID) { continue }
+
+            let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            if layer < normalLevel || layer > popupLevel { continue }
+
+            if let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue, alpha <= 0 {
+                continue
+            }
+            if let onscreen = (info[kCGWindowIsOnscreen as String] as? NSNumber), onscreen.boolValue == false {
+                continue
+            }
+
+            let appKitBounds = appKitRect(fromQuartz: quartzBounds)
+            guard let displayID = displayID(for: appKitBounds) else { continue }
+
+            // Respect per-display cap to avoid blocking UI when many windows exist.
+            if result[displayID, default: []].count >= maxFrozenWindowSnapshotsPerDisplay {
+                continue
+            }
+
+            result[displayID, default: []].append(windowID)
+        }
+
+        return result
     }
 
     private func captureDisplaySnapshot(
@@ -880,25 +962,30 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let clipboardFilePath = self.copyToClipboard(
             image: editedImage,
             cgImage: cgImage,
-            pointSize: selectionRect.size
+            pointSize: selectionRect.size,
+            allowSaving: allowSaving
         )
 
-        // Save to file if enabled (or reuse path already created for clipboard)
-        var filePath: String? = clipboardFilePath
-        if allowSaving && filePath == nil {
-            filePath = self.saveToFileAndGetPath(
-                cgImage: cgImage,
-                pointSize: selectionRect.size
-            )
+        guard allowSaving else {
+            self.showSuccessNotification(filePath: nil)
+            return
         }
 
-        if allowSaving, let filePath = filePath {
+        if let filePath = clipboardFilePath {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
             settings.addToHistory(filePath)
+            self.showSuccessNotification(filePath: filePath)
+            return
         }
 
-        // Show notification and visual feedback
-        self.showSuccessNotification(filePath: filePath)
+        saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size) { [weak self] savedPath in
+            guard let self else { return }
+            if let filePath = savedPath {
+                NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
+                settings.addToHistory(filePath)
+            }
+            self.showSuccessNotification(filePath: savedPath)
+        }
     }
 
     // Gestion commune du succès
@@ -924,25 +1011,30 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let clipboardFilePath = self.copyToClipboard(
             image: nsImage,
             cgImage: cgImage,
-            pointSize: selectionRect.size
+            pointSize: selectionRect.size,
+            allowSaving: allowSaving
         )
 
-        // Save to file if enabled (or reuse path already created for clipboard)
-        var filePath: String? = clipboardFilePath
-        if allowSaving && filePath == nil {
-            filePath = self.saveToFileAndGetPath(
-                cgImage: cgImage,
-                pointSize: selectionRect.size
-            )
+        guard allowSaving else {
+            self.showSuccessNotification(filePath: nil)
+            return
         }
 
-        if allowSaving, let filePath = filePath {
+        if let filePath = clipboardFilePath {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
             settings.addToHistory(filePath)
+            self.showSuccessNotification(filePath: filePath)
+            return
         }
 
-        // Show notification and visual feedback
-        self.showSuccessNotification(filePath: filePath)
+        saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size) { [weak self] savedPath in
+            guard let self else { return }
+            if let filePath = savedPath {
+                NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
+                settings.addToHistory(filePath)
+            }
+            self.showSuccessNotification(filePath: savedPath)
+        }
     }
 
     private func captureScreenRegion(rect: CGRect, excludeWindowIDs: [CGWindowID]) async throws -> CGImage {
@@ -1082,19 +1174,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func copyToClipboard(
         image: NSImage,
         cgImage: CGImage,
-        pointSize: CGSize
+        pointSize: CGSize,
+        allowSaving: Bool
     ) -> String? {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
         let settings = AppSettings.shared
-        let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
 
         // Only save when user enabled it and a valid folder is configured
         var filePath: String?
-        if allowSaving {
-            filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
-        }
 
         // Check for App Override
         var usePathOnly = false
@@ -1103,6 +1192,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             if override == .path {
                 usePathOnly = true
             }
+        }
+
+        if usePathOnly, allowSaving {
+            filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
         }
 
         if usePathOnly {
@@ -1119,6 +1212,26 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         return filePath
+    }
+
+    /// Save to disk on a background queue, then hop back to main for UI/notifications.
+    private func saveToDiskAsync(
+        cgImage: CGImage,
+        pointSize: CGSize,
+        completion: @escaping (String?) -> Void
+    ) {
+        saveQueue.async { [weak self] in
+            guard let self else {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            let savedPath = self.saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
+            DispatchQueue.main.async {
+                completion(savedPath)
+            }
+        }
     }
 
     /// Save image to file (with DPI metadata) and return the path

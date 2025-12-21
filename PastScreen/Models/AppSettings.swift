@@ -284,6 +284,17 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var frozenWindowLimitPerDisplay: Int {
+        didSet {
+            let clamped = max(5, frozenWindowLimitPerDisplay)
+            if clamped != frozenWindowLimitPerDisplay {
+                frozenWindowLimitPerDisplay = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "frozenWindowLimitPerDisplay")
+        }
+    }
+
     @Published var playSoundOnCapture: Bool {
         didSet {
             UserDefaults.standard.set(playSoundOnCapture, forKey: "playSoundOnCapture")
@@ -467,6 +478,12 @@ class AppSettings: ObservableObject {
             self.windowBorderColor = decoded
         } else {
             self.windowBorderColor = defaultBorderColor
+        }
+        let storedWindowLimit = UserDefaults.standard.integer(forKey: "frozenWindowLimitPerDisplay")
+        if storedWindowLimit > 0 {
+            self.frozenWindowLimitPerDisplay = max(5, storedWindowLimit)
+        } else {
+            self.frozenWindowLimitPerDisplay = 10
         }
         self.playSoundOnCapture = UserDefaults.standard.object(forKey: "playSoundOnCapture") as? Bool ?? true
         self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: "globalHotkeyEnabled") as? Bool ?? true

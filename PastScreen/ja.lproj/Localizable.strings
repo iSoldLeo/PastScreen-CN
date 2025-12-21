@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "編集ツールバー";
 "settings.editor.toolbar.description" = "高度なキャプチャ後に表示するツールを選択。";
-"settings.editor.toolbar.reorder_hint" = "右側の矢印でツールバーの順序を変更。";
+"settings.editor.toolbar.reorder_hint" = "ドラッグしてツールバーの順序を変更。";
 "settings.editor.toolbar.note" = "少なくとも1つのツールを有効にしてください。";
 "settings.editor.radial.title" = "クイックホイール";
 "settings.editor.radial.description" = "右クリックのクイックホイールに1〜4個のツールを設定。";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "保存先";
 "settings.storage.save_to_disk" = "ディスクに保存";
 "settings.storage.save_to_disk.help" = "クリップボードに加えファイルも保存";
+"settings.storage.save_folder.label" = "保存先";
 "settings.storage.folder_label" = "フォルダ:";
 "settings.storage.change_button" = "変更...";
 "settings.storage.open_folder" = "フォルダを開く";

@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Barra de edición";
 "settings.editor.toolbar.description" = "Elige las herramientas que aparecen tras una captura avanzada.";
-"settings.editor.toolbar.reorder_hint" = "Usa las flechas de la derecha para reordenar.";
+"settings.editor.toolbar.reorder_hint" = "Arrastra para reordenar la barra de herramientas.";
 "settings.editor.toolbar.note" = "Deja al menos una herramienta activada.";
 "settings.editor.radial.title" = "Rueda rápida";
 "settings.editor.radial.description" = "Personaliza la rueda de clic derecho con 1-4 herramientas activadas.";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "Ubicación de guardado";
 "settings.storage.save_to_disk" = "Guardar en disco";
 "settings.storage.save_to_disk.help" = "Guardar también archivos además del portapapeles";
+"settings.storage.save_folder.label" = "Ubicación de guardado";
 "settings.storage.folder_label" = "Carpeta:";
 "settings.storage.change_button" = "Cambiar...";
 "settings.storage.open_folder" = "Abrir carpeta";

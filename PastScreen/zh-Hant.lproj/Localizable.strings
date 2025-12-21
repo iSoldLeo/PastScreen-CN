@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "編輯工具列";
 "settings.editor.toolbar.description" = "選擇在進階截圖後的編輯頁面中要顯示哪些工具。";
-"settings.editor.toolbar.reorder_hint" = "使用右側的箭頭調整工具順序。";
+"settings.editor.toolbar.reorder_hint" = "拖動上下調整工具順序。";
 "settings.editor.toolbar.note" = "至少保留一個工具。";
 "settings.editor.radial.title" = "快捷輪盤";
 "settings.editor.radial.description" = "自訂右鍵呼出的快捷輪盤，新增 1-4 個已啟用的常用工具。";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "儲存位置";
 "settings.storage.save_to_disk" = "儲存到磁碟";
 "settings.storage.save_to_disk.help" = "除剪貼簿外也同時儲存截圖檔案";
+"settings.storage.save_folder.label" = "儲存位置";
 "settings.storage.folder_label" = "資料夾：";
 "settings.storage.change_button" = "更改...";
 "settings.storage.open_folder" = "打開資料夾";

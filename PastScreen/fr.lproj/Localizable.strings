@@ -86,7 +86,7 @@
 /* Settings - Editor */
 "settings.editor.toolbar.title" = "Barre d’outils d’édition";
 "settings.editor.toolbar.description" = "Choisissez les outils affichés après une capture avancée.";
-"settings.editor.toolbar.reorder_hint" = "Réordonnez avec les flèches à droite.";
+"settings.editor.toolbar.reorder_hint" = "Faites glisser pour réorganiser la barre d’outils.";
 "settings.editor.toolbar.note" = "Gardez au moins un outil actif.";
 "settings.editor.radial.title" = "Roue rapide";
 "settings.editor.radial.description" = "Personnalisez la roue (clic droit) avec 1 à 4 outils activés.";
@@ -102,6 +102,7 @@
 "settings.storage.section_title" = "Emplacement";
 "settings.storage.save_to_disk" = "Sauvegarder sur le disque";
 "settings.storage.save_to_disk.help" = "Enregistrer aussi les fichiers en plus du presse-papiers";
+"settings.storage.save_folder.label" = "Emplacement";
 "settings.storage.folder_label" = "Dossier :";
 "settings.storage.change_button" = "Changer...";
 "settings.storage.open_folder" = "Ouvrir le dossier";
