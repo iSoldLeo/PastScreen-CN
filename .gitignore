@@ -101,6 +101,7 @@ screen/
 
 .gemini/
 gha-creds-*.json
+AGENTS.md
 
 # Build logs and temporary files
 build_log*.txt
