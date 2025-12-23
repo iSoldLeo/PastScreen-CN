@@ -143,9 +143,9 @@ struct GeneralSettingsView: View {
                 systemImage: "questionmark.circle"
             ) {
                 Button {
-                    OnboardingManager.shared.show()
+                    TutorialManager.shared.show()
                 } label: {
-                    Label(NSLocalizedString("settings.general.help.view_tutorial", value: "查看教程", comment: ""), systemImage: "play.circle")
+                    Label(NSLocalizedString("settings.general.help.view_tutorial", value: "打开使用指南", comment: ""), systemImage: "book")
                 }
                 .buttonStyle(.bordered)
             }

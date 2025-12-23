@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "Mostrar consejos cuando se inicia PastScreen-CN";
 "settings.general.help_section" = "Ayuda y soporte";
 "settings.general.help.prompt" = "¿Necesitas un inicio rápido?";
-"settings.general.help.view_tutorial" = "Ver tutorial";
+"settings.general.help.view_tutorial" = "Abrir guía";
 "settings.general.privacy_section" = "Privacidad";
 "settings.general.privacy.title" = "Tu privacidad importa";
 "settings.general.privacy.description" = "PastScreen-CN no recoge nada; todo permanece en tu Mac.";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "Agregar regla de app";
 "settings.apps.select_app_message" = "Elige una app";
+
+/* Tutorial */
+"tutorial.title" = "Guía de PastScreen-CN";
+"tutorial.subtitle" = "Capturas rápidas, copiadas automáticamente al portapapeles.";
+"tutorial.open_settings" = "Abrir ajustes";
+"tutorial.close" = "Cerrar";
+
+"tutorial.section.getting_started" = "Primeros pasos";
+"tutorial.getting_started.body" = "PastScreen-CN es una herramienta de capturas en la barra de menús: tras seleccionar un área se copia automáticamente al portapapeles; también puedes guardarla en archivos cuando lo necesites.";
+"tutorial.getting_started.steps" = "1. En el primer uso, concede «Grabación de pantalla» y «Accesibilidad».\n2. Pulsa el atajo para iniciar una captura de selección.\n3. Para anotar, usa «Captura avanzada».\n4. Para guardar en disco, ve a Ajustes > Almacenamiento, elige una carpeta y activa el guardado.";
+
+"tutorial.section.permissions" = "Permisos (obligatorio)";
+"tutorial.permission.request" = "Solicitar permiso";
+"tutorial.permissions.footer" = "Ruta: Ajustes del sistema → Privacidad y seguridad → Grabación de pantalla / Accesibilidad.";
+
+"tutorial.section.shortcuts" = "Atajos";
+"tutorial.shortcut.quick" = "Captura de selección";
+"tutorial.shortcut.advanced" = "Captura avanzada (anotar)";
+"tutorial.shortcut.ocr" = "Captura OCR";
+"tutorial.shortcuts.footer" = "Puedes volver a grabar los atajos en Ajustes > Captura.";
+
+"tutorial.section.capture" = "Cómo capturar";
+"tutorial.capture.tips" = "• Pulsa el atajo y arrastra para seleccionar; suelta para finalizar.\n• Clic derecho durante la selección para cancelar.\n• Al terminar se copia automáticamente al portapapeles; también puedes ver/copiar el historial desde la barra de menús.";
+
+"tutorial.section.storage" = "Guardar en archivo (opcional)";
+"tutorial.storage.body" = "Por defecto se copia al portapapeles. Si quieres guardar automáticamente: activa el guardado en Ajustes > Almacenamiento y elige una carpeta.";
+"tutorial.storage.switch" = "Guardado automático";
+"tutorial.storage.folder" = "Carpeta de guardado";
+
+"tutorial.section.troubleshooting" = "Problemas frecuentes";
+"tutorial.troubleshooting.body" = "• El atajo no funciona: comprueba que PastScreen-CN esté permitido en «Accesibilidad».\n• No se puede capturar: comprueba el permiso de «Grabación de pantalla»; quizá debas reiniciar la app.\n• No encuentras archivos: si el guardado está desactivado, la captura solo está en el portapapeles.";
 
 /* Onboarding */
 "onboarding.title" = "Bienvenido a PastScreen-CN 📸";

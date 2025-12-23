@@ -20,6 +20,7 @@ extension Notification.Name {
     static let hotKeyPressed = Notification.Name("hotKeyPressed")
     static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
     static let ocrHotKeyPressed = Notification.Name("ocrHotKeyPressed")
+    static let captureFlowEnded = Notification.Name("captureFlowEnded")
 }
 
 @main
@@ -303,6 +304,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationWillTerminate(_ notification: Notification) {
         // HotKeyManager cleans itself up via deinit, so we don't need to call stopMonitoring.
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     func requestNotificationPermission() {

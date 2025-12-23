@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "PastScreen-CN 始動時示提示";
 "settings.general.help_section" = "幫助與援";
 "settings.general.help.prompt" = "欲速成乎？";
-"settings.general.help.view_tutorial" = "覽教程";
+"settings.general.help.view_tutorial" = "開使用指南";
 "settings.general.privacy_section" = "隱私";
 "settings.general.privacy.title" = "爾之隱私為重";
 "settings.general.privacy.description" = "PastScreen-CN 不取一物，一切僅留於爾之 Mac。";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "路徑";
 "settings.apps.add_rule" = "添應用規則";
 "settings.apps.select_app_message" = "選應用";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN 使用指南";
+"tutorial.subtitle" = "疾取圖，自入剪貼。";
+"tutorial.open_settings" = "開偏好";
+"tutorial.close" = "閉";
+
+"tutorial.section.getting_started" = "始用";
+"tutorial.getting_started.body" = "PastScreen-CN 乃上欄取圖器：畫區畢，自複於剪貼；亦可隨需存檔。";
+"tutorial.getting_started.steps" = "1. 初用先許「螢幕錄製」「輔助使用」。\n2. 按捷鍵以取區。\n3. 欲注記，則用「精取」。\n4. 欲存檔，往 設定 > 存儲 擇目錄而啟存。";
+
+"tutorial.section.permissions" = "權限（必需）";
+"tutorial.permission.request" = "請授權";
+"tutorial.permissions.footer" = "徑：系統設定 → 隱私與安全性 → 螢幕錄製 / 輔助使用。";
+
+"tutorial.section.shortcuts" = "捷鍵";
+"tutorial.shortcut.quick" = "區域疾取";
+"tutorial.shortcut.advanced" = "精取（注記）";
+"tutorial.shortcut.ocr" = "文辨取圖";
+"tutorial.shortcuts.footer" = "可於 設定 > 截取 重錄捷鍵。";
+
+"tutorial.section.capture" = "取法";
+"tutorial.capture.tips" = "• 按捷鍵，拖拽擇區；釋之即成。\n• 擇區中右擊可止。\n• 既成，自複於剪貼；上欄亦可覽/複其紀。";
+
+"tutorial.section.storage" = "存檔（可選）";
+"tutorial.storage.body" = "常則複於剪貼。若欲自動存檔：於 設定 > 存儲 啟存，並擇一存檔夾。";
+"tutorial.storage.switch" = "自動存";
+"tutorial.storage.folder" = "存檔夾";
+
+"tutorial.section.troubleshooting" = "常見疑";
+"tutorial.troubleshooting.body" = "• 捷鍵不行：檢「輔助使用」已許 PastScreen-CN 否。\n• 不能取圖：檢「螢幕錄製」權；既許或須重啟。\n• 無檔：若未啟存，取圖唯在剪貼。";
 
 /* Onboarding */
 "onboarding.title" = "歡迎 PastScreen-CN 📸";

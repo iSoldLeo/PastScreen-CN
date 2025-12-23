@@ -28,6 +28,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var selectionWindow: SelectionWindow? // Custom selection window
     private var frozenDisplaySnapshots: [CGDirectDisplayID: CGImage] = [:] // Per-display snapshots captured via ScreenCaptureKit
     private var frozenWindowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:] // Per-window snapshots captured via ScreenCaptureKit
+    private var isShowingEditor = false
     private struct FrozenWindowSnapshot {
         let image: CGImage
         let padding: NSEdgeInsets
@@ -157,6 +158,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     func selectionWindow(_ window: SelectionWindow, didSelectRect rect: CGRect) {
         // Get overlay window IDs BEFORE hiding (for ScreenCaptureKit exclusion)
         let overlayWindowIDs = window.getOverlayWindowIDs()
+        let shouldPostCaptureFlowEnded = captureMode != .advanced
 
         // Hide all selection windows
         window.hide()
@@ -183,10 +185,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    self?.endSelectionSession()
-                    self?.selectionWindow = nil
-                }
+                self.scheduleSelectionCleanup(postCaptureFlowEnded: shouldPostCaptureFlowEnded)
                 return
             }
 
@@ -203,15 +202,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             self.frozenDisplaySnapshots.removeAll()
             self.frozenWindowSnapshots.removeAll()
             // Cleanup window reference
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.endSelectionSession()
-                self?.selectionWindow = nil
-            }
+            self.scheduleSelectionCleanup(postCaptureFlowEnded: shouldPostCaptureFlowEnded)
         }
     }
 
     func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult) {
         let overlayWindowIDs = window.getOverlayWindowIDs()
+        let shouldPostCaptureFlowEnded = captureMode != .advanced
 
         window.hide()
 
@@ -249,10 +246,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    self?.endSelectionSession()
-                    self?.selectionWindow = nil
-                }
+                self.scheduleSelectionCleanup(postCaptureFlowEnded: shouldPostCaptureFlowEnded)
                 return
             }
 
@@ -267,10 +261,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             self.frozenDisplaySnapshots.removeAll()
             self.frozenWindowSnapshots.removeAll()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.endSelectionSession()
-                self?.selectionWindow = nil
-            }
+            self.scheduleSelectionCleanup(postCaptureFlowEnded: shouldPostCaptureFlowEnded)
         }
     }
 
@@ -281,12 +272,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         captureMode = .quick
         restorePreviousAppFocus()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.endSelectionSession()
-            self?.selectionWindow = nil
-            self?.frozenDisplaySnapshots.removeAll()
-            self?.frozenWindowSnapshots.removeAll()
-        }
+        scheduleSelectionCleanup()
     }
     private func showErrorAlert(_ message: String) {
         let alert = NSAlert()
@@ -294,6 +280,19 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    private func scheduleSelectionCleanup(postCaptureFlowEnded: Bool = true) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self else { return }
+            self.endSelectionSession()
+            self.selectionWindow = nil
+            self.frozenDisplaySnapshots.removeAll()
+            self.frozenWindowSnapshots.removeAll()
+            if postCaptureFlowEnded && !self.isShowingEditor {
+                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
+            }
+        }
     }
 
     // MARK: - Selection session lifecycle
@@ -780,6 +779,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         guard rect.width > 0 && rect.height > 0 else {
             DispatchQueue.main.async { [weak self] in
                 self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
+                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
             return
         }
@@ -796,7 +796,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.showErrorNotification(error: error)
+                    guard let self else { return }
+                    self.isShowingEditor = false
+                    self.showErrorNotification(error: error)
+                    NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
         }
@@ -849,7 +852,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.showErrorNotification(error: error)
+                    guard let self else { return }
+                    self.isShowingEditor = false
+                    self.showErrorNotification(error: error)
+                    NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
         }
@@ -863,6 +869,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     // Handle successful advanced capture - show editing window
     private func handleAdvancedCapture(cgImage: CGImage, selectionRect: CGRect) {
         captureMode = .quick
+        isShowingEditor = true
         // Create NSImage from CGImage
         let rep = NSBitmapImageRep(cgImage: cgImage)
         rep.size = selectionRect.size
@@ -874,9 +881,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             image: nsImage,
             onCompletion: { [weak self] editedImage in
                 self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
+                self?.isShowingEditor = false
+                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             },
-            onCancel: {
-                // Just close editing window, no further action - user cancelled
+            onCancel: { [weak self] in
+                self?.isShowingEditor = false
+                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
         )
         

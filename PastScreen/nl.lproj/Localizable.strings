@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "Tips tonen wanneer PastScreen-CN start";
 "settings.general.help_section" = "Hulp & Support";
 "settings.general.help.prompt" = "Een snelle start nodig?";
-"settings.general.help.view_tutorial" = "Tutorial bekijken";
+"settings.general.help.view_tutorial" = "Handleiding openen";
 "settings.general.privacy_section" = "Privacy";
 "settings.general.privacy.title" = "Je privacy telt";
 "settings.general.privacy.description" = "PastScreen-CN verzamelt niets; alles blijft op je Mac.";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "App-regel toevoegen";
 "settings.apps.select_app_message" = "Kies een app";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN gebruikershandleiding";
+"tutorial.subtitle" = "Snel vastleggen, automatisch naar het klembord.";
+"tutorial.open_settings" = "Instellingen openen";
+"tutorial.close" = "Sluiten";
+
+"tutorial.section.getting_started" = "Aan de slag";
+"tutorial.getting_started.body" = "PastScreen-CN is een schermafbeeldingstool in de menubalk: na selectie wordt automatisch naar het klembord gekopieerd; je kunt ook naar bestanden opslaan wanneer nodig.";
+"tutorial.getting_started.steps" = "1. Geef bij het eerste gebruik toestemming voor \"Schermopname\" en \"Toegankelijkheid\".\n2. Druk op de sneltoets om een selectie-opname te starten.\n3. Gebruik \"Geavanceerde opname\" om te annoteren.\n4. Om op schijf op te slaan: ga naar Instellingen > Opslag, kies een map en schakel opslaan in.";
+
+"tutorial.section.permissions" = "Machtigingen (vereist)";
+"tutorial.permission.request" = "Toegang aanvragen";
+"tutorial.permissions.footer" = "Pad: Systeeminstellingen → Privacy en beveiliging → Schermopname / Toegankelijkheid.";
+
+"tutorial.section.shortcuts" = "Sneltoetsen";
+"tutorial.shortcut.quick" = "Selectie-opname";
+"tutorial.shortcut.advanced" = "Geavanceerde opname (annoteren)";
+"tutorial.shortcut.ocr" = "OCR-opname";
+"tutorial.shortcuts.footer" = "Je kunt sneltoetsen opnieuw opnemen via Instellingen > Capture.";
+
+"tutorial.section.capture" = "Schermafbeelding maken";
+"tutorial.capture.tips" = "• Druk op de sneltoets en sleep om een gebied te kiezen; laat los om te voltooien.\n• Rechtsklik tijdens de selectie om te annuleren.\n• Na afloop wordt automatisch naar het klembord gekopieerd; je kunt de geschiedenis ook bekijken/kopiëren via de menubalk.";
+
+"tutorial.section.storage" = "Opslaan als bestand (optioneel)";
+"tutorial.storage.body" = "Standaard wordt naar het klembord gekopieerd. Als je automatisch naar bestanden wilt opslaan: schakel opslaan in via Instellingen > Opslag en kies een map.";
+"tutorial.storage.switch" = "Automatisch opslaan";
+"tutorial.storage.folder" = "Opslagmap";
+
+"tutorial.section.troubleshooting" = "Problemen oplossen";
+"tutorial.troubleshooting.body" = "• Sneltoets werkt niet: controleer of PastScreen-CN is toegestaan bij Toegankelijkheid.\n• Kan niet vastleggen: controleer Schermopname-machtiging; na toestemming kan een herstart nodig zijn.\n• Geen bestanden: als opslaan uit staat, staat de opname alleen in het klembord.";
 
 /* Onboarding */
 "onboarding.title" = "Welkom bij PastScreen-CN 📸";

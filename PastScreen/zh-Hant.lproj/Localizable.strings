@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "啟動 PastScreen-CN 時顯示提示";
 "settings.general.help_section" = "說明與支援";
 "settings.general.help.prompt" = "需要入門說明？";
-"settings.general.help.view_tutorial" = "查看教學";
+"settings.general.help.view_tutorial" = "打開使用指南";
 "settings.general.privacy_section" = "隱私";
 "settings.general.privacy.title" = "你的隱私很重要";
 "settings.general.privacy.description" = "PastScreen-CN 不收集任何資料，所有內容僅儲存在你的 Mac 上。";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "路徑";
 "settings.apps.add_rule" = "新增應用規則";
 "settings.apps.select_app_message" = "選擇一個應用程式";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN 使用指南";
+"tutorial.subtitle" = "快速截圖，自動進剪貼簿。";
+"tutorial.open_settings" = "開啟設定";
+"tutorial.close" = "關閉";
+
+"tutorial.section.getting_started" = "立即開始";
+"tutorial.getting_started.body" = "PastScreen-CN 是選單列截圖工具：選區後會自動複製到剪貼簿；也可以按需儲存到檔案。";
+"tutorial.getting_started.steps" = "1. 首次使用先授權「螢幕錄製」「輔助使用」。\n2. 按快捷鍵開始選區截圖。\n3. 需要標註就用「進階截圖」。\n4. 想存檔就去設定 > 儲存選擇目錄並開啟儲存。";
+
+"tutorial.section.permissions" = "權限（必須）";
+"tutorial.permission.request" = "請求授權";
+"tutorial.permissions.footer" = "路徑：系統設定 → 隱私權與安全性 → 螢幕錄製 / 輔助使用。";
+
+"tutorial.section.shortcuts" = "快捷鍵";
+"tutorial.shortcut.quick" = "選區截圖";
+"tutorial.shortcut.advanced" = "進階截圖（標註）";
+"tutorial.shortcut.ocr" = "OCR 截圖";
+"tutorial.shortcuts.footer" = "可在設定 > 截圖中重新錄製快捷鍵。";
+
+"tutorial.section.capture" = "怎麼截圖";
+"tutorial.capture.tips" = "• 按快捷鍵後拖曳選擇區域；鬆開即完成。\n• 選區中按右鍵可取消。\n• 完成後會自動複製到剪貼簿；選單列裡也能檢視/複製歷史。";
+
+"tutorial.section.storage" = "儲存到檔案（可選）";
+"tutorial.storage.body" = "預設會複製到剪貼簿。若你希望自動儲存到檔案：在設定 > 儲存裡開啟儲存，並選擇一個儲存目錄。";
+"tutorial.storage.switch" = "自動儲存";
+"tutorial.storage.folder" = "儲存目錄";
+
+"tutorial.section.troubleshooting" = "常見問題";
+"tutorial.troubleshooting.body" = "• 快捷鍵不生效：檢查「輔助使用」是否已允許 PastScreen-CN。\n• 無法截圖：檢查「螢幕錄製」權限；授權後可能需要重啟應用程式。\n• 找不到檔案：若未開啟儲存，截圖只在剪貼簿中。";
 
 /* Onboarding */
 "onboarding.title" = "歡迎使用 PastScreen-CN 📸";
