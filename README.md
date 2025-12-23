@@ -5,11 +5,13 @@
 <p align="center">极速截图，自动进剪贴板。原生应用，小而快。</p>
 <p align="center">
   <a href="https://www.apple.com/macos/">
-    <img src="https://img.shields.io/badge/platform-macOS%2014+-blue.svg" alt="Platform macOS 14+">
+    <img src="https://img.shields.io/badge/platform-macOS%2015+-blue.svg" alt="Platform macOS 14+">
   </a>
   <a href="https://swift.org/">
     <img src="https://img.shields.io/badge/Swift-5.9-orange.svg" alt="Swift 5.9">
   </a>
+  <br>
+  <a href="./README-EN.md" style="color:#0a84ff; font-weight:600; text-decoration:none;">English README</a>
 </p>
 
 ---
@@ -31,19 +33,21 @@
 
 ## 核心特性
 - 极速选区，原生剪贴板，无中间弹窗
+- 高级截图内置标注 + OCR，支持独立热键
 - 可录制任意组合的全局/高级热键
-- 菜单栏应用，不占 Dock
+- 菜单栏应用，不占 Dock，含历史记录与快捷入口
 - 应用规则：为特定 App 强制「仅路径」或「仅图片」
-- 内置标注器（高级截图）
+- 截图边框可配置（开关/宽度/圆角/颜色）
+- 自定义编辑工具启用与顺序，支持快捷轮盘
 
 ---
 
 ## 设置要点
-- **热键**：在设置 > 截图中录制；支持高级截图独立热键
+- **热键**：在设置 > 截图中录制；支持高级截图独立热键与 OCR
 - **保存**：默认只剪贴板；如需落盘，在设置 > 存储里选目录并开启保存
-- **格式**：PNG 或 JPEG
+- **格式**：PNG 或 JPEG，可选带边框输出
 - **应用规则**：为终端/IDE 等指定「仅路径」或「仅图片」
-- **语言**：跟随系统 / 简体中文 / English
+- **语言**：跟随系统 / 简体中文 / English / 繁体中文 / 多国语言（nl/de/fr/es/ja/ko 等）
 
 ---
 
