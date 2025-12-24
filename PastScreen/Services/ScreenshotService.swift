@@ -44,6 +44,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     private var captureMode: CaptureMode = .quick
+    private var captureTrigger: CaptureTrigger = .menuBar
     private var selectionSessionID: UUID?
     private var windowSnapshotTask: Task<Void, Never>?
     private let appBundleID = Bundle.main.bundleIdentifier
@@ -110,7 +111,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         "com.framerx.Framer": .designTool
     ]
 
-    func captureScreenshot() {
+    func captureScreenshot(trigger: CaptureTrigger = .menuBar) {
         // CRITICAL: Force cleanup of any existing selection window before creating new one
         // (prevents overlay windows from persisting if user takes multiple screenshots rapidly)
         if let existingWindow = selectionWindow {
@@ -120,10 +121,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         captureMode = .quick
+        captureTrigger = trigger
         startSelectionFlow(overlayConfiguration: .screenshot)
     }
     
-    func captureAdvancedScreenshot() {
+    func captureAdvancedScreenshot(trigger: CaptureTrigger = .menuBar) {
         // CRITICAL: Force cleanup of any existing selection window before creating new one
         if let existingWindow = selectionWindow {
             existingWindow.hide()
@@ -132,10 +134,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         captureMode = .advanced
+        captureTrigger = trigger
         startSelectionFlow(overlayConfiguration: .screenshot)
     }
 
-    func captureOCRScreenshot() {
+    func captureOCRScreenshot(trigger: CaptureTrigger = .menuBar) {
         if let existingWindow = selectionWindow {
             existingWindow.hide()
             endSelectionSession()
@@ -143,14 +146,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
 
         captureMode = .ocr
+        captureTrigger = trigger
         startSelectionFlow(overlayConfiguration: .ocr)
     }
 
     // NEW: Full screen capture using ScreenCaptureKit
-    func captureFullScreen() {
+    func captureFullScreen(trigger: CaptureTrigger = .menuBar) {
+        captureTrigger = trigger
         // Calculate combined frame covering all screens
         let screenFrame = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
-        performCapture(rect: screenFrame)
+        performCapture(rect: screenFrame, captureType: .fullscreen, trigger: trigger)
     }
 
     // MARK: - SelectionWindowDelegate
@@ -159,6 +164,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // Get overlay window IDs BEFORE hiding (for ScreenCaptureKit exclusion)
         let overlayWindowIDs = window.getOverlayWindowIDs()
         let shouldPostCaptureFlowEnded = captureMode != .advanced
+        let trigger = captureTrigger
 
         // Hide all selection windows
         window.hide()
@@ -177,11 +183,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             if let frozen = self.frozenCapture(for: rect) {
                 switch self.captureMode {
                 case .advanced:
-                    self.handleAdvancedCapture(cgImage: frozen, selectionRect: rect)
+                    self.handleAdvancedCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
                 case .ocr:
-                    self.performOCRFrozenCapture(cgImage: frozen, selectionRect: rect)
+                    self.performOCRFrozenCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
                 case .quick:
-                    self.handleSuccessfulCapture(cgImage: frozen, selectionRect: rect)
+                    self.handleSuccessfulCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
@@ -192,11 +198,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             // Now perform capture with overlay windows excluded
             switch self.captureMode {
             case .advanced:
-                self.performAdvancedCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+                self.performAdvancedCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             case .ocr:
-                self.performOCRCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+                self.performOCRCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             case .quick:
-                self.performCapture(rect: rect, excludeWindowIDs: overlayWindowIDs)
+                self.performCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             }
 
             self.frozenDisplaySnapshots.removeAll()
@@ -209,6 +215,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult) {
         let overlayWindowIDs = window.getOverlayWindowIDs()
         let shouldPostCaptureFlowEnded = captureMode != .advanced
+        let trigger = captureTrigger
 
         window.hide()
 
@@ -238,11 +245,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let selectionRect = CGRect(origin: .zero, size: frozenWindow.pointSize)
                 switch self.captureMode {
                 case .advanced:
-                    self.handleAdvancedCapture(cgImage: frozenWindow.image, selectionRect: selectionRect)
+                    self.handleAdvancedCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
                 case .ocr:
-                    self.performOCRFrozenCapture(cgImage: frozenWindow.image, selectionRect: selectionRect)
+                    self.performOCRFrozenCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
                 case .quick:
-                    self.handleSuccessfulCapture(cgImage: frozenWindow.image, selectionRect: selectionRect)
+                    self.handleSuccessfulCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
@@ -252,11 +259,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             switch self.captureMode {
             case .advanced:
-                self.performAdvancedWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+                self.performAdvancedWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             case .ocr:
-                self.performOCRWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+                self.performOCRWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             case .quick:
-                self.performWindowCapture(hitResult: windowResult, excludeWindowIDs: overlayWindowIDs)
+                self.performWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             }
 
             self.frozenDisplaySnapshots.removeAll()
@@ -615,7 +622,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         return snapshot.cropping(to: boundedCrop)
     }
 
-    private func performOCRFrozenCapture(cgImage: CGImage, selectionRect: CGRect) {
+    private func performOCRFrozenCapture(
+        cgImage: CGImage,
+        selectionRect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger
+    ) {
         captureMode = .quick
 
         Task { [weak self] in
@@ -632,6 +644,23 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     }
                 }
 
+                var recognized: String?
+                defer {
+                    _ = CaptureLibrary.shared.addCapture(
+                        cgImage: cgImage,
+                        pointSize: selectionRect.size,
+                        captureType: captureType,
+                        captureMode: .ocr,
+                        trigger: self.libraryTrigger(from: trigger),
+                        appBundleID: self.previousApp?.bundleIdentifier,
+                        appName: self.previousApp?.localizedName,
+                        appPID: self.previousApp.map { Int($0.processIdentifier) },
+                        externalFilePath: nil,
+                        ocrText: recognized,
+                        ocrLangs: settings.ocrRecognitionLanguages
+                    )
+                }
+
                 guard let ocrImage = self.makePNGImageForOCR(cgImage: cgImage, pointSize: selectionRect.size) else {
                     await MainActor.run {
                         self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
@@ -645,8 +674,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
 
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                recognized = trimmed.isEmpty ? nil : trimmed
+
                 await MainActor.run {
-                    self.handleOCRResult(text)
+                    self.handleOCRResult(trimmed)
                 }
             } catch {
                 await MainActor.run {
@@ -745,7 +777,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         DynamicIslandManager.shared.show(message: "已保存", duration: 3.0)
     }
 
-    private func performCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+    private func performCapture(
+        rect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID] = []
+    ) {
         // Vérifier que le rectangle est valide
         guard rect.width > 0 && rect.height > 0 else {
             DispatchQueue.main.async { [weak self] in
@@ -761,7 +798,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 // Essayer d'abord avec ScreenCaptureKit (moderne)
                 let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
                 await MainActor.run {
-                    self.handleSuccessfulCapture(cgImage: cgImage, selectionRect: rect)
+                    self.handleSuccessfulCapture(cgImage: cgImage, selectionRect: rect, captureType: captureType, trigger: trigger)
                 }
 
             } catch {
@@ -772,7 +809,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
     
-    private func performAdvancedCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+    private func performAdvancedCapture(
+        rect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID] = []
+    ) {
         captureMode = .quick
 
         // Vérifier que le rectangle est valide
@@ -791,7 +833,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 // Capture screenshot with ScreenCaptureKit
                 let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
                 await MainActor.run {
-                    self.handleAdvancedCapture(cgImage: cgImage, selectionRect: rect)
+                    self.handleAdvancedCapture(cgImage: cgImage, selectionRect: rect, captureType: captureType, trigger: trigger)
                 }
 
             } catch {
@@ -805,7 +847,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func performWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+    private func performWindowCapture(
+        hitResult: WindowHitTestResult,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID]
+    ) {
         _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
         Task { [weak self] in
             guard let self = self else { return }
@@ -821,7 +868,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 )
                 await MainActor.run {
-                    self.handleSuccessfulCapture(cgImage: captureResult.image, selectionRect: sizeRect)
+                    self.handleSuccessfulCapture(cgImage: captureResult.image, selectionRect: sizeRect, captureType: captureType, trigger: trigger)
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -831,7 +878,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func performAdvancedWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+    private func performAdvancedWindowCapture(
+        hitResult: WindowHitTestResult,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID]
+    ) {
         _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
         captureMode = .quick
         Task { [weak self] in
@@ -848,7 +900,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 )
                 await MainActor.run {
-                    self.handleAdvancedCapture(cgImage: captureResult.image, selectionRect: sizeRect)
+                    self.handleAdvancedCapture(cgImage: captureResult.image, selectionRect: sizeRect, captureType: captureType, trigger: trigger)
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -867,7 +919,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     // Handle successful advanced capture - show editing window
-    private func handleAdvancedCapture(cgImage: CGImage, selectionRect: CGRect) {
+    private func handleAdvancedCapture(
+        cgImage: CGImage,
+        selectionRect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger
+    ) {
         captureMode = .quick
         isShowingEditor = true
         // Create NSImage from CGImage
@@ -880,7 +937,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let editingWindow = ImageEditingWindow(
             image: nsImage,
             onCompletion: { [weak self] editedImage in
-                self?.handleEditedImage(editedImage: editedImage, selectionRect: selectionRect)
+                self?.handleEditedImage(
+                    editedImage: editedImage,
+                    selectionRect: selectionRect,
+                    captureType: captureType,
+                    trigger: trigger
+                )
                 self?.isShowingEditor = false
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             },
@@ -893,7 +955,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         editingWindow.show()
     }
 
-    private func performOCRCapture(rect: CGRect, excludeWindowIDs: [CGWindowID] = []) {
+    private func performOCRCapture(
+        rect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID] = []
+    ) {
         captureMode = .quick
 
         guard rect.width > 0, rect.height > 0 else {
@@ -917,6 +984,23 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     }
                 }
 
+                var recognized: String?
+                defer {
+                    _ = CaptureLibrary.shared.addCapture(
+                        cgImage: cgImage,
+                        pointSize: rect.size,
+                        captureType: captureType,
+                        captureMode: .ocr,
+                        trigger: self.libraryTrigger(from: trigger),
+                        appBundleID: self.previousApp?.bundleIdentifier,
+                        appName: self.previousApp?.localizedName,
+                        appPID: self.previousApp.map { Int($0.processIdentifier) },
+                        externalFilePath: nil,
+                        ocrText: recognized,
+                        ocrLangs: settings.ocrRecognitionLanguages
+                    )
+                }
+
                 guard let ocrImage = self.makePNGImageForOCR(cgImage: cgImage, pointSize: rect.size) else {
                     await MainActor.run {
                         self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
@@ -930,8 +1014,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
 
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                recognized = trimmed.isEmpty ? nil : trimmed
+
                 await MainActor.run {
-                    self.handleOCRResult(text)
+                    self.handleOCRResult(trimmed)
                 }
             } catch {
                 await MainActor.run {
@@ -941,7 +1028,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func performOCRWindowCapture(hitResult: WindowHitTestResult, excludeWindowIDs: [CGWindowID]) {
+    private func performOCRWindowCapture(
+        hitResult: WindowHitTestResult,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger,
+        excludeWindowIDs: [CGWindowID]
+    ) {
         _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
         captureMode = .quick
 
@@ -970,6 +1062,23 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     height: captureResult.window.frame.size.height + padding.top + padding.bottom
                 )
 
+                var recognized: String?
+                defer {
+                    _ = CaptureLibrary.shared.addCapture(
+                        cgImage: captureResult.image,
+                        pointSize: pointSize,
+                        captureType: captureType,
+                        captureMode: .ocr,
+                        trigger: self.libraryTrigger(from: trigger),
+                        appBundleID: self.previousApp?.bundleIdentifier,
+                        appName: self.previousApp?.localizedName,
+                        appPID: self.previousApp.map { Int($0.processIdentifier) },
+                        externalFilePath: nil,
+                        ocrText: recognized,
+                        ocrLangs: settings.ocrRecognitionLanguages
+                    )
+                }
+
                 guard let ocrImage = self.makePNGImageForOCR(cgImage: captureResult.image, pointSize: pointSize) else {
                     await MainActor.run {
                         self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
@@ -983,8 +1092,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
 
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                recognized = trimmed.isEmpty ? nil : trimmed
+
                 await MainActor.run {
-                    self.handleOCRResult(text)
+                    self.handleOCRResult(trimmed)
                 }
             } catch {
                 await MainActor.run {
@@ -1024,7 +1136,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
     
     // Handle the edited image from the editing window
-    private func handleEditedImage(editedImage: NSImage, selectionRect: CGRect) {
+    private func handleEditedImage(
+        editedImage: NSImage,
+        selectionRect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger
+    ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
 
@@ -1051,6 +1168,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
+        let libraryID = CaptureLibrary.shared.addCapture(
+            cgImage: cgImage,
+            pointSize: selectionRect.size,
+            captureType: captureType,
+            captureMode: .advanced,
+            trigger: libraryTrigger(from: trigger),
+            appBundleID: previousApp?.bundleIdentifier,
+            appName: previousApp?.localizedName,
+            appPID: previousApp.map { Int($0.processIdentifier) },
+            externalFilePath: clipboardFilePath
+        )
+
         guard allowSaving else {
             self.showSuccessNotification(filePath: nil)
             return
@@ -1069,12 +1198,20 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
                 settings.addToHistory(filePath)
             }
+            if let libraryID {
+                CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
+            }
             self.showSuccessNotification(filePath: savedPath)
         }
     }
 
     // Gestion commune du succès
-    private func handleSuccessfulCapture(cgImage: CGImage, selectionRect: CGRect) {
+    private func handleSuccessfulCapture(
+        cgImage: CGImage,
+        selectionRect: CGRect,
+        captureType: CaptureItemCaptureType,
+        trigger: CaptureTrigger
+    ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
 
@@ -1100,6 +1237,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
+        let libraryID = CaptureLibrary.shared.addCapture(
+            cgImage: cgImage,
+            pointSize: selectionRect.size,
+            captureType: captureType,
+            captureMode: .quick,
+            trigger: libraryTrigger(from: trigger),
+            appBundleID: previousApp?.bundleIdentifier,
+            appName: previousApp?.localizedName,
+            appPID: previousApp.map { Int($0.processIdentifier) },
+            externalFilePath: clipboardFilePath
+        )
+
         guard allowSaving else {
             self.showSuccessNotification(filePath: nil)
             return
@@ -1117,6 +1266,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             if let filePath = savedPath {
                 NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
                 settings.addToHistory(filePath)
+            }
+            if let libraryID {
+                CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
             }
             self.showSuccessNotification(filePath: savedPath)
         }
@@ -1256,6 +1408,19 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             return .unknown
         }
         return appCategoryMap[bundleID] ?? .unknown
+    }
+
+    private func libraryTrigger(from trigger: CaptureTrigger) -> CaptureItemTrigger {
+        switch trigger {
+        case .menuBar:
+            return .menuBar
+        case .hotkey:
+            return .hotkey
+        case .appIntent:
+            return .appIntent
+        case .automation:
+            return .automation
+        }
     }
 
     /// Copy image to clipboard - SIMPLE LOGIC

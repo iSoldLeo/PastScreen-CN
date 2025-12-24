@@ -99,6 +99,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Initialize services
         screenshotService = ScreenshotService()
+        CaptureLibrary.shared.bootstrapIfNeeded()
 
         // NOTE: Permissions are now requested via Onboarding only
         // No auto-prompting at launch to avoid popup chaos
@@ -374,7 +375,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
-            screenshotService?.captureScreenshot()
+            screenshotService?.captureScreenshot(trigger: source)
         }
     }
 
@@ -382,7 +383,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
-            screenshotService?.captureAdvancedScreenshot()
+            screenshotService?.captureAdvancedScreenshot(trigger: source)
         }
     }
 
@@ -390,14 +391,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
-            screenshotService?.captureOCRScreenshot()
+            screenshotService?.captureOCRScreenshot(trigger: source)
         }
     }
 
     func performFullScreenCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
-        screenshotService.captureFullScreen()
+        screenshotService.captureFullScreen(trigger: source)
     }
 
     // MARK: - Raccourci clavier global

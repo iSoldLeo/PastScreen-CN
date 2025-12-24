@@ -105,7 +105,7 @@ struct CaptureLibraryFileStore {
     let previewsURL: URL
     let originalsURL: URL
 
-    init(rootURL: URL) throws {
+    nonisolated init(rootURL: URL) throws {
         self.rootURL = rootURL
         self.databaseURL = rootURL.appendingPathComponent("library.sqlite3", isDirectory: false)
         self.thumbsURL = rootURL.appendingPathComponent("thumbs", isDirectory: true)
@@ -115,7 +115,7 @@ struct CaptureLibraryFileStore {
         try ensureDirectoriesExist()
     }
 
-    static func defaultRootURL() throws -> URL {
+    nonisolated static func defaultRootURL() throws -> URL {
         let base = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
@@ -125,24 +125,24 @@ struct CaptureLibraryFileStore {
         return base.appendingPathComponent(folderName, isDirectory: true)
     }
 
-    func ensureDirectoriesExist() throws {
+    nonisolated func ensureDirectoriesExist() throws {
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: thumbsURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: previewsURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: originalsURL, withIntermediateDirectories: true)
     }
 
-    func fileURL(forRelativePath relativePath: String) -> URL {
+    nonisolated func fileURL(forRelativePath relativePath: String) -> URL {
         rootURL.appendingPathComponent(relativePath, isDirectory: false)
     }
 
-    func deleteIfExists(relativePath: String?) {
+    nonisolated func deleteIfExists(relativePath: String?) {
         guard let relativePath, !relativePath.isEmpty else { return }
         let url = fileURL(forRelativePath: relativePath)
         try? FileManager.default.removeItem(at: url)
     }
 
-    func writeThumbnail(
+    nonisolated func writeThumbnail(
         id: UUID,
         from image: CGImage,
         maxDimension: Int = 320,
@@ -155,7 +155,7 @@ struct CaptureLibraryFileStore {
         return (relativePath, size, data.count)
     }
 
-    func writePreview(
+    nonisolated func writePreview(
         id: UUID,
         from image: CGImage,
         maxDimension: Int = 1600,
@@ -168,7 +168,7 @@ struct CaptureLibraryFileStore {
         return (relativePath, size, data.count)
     }
 
-    static func makePlaceholderThumbnailData(size: CGSize = CGSize(width: 64, height: 64)) throws -> Data {
+    nonisolated static func makePlaceholderThumbnailData(size: CGSize = CGSize(width: 64, height: 64)) throws -> Data {
         let width = max(Int(size.width), 16)
         let height = max(Int(size.height), 16)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -203,7 +203,7 @@ struct CaptureLibraryFileStore {
         return data
     }
 
-    private static func makeJPEGData(from image: CGImage, maxDimension: Int, quality: CGFloat) throws -> (Data, CGSize) {
+    nonisolated private static func makeJPEGData(from image: CGImage, maxDimension: Int, quality: CGFloat) throws -> (Data, CGSize) {
         let scaled = try scaledImage(from: image, maxDimension: maxDimension)
         let rep = NSBitmapImageRep(cgImage: scaled)
         guard let data = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]) else {
@@ -212,7 +212,7 @@ struct CaptureLibraryFileStore {
         return (data, CGSize(width: scaled.width, height: scaled.height))
     }
 
-    private static func scaledImage(from image: CGImage, maxDimension: Int) throws -> CGImage {
+    nonisolated private static func scaledImage(from image: CGImage, maxDimension: Int) throws -> CGImage {
         let srcW = image.width
         let srcH = image.height
         let maxSide = max(srcW, srcH)
@@ -476,6 +476,26 @@ actor CaptureLibraryDatabase {
 
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw lastError("更新置顶状态失败")
+        }
+    }
+
+    func updateExternalFilePath(for id: UUID, path: String?, now: Date) throws {
+        let sql = """
+        UPDATE capture_items
+        SET
+          external_file_path = ?,
+          updated_at = ?
+        WHERE id = ?
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        bindText(stmt, index: 1, value: path)
+        bindInt64(stmt, index: 2, value: Self.epochMillis(now))
+        bindText(stmt, index: 3, value: id.uuidString)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw lastError("更新 external_file_path 失败")
         }
     }
 
@@ -949,5 +969,337 @@ actor CaptureLibraryDatabase {
         guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
         let count = Int(sqlite3_column_bytes(stmt, index))
         return Data(bytes: bytes, count: count)
+    }
+}
+
+// MARK: - Library Service (async + non-blocking)
+
+final class CaptureLibrary {
+    static let shared = CaptureLibrary()
+
+    private let worker = CaptureLibraryWorker()
+    private let pendingLock = NSLock()
+    private var pendingJobs: Int = 0
+    private let maxPendingJobs: Int = 8
+
+    private init() {}
+
+    func bootstrapIfNeeded() {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        let legacyPaths = AppSettings.shared.captureHistory
+        _ = enqueue(priority: .utility) { worker in
+            try await worker.prepareIfNeeded()
+            await worker.migrateLegacyHistoryIfNeeded(legacyPaths: legacyPaths)
+        }
+    }
+
+    @discardableResult
+    func addCapture(
+        id: UUID = UUID(),
+        cgImage: CGImage,
+        pointSize: CGSize,
+        captureType: CaptureItemCaptureType,
+        captureMode: CaptureItemCaptureMode,
+        trigger: CaptureItemTrigger,
+        appBundleID: String?,
+        appName: String?,
+        appPID: Int?,
+        externalFilePath: String?,
+        ocrText: String? = nil,
+        ocrLangs: [String] = []
+    ) -> UUID? {
+        guard AppSettings.shared.captureLibraryEnabled else { return nil }
+
+        let storePreviews = AppSettings.shared.captureLibraryStorePreviews
+        let createdAt = Date()
+
+        let job = CaptureLibraryAddJob(
+            id: id,
+            createdAt: createdAt,
+            captureType: captureType,
+            captureMode: captureMode,
+            trigger: trigger,
+            appBundleID: appBundleID,
+            appName: appName,
+            appPID: appPID,
+            selectionSize: pointSize,
+            externalFilePath: externalFilePath,
+            cgImage: cgImage,
+            storePreview: storePreviews,
+            ocrText: ocrText,
+            ocrLangs: ocrLangs
+        )
+
+        let enqueued = enqueue(priority: .utility) { worker in
+            try await worker.addCapture(job: job)
+        }
+
+        return enqueued ? id : nil
+    }
+
+    func updateExternalFilePath(for id: UUID, path: String?) {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        _ = enqueue(priority: .utility) { worker in
+            try await worker.updateExternalFilePath(for: id, path: path, now: Date())
+        }
+    }
+
+    @discardableResult
+    private func enqueue(
+        priority: TaskPriority,
+        operation: @escaping (CaptureLibraryWorker) async throws -> Void
+    ) -> Bool {
+        guard acquireJobSlot() else {
+            logWarning("CaptureLibrary backlog full; drop job.", category: "LIB")
+            return false
+        }
+
+        Task.detached(priority: priority) { [weak self] in
+            defer { self?.releaseJobSlot() }
+            do {
+                try await operation(CaptureLibrary.shared.worker)
+            } catch {
+                logError("CaptureLibrary job failed: \(error.localizedDescription)", category: "LIB")
+            }
+        }
+
+        return true
+    }
+
+    private func acquireJobSlot() -> Bool {
+        pendingLock.lock()
+        defer { pendingLock.unlock() }
+        if pendingJobs >= maxPendingJobs { return false }
+        pendingJobs += 1
+        return true
+    }
+
+    private func releaseJobSlot() {
+        pendingLock.lock()
+        pendingJobs = max(0, pendingJobs - 1)
+        pendingLock.unlock()
+    }
+}
+
+fileprivate struct CaptureLibraryAddJob {
+    let id: UUID
+    let createdAt: Date
+
+    let captureType: CaptureItemCaptureType
+    let captureMode: CaptureItemCaptureMode
+    let trigger: CaptureItemTrigger
+
+    let appBundleID: String?
+    let appName: String?
+    let appPID: Int?
+    let selectionSize: CGSize
+
+    let externalFilePath: String?
+
+    let cgImage: CGImage
+    let storePreview: Bool
+
+    let ocrText: String?
+    let ocrLangs: [String]
+}
+
+actor CaptureLibraryWorker {
+    private static let legacyMigrationKey = "captureLibrary.didMigrateLegacyHistory.v1"
+
+    private var fileStore: CaptureLibraryFileStore?
+    private var database: CaptureLibraryDatabase?
+
+    func prepareIfNeeded() throws {
+        if fileStore == nil {
+            let rootURL = try CaptureLibraryFileStore.defaultRootURL()
+            fileStore = try CaptureLibraryFileStore(rootURL: rootURL)
+        }
+        if database == nil {
+            guard let fileStore else {
+                throw NSError(domain: "CaptureLibraryWorker", code: -1, userInfo: [NSLocalizedDescriptionKey: "FileStore 未初始化"])
+            }
+            database = try CaptureLibraryDatabase(databaseURL: fileStore.databaseURL)
+        }
+    }
+
+    fileprivate func addCapture(job: CaptureLibraryAddJob) async throws {
+        try prepareIfNeeded()
+        guard let fileStore, let database else { return }
+
+        let now = Date()
+
+        let thumb = try fileStore.writeThumbnail(id: job.id, from: job.cgImage)
+        let preview: (relativePath: String, pixelSize: CGSize, byteCount: Int)?
+        if job.storePreview {
+            preview = try fileStore.writePreview(id: job.id, from: job.cgImage)
+        } else {
+            preview = nil
+        }
+
+        let item = CaptureItem(
+            id: job.id,
+            createdAt: job.createdAt,
+            updatedAt: now,
+            captureType: job.captureType,
+            captureMode: job.captureMode,
+            trigger: job.trigger,
+            appBundleID: job.appBundleID,
+            appName: job.appName,
+            appPID: job.appPID,
+            selectionSize: job.selectionSize,
+            externalFilePath: job.externalFilePath,
+            internalThumbPath: thumb.relativePath,
+            internalPreviewPath: preview?.relativePath,
+            internalOriginalPath: nil,
+            thumbSize: thumb.pixelSize,
+            previewSize: preview?.pixelSize,
+            sha256: nil,
+            isPinned: false,
+            pinnedAt: nil,
+            note: nil,
+            tagsCache: "",
+            ocrText: job.ocrText,
+            ocrLangs: job.ocrLangs,
+            ocrUpdatedAt: job.ocrText == nil ? nil : now,
+            embeddingModel: nil,
+            embeddingDim: nil,
+            embedding: nil,
+            embeddingSourceHash: nil,
+            embeddingUpdatedAt: nil,
+            bytesThumb: thumb.byteCount,
+            bytesPreview: preview?.byteCount ?? 0,
+            bytesOriginal: 0
+        )
+
+        let ftsText = Self.makeFTSText(
+            appName: item.appName,
+            externalFilePath: item.externalFilePath,
+            tagsCache: item.tagsCache,
+            note: item.note,
+            ocrText: item.ocrText
+        )
+
+        try await database.insertCapture(item, ftsText: ftsText)
+    }
+
+    func updateExternalFilePath(for id: UUID, path: String?, now: Date) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.updateExternalFilePath(for: id, path: path, now: now)
+    }
+
+    func migrateLegacyHistoryIfNeeded(legacyPaths: [String]) async {
+        guard !UserDefaults.standard.bool(forKey: Self.legacyMigrationKey) else { return }
+
+        let paths = legacyPaths
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !paths.isEmpty else {
+            UserDefaults.standard.set(true, forKey: Self.legacyMigrationKey)
+            return
+        }
+
+        do {
+            try prepareIfNeeded()
+        } catch {
+            logError("Legacy history migration skipped: \(error.localizedDescription)", category: "LIB")
+            return
+        }
+
+        guard let fileStore, let database else { return }
+
+        for (index, path) in paths.enumerated() {
+            do {
+                let id = UUID()
+
+                let fileURL = URL(fileURLWithPath: path)
+                let createdAt = (try? FileManager.default.attributesOfItem(atPath: path)[.creationDate] as? Date)
+                    ?? Date().addingTimeInterval(TimeInterval(-index * 5))
+
+                let thumbResult: (relativePath: String, pixelSize: CGSize, byteCount: Int)
+                if FileManager.default.fileExists(atPath: path),
+                   let image = NSImage(contentsOfFile: path),
+                   let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                    thumbResult = try fileStore.writeThumbnail(id: id, from: cg)
+                } else {
+                    let data = try CaptureLibraryFileStore.makePlaceholderThumbnailData()
+                    let relativePath = "thumbs/\(id.uuidString).jpg"
+                    try data.write(to: fileStore.fileURL(forRelativePath: relativePath), options: .atomic)
+                    thumbResult = (relativePath: relativePath, pixelSize: CGSize(width: 64, height: 64), byteCount: data.count)
+                }
+
+                let item = CaptureItem(
+                    id: id,
+                    createdAt: createdAt,
+                    updatedAt: createdAt,
+                    captureType: .area,
+                    captureMode: .quick,
+                    trigger: .menuBar,
+                    appBundleID: nil,
+                    appName: nil,
+                    appPID: nil,
+                    selectionSize: nil,
+                    externalFilePath: path,
+                    internalThumbPath: thumbResult.relativePath,
+                    internalPreviewPath: nil,
+                    internalOriginalPath: nil,
+                    thumbSize: thumbResult.pixelSize,
+                    previewSize: nil,
+                    sha256: nil,
+                    isPinned: false,
+                    pinnedAt: nil,
+                    note: nil,
+                    tagsCache: "",
+                    ocrText: nil,
+                    ocrLangs: [],
+                    ocrUpdatedAt: nil,
+                    embeddingModel: nil,
+                    embeddingDim: nil,
+                    embedding: nil,
+                    embeddingSourceHash: nil,
+                    embeddingUpdatedAt: nil,
+                    bytesThumb: thumbResult.byteCount,
+                    bytesPreview: 0,
+                    bytesOriginal: 0
+                )
+
+                let ftsText = Self.makeFTSText(
+                    appName: nil,
+                    externalFilePath: path,
+                    tagsCache: "",
+                    note: nil,
+                    ocrText: nil
+                )
+
+                do {
+                    try await database.insertCapture(item, ftsText: ftsText)
+                } catch {
+                    logWarning("Legacy history item insert failed: \(fileURL.lastPathComponent)", category: "LIB")
+                }
+            } catch {
+                logWarning("Legacy history item skipped: \(path)", category: "LIB")
+            }
+        }
+
+        UserDefaults.standard.set(true, forKey: Self.legacyMigrationKey)
+    }
+
+    private static func makeFTSText(
+        appName: String?,
+        externalFilePath: String?,
+        tagsCache: String,
+        note: String?,
+        ocrText: String?
+    ) -> String {
+        var parts: [String] = []
+        if let appName, !appName.isEmpty { parts.append(appName) }
+        if !tagsCache.isEmpty { parts.append(tagsCache) }
+        if let note, !note.isEmpty { parts.append(note) }
+        if let ocrText, !ocrText.isEmpty { parts.append(ocrText) }
+        if let externalFilePath, !externalFilePath.isEmpty {
+            parts.append(URL(fileURLWithPath: externalFilePath).lastPathComponent)
+        }
+        return parts.joined(separator: "\n")
     }
 }

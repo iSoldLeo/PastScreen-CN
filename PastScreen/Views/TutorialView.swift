@@ -127,9 +127,9 @@ final class TutorialManager: NSObject, NSWindowDelegate {
                 screenshotService.capturePreviousApp()
                 switch kind {
                 case .quick:
-                    screenshotService.captureScreenshot()
+                    screenshotService.captureScreenshot(trigger: .menuBar)
                 case .advanced:
-                    screenshotService.captureAdvancedScreenshot()
+                    screenshotService.captureAdvancedScreenshot(trigger: .menuBar)
                 }
             }
         }

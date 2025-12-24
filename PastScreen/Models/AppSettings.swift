@@ -396,6 +396,18 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibraryEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryEnabled, forKey: "captureLibraryEnabled")
+        }
+    }
+
+    @Published var captureLibraryStorePreviews: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryStorePreviews, forKey: "captureLibraryStorePreviews")
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     @Published var appOverrides: [AppOverride] {
         didSet {
@@ -529,6 +541,9 @@ class AppSettings: ObservableObject {
 
         let seq = UserDefaults.standard.integer(forKey: "screenshotSequence")
         self.screenshotSequence = seq > 0 ? seq : 1
+
+        self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
+        self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
 
         if let data = UserDefaults.standard.data(forKey: "appOverrides"),
            let decoded = try? JSONDecoder().decode([AppOverride].self, from: data) {
