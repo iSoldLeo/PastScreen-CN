@@ -560,6 +560,12 @@ struct StorageSettingsView: View {
                 )
                 .disabled(!settings.captureLibraryEnabled)
 
+                Toggle(
+                    NSLocalizedString("settings.library.debug_mode", value: "调试模式（显示 OCR 数据）", comment: ""),
+                    isOn: $settings.captureLibraryDebugMode
+                )
+                .disabled(!settings.captureLibraryEnabled)
+
                 Divider()
 
                 LabeledContent(NSLocalizedString("settings.library.retention_days", value: "保留天数", comment: "")) {

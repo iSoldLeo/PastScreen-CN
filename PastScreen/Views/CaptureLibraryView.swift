@@ -553,6 +553,7 @@ final class CaptureLibraryViewModel: ObservableObject {
 
 private struct CaptureLibraryRootView: View {
     @StateObject private var model = CaptureLibraryViewModel()
+    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     let onDismiss: () -> Void
@@ -701,7 +702,11 @@ private struct CaptureLibraryRootView: View {
                         title: model.title(for: item),
                         url: model.thumbURL(for: item),
                         isPinned: item.isPinned,
-                        isSelected: model.selectedItemID == item.id
+                        isSelected: model.selectedItemID == item.id,
+                        debugMode: settings.captureLibraryDebugMode,
+                        ocrLangs: item.ocrLangs,
+                        ocrUpdatedAt: item.ocrUpdatedAt,
+                        ocrText: item.ocrText
                     )
                     .onTapGesture {
                         model.selectedItemID = item.id
@@ -758,6 +763,7 @@ private struct CaptureLibraryRootView: View {
                 CaptureLibraryInspectorView(
                     item: item,
                     previewURL: model.previewURL(for: item),
+                    debugMode: settings.captureLibraryDebugMode,
                     onCopyImage: { model.copyImage(item) },
                     onReveal: { model.reveal(item) },
                     onTogglePinned: { model.togglePinned(item) },
@@ -792,6 +798,10 @@ private struct CaptureLibraryGridItemView: View {
     let url: URL?
     let isPinned: Bool
     let isSelected: Bool
+    let debugMode: Bool
+    let ocrLangs: [String]
+    let ocrUpdatedAt: Date?
+    let ocrText: String?
 
     @State private var image: NSImage?
 
@@ -826,6 +836,14 @@ private struct CaptureLibraryGridItemView: View {
                 .font(.caption)
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
+
+            if debugMode {
+                Text(debugOCRText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+                    .textSelection(.enabled)
+            }
         }
         .padding(10)
         .glassContainer(material: .regularMaterial, cornerRadius: 12, borderOpacity: isSelected ? 0.35 : 0.12, shadowOpacity: 0.06)
@@ -839,11 +857,38 @@ private struct CaptureLibraryGridItemView: View {
             }.value
         }
     }
+
+    private var debugOCRText: String {
+        let langsText = ocrLangs.isEmpty ? "(auto)" : ocrLangs.joined(separator: " ")
+
+        let updatedText: String
+        if let ocrUpdatedAt {
+            updatedText = ocrUpdatedAt.formatted(date: .abbreviated, time: .shortened)
+        } else {
+            updatedText = "-"
+        }
+
+        let trimmed = (ocrText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let collapsed = trimmed
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .prefix(6)
+            .joined(separator: " ")
+        let preview = collapsed.isEmpty ? "<empty>" : String(collapsed.prefix(120))
+
+        return """
+        OCR langs: \(langsText)
+        OCR updated: \(updatedText)
+        OCR: \(preview)
+        """
+    }
 }
 
 private struct CaptureLibraryInspectorView: View {
     let item: CaptureItem
     let previewURL: URL?
+    let debugMode: Bool
     let onCopyImage: () -> Void
     let onReveal: () -> Void
     let onTogglePinned: () -> Void
@@ -888,6 +933,10 @@ private struct CaptureLibraryInspectorView: View {
             }
 
             info
+
+            if debugMode {
+                ocrDebugCard
+            }
 
             metadataEditor
 
@@ -949,6 +998,42 @@ private struct CaptureLibraryInspectorView: View {
                         Text(NSLocalizedString("library.info.none", value: "未落盘", comment: ""))
                             .foregroundStyle(.secondary)
                     }
+                }
+            }
+        }
+    }
+
+    private var ocrDebugCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                LabeledContent(NSLocalizedString("library.debug.ocr_langs", value: "OCR 语言", comment: "")) {
+                    Text(item.ocrLangs.isEmpty ? "(auto)" : item.ocrLangs.joined(separator: " "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                LabeledContent(NSLocalizedString("library.debug.ocr_updated_at", value: "OCR 更新时间", comment: "")) {
+                    Text(item.ocrUpdatedAt?.formatted(date: .abbreviated, time: .shortened) ?? "-")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(NSLocalizedString("library.debug.ocr_text", value: "OCR 文本", comment: ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ScrollView {
+                        Text(item.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? (item.ocrText ?? "") : "<empty>")
+                            .font(.caption2)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 120)
+                    .glassContainer(material: .thinMaterial, cornerRadius: 10, borderOpacity: 0.12, shadowOpacity: 0.0)
                 }
             }
         }

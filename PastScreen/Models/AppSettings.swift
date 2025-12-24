@@ -420,6 +420,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibraryDebugMode: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryDebugMode, forKey: "captureLibraryDebugMode")
+        }
+    }
+
     @Published var captureLibraryRetentionDays: Int {
         didSet {
             let clamped = min(max(captureLibraryRetentionDays, 1), 365)
@@ -601,6 +607,7 @@ class AppSettings: ObservableObject {
         self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
         self.captureLibraryAutoOCR = UserDefaults.standard.object(forKey: "captureLibraryAutoOCR") as? Bool ?? false
         self.captureLibrarySemanticSearchEnabled = UserDefaults.standard.object(forKey: "captureLibrarySemanticSearchEnabled") as? Bool ?? false
+        self.captureLibraryDebugMode = UserDefaults.standard.object(forKey: "captureLibraryDebugMode") as? Bool ?? false
 
         let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
         self.captureLibraryRetentionDays = retention > 0 ? retention : 30
