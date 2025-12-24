@@ -94,6 +94,20 @@ struct CaptureLibraryAppGroup: Identifiable, Hashable {
     var itemCount: Int
 }
 
+struct CaptureLibraryQuery: Hashable {
+    var appBundleID: String?
+    var pinnedOnly: Bool
+    var createdAfter: Date?
+
+    static var all: Self {
+        CaptureLibraryQuery(appBundleID: nil, pinnedOnly: false, createdAfter: nil)
+    }
+
+    static var pinned: Self {
+        CaptureLibraryQuery(appBundleID: nil, pinnedOnly: true, createdAfter: nil)
+    }
+}
+
 // MARK: - File Store
 
 struct CaptureLibraryFileStore {
@@ -327,6 +341,66 @@ actor CaptureLibraryDatabase {
             bind: { stmt in
                 sqlite3_bind_int(stmt, 1, Int32(limit))
                 sqlite3_bind_int(stmt, 2, Int32(offset))
+            }
+        )
+    }
+
+    func fetchPage(limit: Int, offset: Int, query: CaptureLibraryQuery) throws -> [CaptureItem] {
+        var whereClauses: [String] = []
+        if query.pinnedOnly {
+            whereClauses.append("is_pinned = 1")
+        }
+        if query.appBundleID != nil {
+            whereClauses.append("app_bundle_id = ?")
+        }
+        if query.createdAfter != nil {
+            whereClauses.append("created_at >= ?")
+        }
+
+        let whereSQL: String
+        if whereClauses.isEmpty {
+            whereSQL = ""
+        } else {
+            whereSQL = "WHERE " + whereClauses.joined(separator: " AND ")
+        }
+
+        let orderSQL = query.pinnedOnly
+            ? "ORDER BY pinned_at DESC, created_at DESC"
+            : "ORDER BY created_at DESC"
+
+        return try fetchItems(
+            sql: """
+            SELECT
+              id, created_at, updated_at,
+              capture_type, capture_mode, trigger,
+              app_bundle_id, app_name, app_pid,
+              selection_w, selection_h,
+              external_file_path,
+              internal_thumb_path, internal_preview_path, internal_original_path,
+              thumb_w, thumb_h, preview_w, preview_h,
+              sha256,
+              is_pinned, pinned_at,
+              note, tags_cache,
+              ocr_text, ocr_langs, ocr_updated_at,
+              embedding_model, embedding_dim, embedding, embedding_source_hash, embedding_updated_at,
+              bytes_thumb, bytes_preview, bytes_original
+            FROM capture_items
+            \(whereSQL)
+            \(orderSQL)
+            LIMIT ? OFFSET ?
+            """,
+            bind: { stmt in
+                var idx: Int32 = 1
+                if let appBundleID = query.appBundleID {
+                    bindText(stmt, index: idx, value: appBundleID)
+                    idx += 1
+                }
+                if let createdAfter = query.createdAfter {
+                    bindInt64(stmt, index: idx, value: Self.epochMillis(createdAfter))
+                    idx += 1
+                }
+                sqlite3_bind_int(stmt, idx, Int32(limit))
+                sqlite3_bind_int(stmt, idx + 1, Int32(offset))
             }
         )
     }
@@ -1044,6 +1118,114 @@ final class CaptureLibrary {
         }
     }
 
+    func fetchItems(query: CaptureLibraryQuery, limit: Int = 200, offset: Int = 0) async -> [CaptureItem] {
+        guard AppSettings.shared.captureLibraryEnabled else { return [] }
+        do {
+            return try await worker.fetchItems(query: query, limit: limit, offset: offset)
+        } catch {
+            logError("CaptureLibrary fetchItems failed: \(error.localizedDescription)", category: "LIB")
+            return []
+        }
+    }
+
+    func fetchAppGroups() async -> [CaptureLibraryAppGroup] {
+        guard AppSettings.shared.captureLibraryEnabled else { return [] }
+        do {
+            return try await worker.fetchAppGroups()
+        } catch {
+            logError("CaptureLibrary fetchAppGroups failed: \(error.localizedDescription)", category: "LIB")
+            return []
+        }
+    }
+
+    func setPinned(_ pinned: Bool, for id: UUID) async {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        do {
+            try await worker.setPinned(pinned, for: id, now: Date())
+        } catch {
+            logError("CaptureLibrary setPinned failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    func deleteItems(ids: [UUID]) async {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        do {
+            try await worker.deleteItems(ids: ids)
+        } catch {
+            logError("CaptureLibrary deleteItems failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    @MainActor
+    func copyImageToClipboard(item: CaptureItem) {
+        guard let url = bestImageURL(for: item) else {
+            DynamicIslandManager.shared.show(message: "无可复制图片", duration: 2.0, style: .failure)
+            return
+        }
+
+        guard let image = NSImage(contentsOfFile: url.path) else {
+            DynamicIslandManager.shared.show(message: "读取图片失败", duration: 2.0, style: .failure)
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
+        pasteboard.setString(url.path, forType: .string)
+
+        if AppSettings.shared.playSoundOnCapture {
+            NSSound(named: "Pop")?.play()
+        }
+
+        DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
+    }
+
+    @MainActor
+    func copyPathToClipboard(item: CaptureItem) {
+        guard let url = bestAnyURL(for: item) else {
+            DynamicIslandManager.shared.show(message: "无可复制路径", duration: 2.0, style: .failure)
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(url.path, forType: .string)
+        DynamicIslandManager.shared.show(message: "路径已复制", duration: 1.5)
+    }
+
+    @MainActor
+    func revealInFinder(item: CaptureItem) {
+        guard let url = bestAnyURL(for: item) else {
+            DynamicIslandManager.shared.show(message: "找不到文件", duration: 2.0, style: .failure)
+            return
+        }
+        NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
+    }
+
+    private func bestImageURL(for item: CaptureItem) -> URL? {
+        bestAnyURL(for: item, requireCopyableImage: true)
+    }
+
+    private func bestAnyURL(for item: CaptureItem, requireCopyableImage: Bool = false) -> URL? {
+        let candidates: [URL] = [
+            resolveInternalURL(item.internalOriginalPath),
+            resolveInternalURL(item.internalPreviewPath),
+            item.externalFileURL,
+            requireCopyableImage ? nil : resolveInternalURL(item.internalThumbPath)
+        ].compactMap { $0 }
+
+        let fileManager = FileManager.default
+        for url in candidates where fileManager.fileExists(atPath: url.path) {
+            return url
+        }
+        return nil
+    }
+
+    private func resolveInternalURL(_ relativePath: String?) -> URL? {
+        guard let relativePath, !relativePath.isEmpty else { return nil }
+        guard let root = try? CaptureLibraryFileStore.defaultRootURL() else { return nil }
+        return root.appendingPathComponent(relativePath, isDirectory: false)
+    }
+
     @discardableResult
     private func enqueue(
         priority: TaskPriority,
@@ -1108,6 +1290,12 @@ actor CaptureLibraryWorker {
 
     private var fileStore: CaptureLibraryFileStore?
     private var database: CaptureLibraryDatabase?
+
+    private func notifyChanged() {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .captureLibraryChanged, object: nil)
+        }
+    }
 
     func prepareIfNeeded() throws {
         if fileStore == nil {
@@ -1180,12 +1368,45 @@ actor CaptureLibraryWorker {
         )
 
         try await database.insertCapture(item, ftsText: ftsText)
+        notifyChanged()
     }
 
     func updateExternalFilePath(for id: UUID, path: String?, now: Date) async throws {
         try prepareIfNeeded()
         guard let database else { return }
         try await database.updateExternalFilePath(for: id, path: path, now: now)
+        notifyChanged()
+    }
+
+    func fetchItems(query: CaptureLibraryQuery, limit: Int, offset: Int) async throws -> [CaptureItem] {
+        try prepareIfNeeded()
+        guard let database else { return [] }
+        return try await database.fetchPage(limit: limit, offset: offset, query: query)
+    }
+
+    func fetchAppGroups() async throws -> [CaptureLibraryAppGroup] {
+        try prepareIfNeeded()
+        guard let database else { return [] }
+        return try await database.fetchAppGroups()
+    }
+
+    func setPinned(_ pinned: Bool, for id: UUID, now: Date) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.setPinned(pinned, for: id, now: now)
+        notifyChanged()
+    }
+
+    func deleteItems(ids: [UUID]) async throws {
+        try prepareIfNeeded()
+        guard let database, let fileStore else { return }
+        let paths = try await database.deleteItems(ids: ids)
+        for path in paths {
+            fileStore.deleteIfExists(relativePath: path.thumb)
+            fileStore.deleteIfExists(relativePath: path.preview)
+            fileStore.deleteIfExists(relativePath: path.original)
+        }
+        notifyChanged()
     }
 
     func migrateLegacyHistoryIfNeeded(legacyPaths: [String]) async {
@@ -1283,6 +1504,7 @@ actor CaptureLibraryWorker {
         }
 
         UserDefaults.standard.set(true, forKey: Self.legacyMigrationKey)
+        notifyChanged()
     }
 
     private static func makeFTSText(

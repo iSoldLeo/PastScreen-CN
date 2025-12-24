@@ -21,6 +21,7 @@ extension Notification.Name {
     static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
     static let ocrHotKeyPressed = Notification.Name("ocrHotKeyPressed")
     static let captureFlowEnded = Notification.Name("captureFlowEnded")
+    static let captureLibraryChanged = Notification.Name("captureLibraryChanged")
 }
 
 @main
