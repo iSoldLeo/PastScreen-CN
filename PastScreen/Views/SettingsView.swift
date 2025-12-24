@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import Combine
 #if canImport(TipKit)
 import TipKit
 #endif
@@ -486,6 +487,8 @@ private struct TrailingSwitchToggleStyle: ToggleStyle {
 
 struct StorageSettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @StateObject private var libraryModel = CaptureLibrarySettingsModel()
+    @State private var showClearLibraryConfirm = false
 
     var body: some View {
         SettingsPage {
@@ -531,7 +534,163 @@ struct StorageSettingsView: View {
                     }
                 }
             }
+
+            SettingsGlassSection(
+                NSLocalizedString("settings.library.section_title", value: "素材库", comment: ""),
+                systemImage: "square.grid.2x2",
+                footer: NSLocalizedString("settings.library.footer", value: "素材库的数据仅保存在本地，可随时清理或清空。", comment: "")
+            ) {
+                Toggle(NSLocalizedString("settings.library.enabled", value: "启用素材库", comment: ""), isOn: $settings.captureLibraryEnabled)
+
+                Toggle(
+                    NSLocalizedString("settings.library.store_previews", value: "存预览图（支持未落盘时再次复制）", comment: ""),
+                    isOn: $settings.captureLibraryStorePreviews
+                )
+                .disabled(!settings.captureLibraryEnabled)
+
+                Divider()
+
+                LabeledContent(NSLocalizedString("settings.library.retention_days", value: "保留天数", comment: "")) {
+                    Stepper(value: $settings.captureLibraryRetentionDays, in: 1...365, step: 1) {
+                        Text("\(settings.captureLibraryRetentionDays)")
+                            .monospacedDigit()
+                    }
+                    .disabled(!settings.captureLibraryEnabled)
+                }
+
+                LabeledContent(NSLocalizedString("settings.library.max_items", value: "最大条目数", comment: "")) {
+                    Stepper(value: $settings.captureLibraryMaxItems, in: 50...10_000, step: 50) {
+                        Text("\(settings.captureLibraryMaxItems)")
+                            .monospacedDigit()
+                    }
+                    .disabled(!settings.captureLibraryEnabled)
+                }
+
+                LabeledContent(NSLocalizedString("settings.library.max_bytes", value: "最大占用", comment: "")) {
+                    Picker("", selection: $settings.captureLibraryMaxBytes) {
+                        ForEach(CaptureLibrarySettingsModel.byteLimitOptions, id: \.bytes) { option in
+                            Text(option.label).tag(option.bytes)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .disabled(!settings.captureLibraryEnabled)
+                }
+
+                Divider()
+
+                Text(libraryModel.summaryText(lastCleanupAt: settings.captureLibraryLastCleanupAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    Button {
+                        CaptureLibraryCleanupService.shared.runNow()
+                        libraryModel.refresh()
+                    } label: {
+                        Label(NSLocalizedString("settings.library.cleanup_now", value: "立即清理", comment: ""), systemImage: "sparkles")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!settings.captureLibraryEnabled)
+
+                    Button(role: .destructive) {
+                        showClearLibraryConfirm = true
+                    } label: {
+                        Label(NSLocalizedString("settings.library.clear_all", value: "清空素材库", comment: ""), systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!settings.captureLibraryEnabled)
+                }
+                .confirmationDialog(
+                    NSLocalizedString("settings.library.clear_all.confirm_title", value: "清空素材库？", comment: ""),
+                    isPresented: $showClearLibraryConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button(NSLocalizedString("settings.library.clear_all.confirm", value: "清空", comment: ""), role: .destructive) {
+                        Task {
+                            await CaptureLibrary.shared.clearAll()
+                            libraryModel.refresh()
+                        }
+                    }
+                } message: {
+                    Text(NSLocalizedString("settings.library.clear_all.message", value: "此操作会删除素材库中的所有条目以及缩略图/预览图文件。", comment: ""))
+                }
+            }
         }
+        .onAppear {
+            libraryModel.refresh()
+        }
+        .onChange(of: settings.captureLibraryRetentionDays) { _, _ in
+            CaptureLibraryCleanupService.shared.runNow()
+        }
+        .onChange(of: settings.captureLibraryMaxItems) { _, _ in
+            CaptureLibraryCleanupService.shared.runNow()
+        }
+        .onChange(of: settings.captureLibraryMaxBytes) { _, _ in
+            CaptureLibraryCleanupService.shared.runNow()
+        }
+    }
+}
+
+@MainActor
+private final class CaptureLibrarySettingsModel: ObservableObject {
+    struct ByteLimitOption: Hashable {
+        var label: String
+        var bytes: Int
+    }
+
+    static let byteLimitOptions: [ByteLimitOption] = [
+        ByteLimitOption(label: "256 MB", bytes: 256 * 1024 * 1024),
+        ByteLimitOption(label: "512 MB", bytes: 512 * 1024 * 1024),
+        ByteLimitOption(label: "1 GB", bytes: 1 * 1024 * 1024 * 1024),
+        ByteLimitOption(label: "2 GB", bytes: 2 * 1024 * 1024 * 1024),
+        ByteLimitOption(label: "5 GB", bytes: 5 * 1024 * 1024 * 1024)
+    ]
+
+    @Published private(set) var stats: CaptureLibraryStats = .empty
+
+    private var observer: Any?
+    private let byteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter
+    }()
+
+    init() {
+        observer = NotificationCenter.default.addObserver(
+            forName: .captureLibraryChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    deinit {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    func refresh() {
+        Task {
+            stats = await CaptureLibrary.shared.fetchStats()
+        }
+    }
+
+    func summaryText(lastCleanupAt: Date?) -> String {
+        let bytes = byteFormatter.string(fromByteCount: Int64(stats.bytesTotal))
+        let lastCleanup: String
+        if let lastCleanupAt {
+            lastCleanup = lastCleanupAt.formatted(date: .abbreviated, time: .shortened)
+        } else {
+            lastCleanup = NSLocalizedString("settings.library.never", value: "从未", comment: "")
+        }
+        return NSLocalizedString(
+            "settings.library.summary",
+            value: "当前占用：\(bytes) · 条目：\(stats.itemCount) · 置顶：\(stats.pinnedCount) · 上次清理：\(lastCleanup)",
+            comment: ""
+        )
     }
 }
 

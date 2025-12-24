@@ -408,6 +408,49 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibraryRetentionDays: Int {
+        didSet {
+            let clamped = min(max(captureLibraryRetentionDays, 1), 365)
+            if clamped != captureLibraryRetentionDays {
+                captureLibraryRetentionDays = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryRetentionDays")
+        }
+    }
+
+    @Published var captureLibraryMaxItems: Int {
+        didSet {
+            let clamped = min(max(captureLibraryMaxItems, 50), 10_000)
+            if clamped != captureLibraryMaxItems {
+                captureLibraryMaxItems = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxItems")
+        }
+    }
+
+    @Published var captureLibraryMaxBytes: Int {
+        didSet {
+            let clamped = min(max(captureLibraryMaxBytes, 50 * 1024 * 1024), 50 * 1024 * 1024 * 1024)
+            if clamped != captureLibraryMaxBytes {
+                captureLibraryMaxBytes = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxBytes")
+        }
+    }
+
+    @Published var captureLibraryLastCleanupAt: Date? {
+        didSet {
+            if let captureLibraryLastCleanupAt {
+                UserDefaults.standard.set(captureLibraryLastCleanupAt.timeIntervalSince1970, forKey: "captureLibraryLastCleanupAt")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "captureLibraryLastCleanupAt")
+            }
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     @Published var appOverrides: [AppOverride] {
         didSet {
@@ -544,6 +587,18 @@ class AppSettings: ObservableObject {
 
         self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
         self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
+
+        let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
+        self.captureLibraryRetentionDays = retention > 0 ? retention : 30
+
+        let maxItems = UserDefaults.standard.integer(forKey: "captureLibraryMaxItems")
+        self.captureLibraryMaxItems = maxItems > 0 ? maxItems : 500
+
+        let maxBytes = UserDefaults.standard.object(forKey: "captureLibraryMaxBytes") as? Int ?? (1 * 1024 * 1024 * 1024)
+        self.captureLibraryMaxBytes = maxBytes > 0 ? maxBytes : (1 * 1024 * 1024 * 1024)
+
+        let lastCleanupTs = UserDefaults.standard.double(forKey: "captureLibraryLastCleanupAt")
+        self.captureLibraryLastCleanupAt = lastCleanupTs > 0 ? Date(timeIntervalSince1970: lastCleanupTs) : nil
 
         if let data = UserDefaults.standard.data(forKey: "appOverrides"),
            let decoded = try? JSONDecoder().decode([AppOverride].self, from: data) {

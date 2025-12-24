@@ -108,6 +108,32 @@ struct CaptureLibraryQuery: Hashable {
     }
 }
 
+struct CaptureLibraryStats: Hashable {
+    var itemCount: Int
+    var pinnedCount: Int
+    var bytesThumb: Int
+    var bytesPreview: Int
+    var bytesOriginal: Int
+
+    var bytesTotal: Int { bytesThumb + bytesPreview + bytesOriginal }
+
+    static var empty: Self {
+        CaptureLibraryStats(itemCount: 0, pinnedCount: 0, bytesThumb: 0, bytesPreview: 0, bytesOriginal: 0)
+    }
+}
+
+struct CaptureLibraryCleanupPolicy: Hashable {
+    var retentionDays: Int
+    var maxItems: Int
+    var maxBytes: Int
+}
+
+struct CaptureLibraryPreviewCandidate: Hashable {
+    var id: UUID
+    var previewPath: String
+    var bytesPreview: Int
+}
+
 // MARK: - File Store
 
 struct CaptureLibraryFileStore {
@@ -433,6 +459,140 @@ actor CaptureLibraryDatabase {
             )
         }
         return groups
+    }
+
+    func fetchStats() throws -> CaptureLibraryStats {
+        let sql = """
+        SELECT
+          COUNT(*) AS item_count,
+          COALESCE(SUM(CASE WHEN is_pinned = 1 THEN 1 ELSE 0 END), 0) AS pinned_count,
+          COALESCE(SUM(bytes_thumb), 0) AS bytes_thumb,
+          COALESCE(SUM(bytes_preview), 0) AS bytes_preview,
+          COALESCE(SUM(bytes_original), 0) AS bytes_original
+        FROM capture_items
+        """
+
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return .empty }
+
+        return CaptureLibraryStats(
+            itemCount: Int(sqlite3_column_int(stmt, 0)),
+            pinnedCount: Int(sqlite3_column_int(stmt, 1)),
+            bytesThumb: Int(sqlite3_column_int(stmt, 2)),
+            bytesPreview: Int(sqlite3_column_int(stmt, 3)),
+            bytesOriginal: Int(sqlite3_column_int(stmt, 4))
+        )
+    }
+
+    func fetchUnpinnedIDsCreatedBefore(_ createdAtMillis: Int64) throws -> [UUID] {
+        let sql = """
+        SELECT id
+        FROM capture_items
+        WHERE is_pinned = 0 AND created_at < ?
+        ORDER BY created_at ASC
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, createdAtMillis)
+
+        var ids: [UUID] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let idText = columnString(stmt, index: 0), let id = UUID(uuidString: idText) {
+                ids.append(id)
+            }
+        }
+        return ids
+    }
+
+    func fetchUnpinnedOldestIDs(limit: Int) throws -> [UUID] {
+        guard limit > 0 else { return [] }
+        let sql = """
+        SELECT id
+        FROM capture_items
+        WHERE is_pinned = 0
+        ORDER BY created_at ASC
+        LIMIT ?
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int(stmt, 1, Int32(limit))
+
+        var ids: [UUID] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let idText = columnString(stmt, index: 0), let id = UUID(uuidString: idText) {
+                ids.append(id)
+            }
+        }
+        return ids
+    }
+
+    func fetchUnpinnedPreviewCandidates() throws -> [CaptureLibraryPreviewCandidate] {
+        let sql = """
+        SELECT id, internal_preview_path, bytes_preview
+        FROM capture_items
+        WHERE is_pinned = 0
+          AND internal_preview_path IS NOT NULL
+          AND bytes_preview > 0
+        ORDER BY created_at ASC
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        var out: [CaptureLibraryPreviewCandidate] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard
+                let idText = columnString(stmt, index: 0),
+                let id = UUID(uuidString: idText),
+                let path = columnString(stmt, index: 1)
+            else {
+                continue
+            }
+            let bytes = Int(sqlite3_column_int(stmt, 2))
+            out.append(CaptureLibraryPreviewCandidate(id: id, previewPath: path, bytesPreview: bytes))
+        }
+        return out
+    }
+
+    func clearPreview(for id: UUID, now: Date) throws -> (previewPath: String?, freedBytes: Int) {
+        let select = """
+        SELECT internal_preview_path, bytes_preview
+        FROM capture_items
+        WHERE id = ?
+        LIMIT 1
+        """
+        let selectStmt = try prepare(select)
+        defer { sqlite3_finalize(selectStmt) }
+        bindText(selectStmt, index: 1, value: id.uuidString)
+        guard sqlite3_step(selectStmt) == SQLITE_ROW else {
+            return (previewPath: nil, freedBytes: 0)
+        }
+
+        let previewPath = columnString(selectStmt, index: 0)
+        let freedBytes = Int(sqlite3_column_int(selectStmt, 1))
+        guard let previewPath, !previewPath.isEmpty, freedBytes > 0 else {
+            return (previewPath: nil, freedBytes: 0)
+        }
+
+        let update = """
+        UPDATE capture_items
+        SET
+          internal_preview_path = NULL,
+          preview_w = NULL,
+          preview_h = NULL,
+          bytes_preview = 0,
+          updated_at = ?
+        WHERE id = ?
+        """
+        let updateStmt = try prepare(update)
+        defer { sqlite3_finalize(updateStmt) }
+        bindInt64(updateStmt, index: 1, value: Self.epochMillis(now))
+        bindText(updateStmt, index: 2, value: id.uuidString)
+        guard sqlite3_step(updateStmt) == SQLITE_DONE else {
+            throw lastError("清理预览失败")
+        }
+
+        return (previewPath: previewPath, freedBytes: freedBytes)
     }
 
     func insertCapture(_ item: CaptureItem, ftsText: String) throws {
@@ -1156,6 +1316,35 @@ final class CaptureLibrary {
         }
     }
 
+    func fetchStats() async -> CaptureLibraryStats {
+        guard AppSettings.shared.captureLibraryEnabled else { return .empty }
+        do {
+            return try await worker.fetchStats()
+        } catch {
+            logError("CaptureLibrary fetchStats failed: \(error.localizedDescription)", category: "LIB")
+            return .empty
+        }
+    }
+
+    func clearAll() async {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        do {
+            try await worker.clearAll()
+        } catch {
+            logError("CaptureLibrary clearAll failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    func runCleanup(policy: CaptureLibraryCleanupPolicy) async -> CaptureLibraryStats {
+        guard AppSettings.shared.captureLibraryEnabled else { return .empty }
+        do {
+            return try await worker.runCleanup(policy: policy, now: Date())
+        } catch {
+            logError("CaptureLibrary cleanup failed: \(error.localizedDescription)", category: "LIB")
+            return .empty
+        }
+    }
+
     @MainActor
     func copyImageToClipboard(item: CaptureItem) {
         guard let url = bestImageURL(for: item) else {
@@ -1398,15 +1587,105 @@ actor CaptureLibraryWorker {
     }
 
     func deleteItems(ids: [UUID]) async throws {
+        try await deleteItemsInternal(ids: ids, notify: true)
+    }
+
+    func fetchStats() async throws -> CaptureLibraryStats {
+        try prepareIfNeeded()
+        guard let database else { return .empty }
+        return try await database.fetchStats()
+    }
+
+    func clearAll() async throws {
+        try prepareIfNeeded()
+        guard let fileStore else { return }
+
+        database = nil
+        self.fileStore = nil
+
+        if FileManager.default.fileExists(atPath: fileStore.rootURL.path) {
+            try FileManager.default.removeItem(at: fileStore.rootURL)
+        }
+
+        self.fileStore = try CaptureLibraryFileStore(rootURL: fileStore.rootURL)
+        self.database = try CaptureLibraryDatabase(databaseURL: fileStore.databaseURL)
+        notifyChanged()
+    }
+
+    func runCleanup(policy: CaptureLibraryCleanupPolicy, now: Date) async throws -> CaptureLibraryStats {
+        try prepareIfNeeded()
+        guard let database, let fileStore else { return .empty }
+
+        var didChange = false
+        var stats = try await database.fetchStats()
+
+        let retentionDays = max(0, policy.retentionDays)
+        if retentionDays > 0 {
+            let cutoff = now.addingTimeInterval(TimeInterval(-retentionDays * 24 * 60 * 60))
+            let cutoffMillis = Int64(cutoff.timeIntervalSince1970 * 1000)
+            let oldIDs = try await database.fetchUnpinnedIDsCreatedBefore(cutoffMillis)
+            if !oldIDs.isEmpty {
+                try await deleteItemsInternal(ids: oldIDs, notify: false)
+                didChange = true
+                stats = try await database.fetchStats()
+            }
+        }
+
+        let maxItems = max(0, policy.maxItems)
+        if maxItems > 0, stats.itemCount > maxItems {
+            let excess = stats.itemCount - maxItems
+            let ids = try await database.fetchUnpinnedOldestIDs(limit: excess)
+            if !ids.isEmpty {
+                try await deleteItemsInternal(ids: ids, notify: false)
+                didChange = true
+                stats = try await database.fetchStats()
+            }
+        }
+
+        let maxBytes = max(0, policy.maxBytes)
+        if maxBytes > 0, stats.bytesTotal > maxBytes {
+            let previewCandidates = try await database.fetchUnpinnedPreviewCandidates()
+            for candidate in previewCandidates where stats.bytesTotal > maxBytes {
+                let result = try await database.clearPreview(for: candidate.id, now: now)
+                if let path = result.previewPath {
+                    fileStore.deleteIfExists(relativePath: path)
+                    stats.bytesPreview = max(0, stats.bytesPreview - result.freedBytes)
+                    didChange = true
+                }
+            }
+
+            if stats.bytesTotal > maxBytes {
+                while stats.bytesTotal > maxBytes {
+                    let ids = try await database.fetchUnpinnedOldestIDs(limit: 50)
+                    if ids.isEmpty { break }
+                    try await deleteItemsInternal(ids: ids, notify: false)
+                    didChange = true
+                    stats = try await database.fetchStats()
+                }
+            }
+        }
+
+        if didChange {
+            notifyChanged()
+        }
+
+        return stats
+    }
+
+    private func deleteItemsInternal(ids: [UUID], notify: Bool) async throws {
+        guard !ids.isEmpty else { return }
         try prepareIfNeeded()
         guard let database, let fileStore else { return }
+
         let paths = try await database.deleteItems(ids: ids)
         for path in paths {
             fileStore.deleteIfExists(relativePath: path.thumb)
             fileStore.deleteIfExists(relativePath: path.preview)
             fileStore.deleteIfExists(relativePath: path.original)
         }
-        notifyChanged()
+        if notify {
+            notifyChanged()
+        }
     }
 
     func migrateLegacyHistoryIfNeeded(legacyPaths: [String]) async {

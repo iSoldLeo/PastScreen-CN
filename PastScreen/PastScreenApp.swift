@@ -101,6 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Initialize services
         screenshotService = ScreenshotService()
         CaptureLibrary.shared.bootstrapIfNeeded()
+        CaptureLibraryCleanupService.shared.start()
 
         // NOTE: Permissions are now requested via Onboarding only
         // No auto-prompting at launch to avoid popup chaos
