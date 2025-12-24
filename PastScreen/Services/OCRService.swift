@@ -66,9 +66,20 @@ struct OCRService {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        request.minimumTextHeight = 0.02
+        // Screenshots can be very high resolution; keep this low to avoid missing small UI fonts.
+        request.minimumTextHeight = 0.004
+        if let best = VNRecognizeTextRequest.supportedRevisions.last {
+            request.revision = best
+        }
         if #available(macOS 13.0, *) {
-            request.automaticallyDetectsLanguage = true
+            // Honor user-selected OCR languages; fall back to auto-detect when the list is empty.
+            let requestedLanguages = normalizeRecognitionLanguages(preferredLanguages)
+            request.automaticallyDetectsLanguage = requestedLanguages.isEmpty
+            if !requestedLanguages.isEmpty {
+                request.recognitionLanguages = requestedLanguages
+            }
+
+            return try perform(request: request, cgImage: cgImage, requestedLanguages: requestedLanguages)
         }
 
         let requestedLanguages = normalizeRecognitionLanguages(preferredLanguages)
@@ -76,6 +87,14 @@ struct OCRService {
             request.recognitionLanguages = requestedLanguages
         }
 
+        return try perform(request: request, cgImage: cgImage, requestedLanguages: requestedLanguages)
+    }
+
+    private static func perform(
+        request: VNRecognizeTextRequest,
+        cgImage: CGImage,
+        requestedLanguages: [String]
+    ) throws -> String {
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         do {
             try handler.perform([request])
@@ -83,6 +102,9 @@ struct OCRService {
             // If the user configured invalid/unsupported language tags, retry with Vision defaults.
             if !requestedLanguages.isEmpty {
                 request.recognitionLanguages = []
+                if #available(macOS 13.0, *) {
+                    request.automaticallyDetectsLanguage = true
+                }
                 try handler.perform([request])
             } else {
                 throw error
