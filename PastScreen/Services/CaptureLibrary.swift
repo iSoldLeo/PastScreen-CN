@@ -110,6 +110,7 @@ enum CaptureLibrarySort: Int, CaseIterable, Hashable {
 struct CaptureLibraryQuery: Hashable {
     var appBundleID: String?
     var pinnedOnly: Bool
+    var captureType: CaptureItemCaptureType?
     var createdAfter: Date?
     var createdBefore: Date?
     var tag: String?
@@ -120,6 +121,7 @@ struct CaptureLibraryQuery: Hashable {
         CaptureLibraryQuery(
             appBundleID: nil,
             pinnedOnly: false,
+            captureType: nil,
             createdAfter: nil,
             createdBefore: nil,
             tag: nil,
@@ -132,6 +134,7 @@ struct CaptureLibraryQuery: Hashable {
         CaptureLibraryQuery(
             appBundleID: nil,
             pinnedOnly: true,
+            captureType: nil,
             createdAfter: nil,
             createdBefore: nil,
             tag: nil,
@@ -413,6 +416,9 @@ actor CaptureLibraryDatabase {
                 if query.pinnedOnly {
                     whereClauses.append("c.is_pinned = 1")
                 }
+                if query.captureType != nil {
+                    whereClauses.append("c.capture_type = ?")
+                }
                 if query.appBundleID != nil {
                     whereClauses.append("c.app_bundle_id = ?")
                 }
@@ -477,6 +483,10 @@ actor CaptureLibraryDatabase {
                         var idx: Int32 = 1
                         bindText(stmt, index: idx, value: matchQuery)
                         idx += 1
+                        if let captureType = query.captureType {
+                            bindInt(stmt, index: idx, value: captureType.rawValue)
+                            idx += 1
+                        }
                         if let appBundleID = query.appBundleID {
                             bindText(stmt, index: idx, value: appBundleID)
                             idx += 1
@@ -503,6 +513,9 @@ actor CaptureLibraryDatabase {
         var whereClauses: [String] = []
         if query.pinnedOnly {
             whereClauses.append("is_pinned = 1")
+        }
+        if query.captureType != nil {
+            whereClauses.append("capture_type = ?")
         }
         if query.appBundleID != nil {
             whereClauses.append("app_bundle_id = ?")
@@ -558,6 +571,10 @@ actor CaptureLibraryDatabase {
             """,
             bind: { stmt in
                 var idx: Int32 = 1
+                if let captureType = query.captureType {
+                    bindInt(stmt, index: idx, value: captureType.rawValue)
+                    idx += 1
+                }
                 if let appBundleID = query.appBundleID {
                     bindText(stmt, index: idx, value: appBundleID)
                     idx += 1

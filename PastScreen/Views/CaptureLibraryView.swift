@@ -129,10 +129,11 @@ final class CaptureLibraryViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = queryForSelection()
+        let effectiveSearch = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         async let groups = CaptureLibrary.shared.fetchAppGroups()
         async let tags = CaptureLibrary.shared.fetchTagGroups()
-        async let fetched = CaptureLibrary.shared.fetchItems(query: queryForSelection(), limit: pageSize, offset: 0)
+        async let fetched = CaptureLibrary.shared.fetchItems(query: query, limit: pageSize, offset: 0)
 
         appGroups = await groups
         tagGroups = await tags
@@ -140,8 +141,8 @@ final class CaptureLibraryViewModel: ObservableObject {
         let fetchedItems = await fetched
         if AppSettings.shared.captureLibrarySemanticSearchEnabled,
            sort == .relevance,
-           !trimmedSearch.isEmpty {
-            items = await CaptureLibrarySemanticSearchService.shared.rerank(items: fetchedItems, queryText: trimmedSearch)
+           !effectiveSearch.isEmpty {
+            items = await CaptureLibrarySemanticSearchService.shared.rerank(items: fetchedItems, queryText: effectiveSearch)
         } else {
             items = fetchedItems
         }
@@ -267,36 +268,270 @@ final class CaptureLibraryViewModel: ObservableObject {
     private func queryForSelection() -> CaptureLibraryQuery {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        var query: CaptureLibraryQuery
         switch sidebarSelection {
         case .all:
-            var query = CaptureLibraryQuery.all
-            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
-            query.sort = sort
-            return query
+            query = CaptureLibraryQuery.all
         case .pinned:
-            var query = CaptureLibraryQuery.pinned
-            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
-            query.sort = sort
-            return query
+            query = CaptureLibraryQuery.pinned
         case .recent24h:
-            var query = CaptureLibraryQuery.all
+            query = CaptureLibraryQuery.all
             query.createdAfter = Date().addingTimeInterval(-24 * 60 * 60)
-            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
-            query.sort = sort
-            return query
         case .app(let bundleID):
-            var query = CaptureLibraryQuery.all
+            query = CaptureLibraryQuery.all
             query.appBundleID = bundleID
-            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
-            query.sort = sort
-            return query
         case .tag(let name):
-            var query = CaptureLibraryQuery.all
+            query = CaptureLibraryQuery.all
             query.tag = name
-            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
-            query.sort = sort
+        }
+
+        query.sort = sort
+        if trimmedSearch.isEmpty {
+            query.searchText = nil
             return query
         }
+
+        query.searchText = applySearchSyntax(trimmedSearch, to: &query)
+        return query
+    }
+
+    private func applySearchSyntax(_ raw: String, to query: inout CaptureLibraryQuery) -> String? {
+        let tokens = raw
+            .split(whereSeparator: \.isWhitespace)
+            .map { String($0) }
+            .filter { !$0.isEmpty }
+
+        var remaining: [String] = []
+        remaining.reserveCapacity(tokens.count)
+
+        let now = Date()
+        let calendar = Calendar.current
+
+        for token in tokens {
+            let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            if isPinnedToken(trimmed) {
+                query.pinnedOnly = true
+                continue
+            }
+
+            if let days = parseRelativeDaysToken(trimmed) {
+                query.createdAfter = now.addingTimeInterval(TimeInterval(-days * 24 * 60 * 60))
+                query.createdBefore = nil
+                continue
+            }
+
+            if let dayRange = parseDayKeyword(trimmed, calendar: calendar, now: now) {
+                query.createdAfter = dayRange.start
+                query.createdBefore = dayRange.end
+                continue
+            }
+
+            if let date = parseDateToken(trimmed, calendar: calendar, now: now) {
+                let start = calendar.startOfDay(for: date)
+                let end = calendar.date(byAdding: .day, value: 1, to: start)?.addingTimeInterval(-0.001)
+                query.createdAfter = start
+                query.createdBefore = end
+                continue
+            }
+
+            if trimmed.hasPrefix("#") || trimmed.hasPrefix("＃") {
+                let value = String(trimmed.dropFirst())
+                if let tag = resolveTagName(from: value, requireExisting: false), !tag.isEmpty {
+                    query.tag = tag
+                    continue
+                }
+            }
+
+            if let (key, value) = parseKeyValue(trimmed) {
+                switch key.lowercased() {
+                case "app", "应用":
+                    if let resolved = resolveAppBundleID(from: value) {
+                        query.appBundleID = resolved
+                        continue
+                    }
+                case "tag", "标签":
+                    if let resolved = resolveTagName(from: value, requireExisting: false), !resolved.isEmpty {
+                        query.tag = resolved
+                        continue
+                    }
+                case "type", "类型":
+                    if let resolved = captureType(from: value) {
+                        query.captureType = resolved
+                        continue
+                    }
+                default:
+                    break
+                }
+            }
+
+            if query.appBundleID == nil, let bundleID = resolveAppBundleID(from: trimmed) {
+                query.appBundleID = bundleID
+                continue
+            }
+
+            if query.tag == nil, let tag = resolveTagName(from: trimmed, requireExisting: true), !tag.isEmpty {
+                query.tag = tag
+                continue
+            }
+
+            remaining.append(trimmed)
+        }
+
+        let cleaned = remaining.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private func parseKeyValue(_ token: String) -> (key: String, value: String)? {
+        let separators: [Character] = [":", "："]
+        guard let separator = separators.first(where: { token.contains($0) }) else { return nil }
+        let parts = token.split(separator: separator, maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+        let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = stripQuotes(String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !key.isEmpty, !value.isEmpty else { return nil }
+        return (key, value)
+    }
+
+    private func stripQuotes(_ value: String) -> String {
+        var text = value
+        if (text.hasPrefix("\"") && text.hasSuffix("\"")) || (text.hasPrefix("'") && text.hasSuffix("'")) {
+            text = String(text.dropFirst().dropLast())
+        }
+        return text
+    }
+
+    private func resolveAppBundleID(from value: String) -> String? {
+        let trimmed = stripQuotes(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.contains(".") {
+            return trimmed
+        }
+
+        let lowered = trimmed.lowercased()
+        if let match = appGroups.first(where: { group in
+            let name = group.appName.lowercased()
+            return name == lowered || name.contains(lowered) || lowered.contains(name)
+        }) {
+            return match.bundleID
+        }
+
+        return nil
+    }
+
+    private func resolveTagName(from value: String, requireExisting: Bool) -> String? {
+        let trimmed = stripQuotes(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard !trimmed.isEmpty else { return nil }
+
+        let lowered = trimmed.lowercased()
+        if let match = tagGroups.first(where: { group in
+            let name = group.name.lowercased()
+            return name == lowered
+        }) {
+            return match.name
+        }
+
+        return requireExisting ? nil : trimmed
+    }
+
+    private func captureType(from value: String) -> CaptureItemCaptureType? {
+        let trimmed = stripQuotes(value.trimmingCharacters(in: .whitespacesAndNewlines)).lowercased()
+        switch trimmed {
+        case "area", "selection", "region", "选区":
+            return .area
+        case "window", "窗口":
+            return .window
+        case "fullscreen", "full", "screen", "全屏":
+            return .fullscreen
+        default:
+            return nil
+        }
+    }
+
+    private func isPinnedToken(_ token: String) -> Bool {
+        let lowered = token.lowercased()
+        return lowered == "pinned" || lowered == "pin" || lowered == "置顶"
+    }
+
+    private func parseDayKeyword(_ token: String, calendar: Calendar, now: Date) -> (start: Date, end: Date)? {
+        let lowered = token.lowercased()
+        if lowered == "today" || lowered == "今天" {
+            let start = calendar.startOfDay(for: now)
+            let end = calendar.date(byAdding: .day, value: 1, to: start)?.addingTimeInterval(-0.001) ?? now
+            return (start, end)
+        }
+
+        if lowered == "yesterday" || lowered == "昨天" {
+            guard let day = calendar.date(byAdding: .day, value: -1, to: now) else { return nil }
+            let start = calendar.startOfDay(for: day)
+            let end = calendar.startOfDay(for: now).addingTimeInterval(-0.001)
+            return (start, end)
+        }
+
+        return nil
+    }
+
+    private func parseRelativeDaysToken(_ token: String) -> Int? {
+        let lowered = token.lowercased()
+
+        if lowered.hasPrefix("最近"), lowered.hasSuffix("天") {
+            let number = lowered.dropFirst(2).dropLast()
+            return Int(number)
+        }
+
+        if lowered.hasPrefix("近"), lowered.hasSuffix("天") {
+            let number = lowered.dropFirst(1).dropLast()
+            return Int(number)
+        }
+
+        if lowered.hasSuffix("d") {
+            return Int(lowered.dropLast())
+        }
+
+        if lowered.hasSuffix("天") {
+            return Int(lowered.dropLast())
+        }
+
+        return nil
+    }
+
+    private func parseDateToken(_ token: String, calendar: Calendar, now: Date) -> Date? {
+        var cleaned = token
+        cleaned = cleaned.replacingOccurrences(of: "年", with: "-")
+        cleaned = cleaned.replacingOccurrences(of: "月", with: "-")
+        cleaned = cleaned.replacingOccurrences(of: "日", with: "")
+
+        let separators = CharacterSet(charactersIn: "/-.")
+        let parts = cleaned
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+
+        let year: Int
+        let month: Int
+        let day: Int
+
+        if parts.count == 3, let y = Int(parts[0]), let m = Int(parts[1]), let d = Int(parts[2]) {
+            year = y
+            month = m
+            day = d
+        } else if parts.count == 2, let m = Int(parts[0]), let d = Int(parts[1]) {
+            year = calendar.component(.year, from: now)
+            month = m
+            day = d
+        } else {
+            return nil
+        }
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        return calendar.date(from: components)
     }
 
     private static func normalizeTags(from input: String) -> [String] {
