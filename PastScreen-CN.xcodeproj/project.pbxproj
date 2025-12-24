@@ -17,6 +17,7 @@
 		6E5B19ED490E4463A7D5F2D2 /* PastScreen/Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67FAEFE56B64000A3ABC003 /* PastScreen/Views/SettingsView.swift */; };
 		7A6D0C4E0C8B4A3B9A1C2D3E /* PastScreen/Views/TutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E2D1C0B9A8B4C7D6E5F4A3B /* PastScreen/Views/TutorialView.swift */; };
 		94765A41378C46BDB32B81B9 /* PastScreen/Services/ScreenshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CB86E956A6A43BBBD2973D6 /* PastScreen/Services/ScreenshotService.swift */; };
+		D1E2F3A4B5C60718293A4B5D /* PastScreen/Services/CaptureLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* PastScreen/Services/CaptureLibrary.swift */; };
 		96BEC0093CFD4EEB8BFE0233 /* PastScreen/Views/DynamicIslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5E6EECF8874B83905847A6 /* PastScreen/Views/DynamicIslandView.swift */; };
 		9B36A8B91D194211AFEA7ECB /* PastScreen/Services/PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CBEA9F9EF4411F89100D8C /* PastScreen/Services/PermissionManager.swift */; };
 		9ECB8B05C4C6441B8703E040 /* PastScreen/PastScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AA8D1B48F74216B3EF908B /* PastScreen/PastScreenApp.swift */; };
@@ -35,6 +36,7 @@
 		05ED1C2B44AE40E894CAB892 /* PastScreen/Services/HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/HotKeyManager.swift; sourceTree = "<group>"; };
 		185A92B9A7714DA2A2EEA7C9 /* PastScreen/Tips/QuickCaptureTip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Tips/QuickCaptureTip.swift; sourceTree = "<group>"; };
 		1CB86E956A6A43BBBD2973D6 /* PastScreen/Services/ScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/ScreenshotService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* PastScreen/Services/CaptureLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary.swift; sourceTree = "<group>"; };
 		31C0658E24DE4556A0FE4CBE /* PastScreen/AppIntents/PastScreenShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/AppIntents/PastScreenShortcuts.swift; sourceTree = "<group>"; };
 		468CFD7B61B54F9BA38528F4 /* PastScreen/Services/LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		55112317E35F496C816421B3 /* PastScreen/Views/CustomNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Views/CustomNotificationView.swift; sourceTree = "<group>"; };
@@ -67,6 +69,7 @@
 				Models/AppSettings.swift,
 				Models/OCRLanguageOption.swift,
 				PastScreenApp.swift,
+				Services/CaptureLibrary.swift,
 				Services/HotKeyManager.swift,
 				Services/LaunchAtLoginManager.swift,
 				Services/OCRService.swift,
@@ -236,6 +239,7 @@
 				C8B5098401454383965ADB3D /* PastScreen/Models/AppSettings.swift in Sources */,
 				013D126AA3DA4A6BB7050E4C /* PastScreen/Models/OCRLanguageOption.swift in Sources */,
 				9ECB8B05C4C6441B8703E040 /* PastScreen/PastScreenApp.swift in Sources */,
+				D1E2F3A4B5C60718293A4B5D /* PastScreen/Services/CaptureLibrary.swift in Sources */,
 				EDE6905D705444ADBC933D21 /* PastScreen/Services/HotKeyManager.swift in Sources */,
 				CC0289C6787D45B7AFB04B32 /* PastScreen/Services/LaunchAtLoginManager.swift in Sources */,
 				0D7184C0DA094EA49847959A /* PastScreen/Services/OCRService.swift in Sources */,
@@ -296,6 +300,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0.6;
 				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				OTHER_SWIFT_FLAGS = "-D APPSTORE";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.iSoldLeo.PastScreen-CN";
 				PRODUCT_NAME = "PastScreen-CN";
@@ -345,6 +353,10 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0.6;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				OTHER_SWIFT_FLAGS = "-D APPSTORE";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.iSoldLeo.PastScreen-CN";
 				PRODUCT_NAME = "PastScreen-CN";
