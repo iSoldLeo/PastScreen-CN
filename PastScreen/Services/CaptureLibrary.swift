@@ -94,17 +94,39 @@ struct CaptureLibraryAppGroup: Identifiable, Hashable {
     var itemCount: Int
 }
 
+enum CaptureLibrarySort: Int, CaseIterable, Hashable {
+    case timeDesc = 0
+    case relevance = 1
+}
+
 struct CaptureLibraryQuery: Hashable {
     var appBundleID: String?
     var pinnedOnly: Bool
     var createdAfter: Date?
+    var createdBefore: Date?
+    var searchText: String?
+    var sort: CaptureLibrarySort
 
     static var all: Self {
-        CaptureLibraryQuery(appBundleID: nil, pinnedOnly: false, createdAfter: nil)
+        CaptureLibraryQuery(
+            appBundleID: nil,
+            pinnedOnly: false,
+            createdAfter: nil,
+            createdBefore: nil,
+            searchText: nil,
+            sort: .timeDesc
+        )
     }
 
     static var pinned: Self {
-        CaptureLibraryQuery(appBundleID: nil, pinnedOnly: true, createdAfter: nil)
+        CaptureLibraryQuery(
+            appBundleID: nil,
+            pinnedOnly: true,
+            createdAfter: nil,
+            createdBefore: nil,
+            searchText: nil,
+            sort: .timeDesc
+        )
     }
 }
 
@@ -372,6 +394,87 @@ actor CaptureLibraryDatabase {
     }
 
     func fetchPage(limit: Int, offset: Int, query: CaptureLibraryQuery) throws -> [CaptureItem] {
+        let trimmedSearch = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedSearch.isEmpty {
+            let matchQuery = Self.makeFTSMatchQuery(from: trimmedSearch)
+            if !matchQuery.isEmpty {
+                var whereClauses: [String] = ["capture_items_fts MATCH ?"]
+                if query.pinnedOnly {
+                    whereClauses.append("c.is_pinned = 1")
+                }
+                if query.appBundleID != nil {
+                    whereClauses.append("c.app_bundle_id = ?")
+                }
+                if query.createdAfter != nil {
+                    whereClauses.append("c.created_at >= ?")
+                }
+                if query.createdBefore != nil {
+                    whereClauses.append("c.created_at <= ?")
+                }
+
+                let whereSQL = "WHERE " + whereClauses.joined(separator: " AND ")
+
+                let orderSQL: String
+                switch query.sort {
+                case .relevance:
+                    if query.pinnedOnly {
+                        orderSQL = "ORDER BY bm25(capture_items_fts) ASC, c.pinned_at DESC, c.created_at DESC"
+                    } else {
+                        orderSQL = "ORDER BY bm25(capture_items_fts) ASC, c.created_at DESC"
+                    }
+                case .timeDesc:
+                    if query.pinnedOnly {
+                        orderSQL = "ORDER BY c.pinned_at DESC, c.created_at DESC"
+                    } else {
+                        orderSQL = "ORDER BY c.created_at DESC"
+                    }
+                }
+
+                return try fetchItems(
+                    sql: """
+                    SELECT
+                      c.id, c.created_at, c.updated_at,
+                      c.capture_type, c.capture_mode, c.trigger,
+                      c.app_bundle_id, c.app_name, c.app_pid,
+                      c.selection_w, c.selection_h,
+                      c.external_file_path,
+                      c.internal_thumb_path, c.internal_preview_path, c.internal_original_path,
+                      c.thumb_w, c.thumb_h, c.preview_w, c.preview_h,
+                      c.sha256,
+                      c.is_pinned, c.pinned_at,
+                      c.note, c.tags_cache,
+                      c.ocr_text, c.ocr_langs, c.ocr_updated_at,
+                      c.embedding_model, c.embedding_dim, c.embedding, c.embedding_source_hash, c.embedding_updated_at,
+                      c.bytes_thumb, c.bytes_preview, c.bytes_original
+                    FROM capture_items c
+                    JOIN capture_items_fts ON capture_items_fts.item_id = c.id
+                    \(whereSQL)
+                    \(orderSQL)
+                    LIMIT ? OFFSET ?
+                    """,
+                    bind: { stmt in
+                        var idx: Int32 = 1
+                        bindText(stmt, index: idx, value: matchQuery)
+                        idx += 1
+                        if let appBundleID = query.appBundleID {
+                            bindText(stmt, index: idx, value: appBundleID)
+                            idx += 1
+                        }
+                        if let createdAfter = query.createdAfter {
+                            bindInt64(stmt, index: idx, value: Self.epochMillis(createdAfter))
+                            idx += 1
+                        }
+                        if let createdBefore = query.createdBefore {
+                            bindInt64(stmt, index: idx, value: Self.epochMillis(createdBefore))
+                            idx += 1
+                        }
+                        sqlite3_bind_int(stmt, idx, Int32(limit))
+                        sqlite3_bind_int(stmt, idx + 1, Int32(offset))
+                    }
+                )
+            }
+        }
+
         var whereClauses: [String] = []
         if query.pinnedOnly {
             whereClauses.append("is_pinned = 1")
@@ -381,6 +484,9 @@ actor CaptureLibraryDatabase {
         }
         if query.createdAfter != nil {
             whereClauses.append("created_at >= ?")
+        }
+        if query.createdBefore != nil {
+            whereClauses.append("created_at <= ?")
         }
 
         let whereSQL: String
@@ -423,6 +529,10 @@ actor CaptureLibraryDatabase {
                 }
                 if let createdAfter = query.createdAfter {
                     bindInt64(stmt, index: idx, value: Self.epochMillis(createdAfter))
+                    idx += 1
+                }
+                if let createdBefore = query.createdBefore {
+                    bindInt64(stmt, index: idx, value: Self.epochMillis(createdBefore))
                     idx += 1
                 }
                 sqlite3_bind_int(stmt, idx, Int32(limit))
@@ -731,6 +841,55 @@ actor CaptureLibraryDatabase {
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw lastError("更新 external_file_path 失败")
         }
+
+        try rebuildFTS(for: id)
+    }
+
+    private func rebuildFTS(for id: UUID) throws {
+        let sql = """
+        SELECT app_name, external_file_path, tags_cache, note, ocr_text
+        FROM capture_items
+        WHERE id = ?
+        LIMIT 1
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        bindText(stmt, index: 1, value: id.uuidString)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return }
+
+        let appName = columnString(stmt, index: 0)
+        let externalFilePath = columnString(stmt, index: 1)
+        let tagsCache = columnString(stmt, index: 2) ?? ""
+        let note = columnString(stmt, index: 3)
+        let ocrText = columnString(stmt, index: 4)
+
+        let ftsText = Self.makeFTSText(
+            appName: appName,
+            externalFilePath: externalFilePath,
+            tagsCache: tagsCache,
+            note: note,
+            ocrText: ocrText
+        )
+
+        try upsertFTS(itemID: id.uuidString, text: ftsText)
+    }
+
+    private static func makeFTSText(
+        appName: String?,
+        externalFilePath: String?,
+        tagsCache: String,
+        note: String?,
+        ocrText: String?
+    ) -> String {
+        var parts: [String] = []
+        if let appName, !appName.isEmpty { parts.append(appName) }
+        if !tagsCache.isEmpty { parts.append(tagsCache) }
+        if let note, !note.isEmpty { parts.append(note) }
+        if let ocrText, !ocrText.isEmpty { parts.append(ocrText) }
+        if let externalFilePath, !externalFilePath.isEmpty {
+            parts.append(URL(fileURLWithPath: externalFilePath).lastPathComponent)
+        }
+        return parts.joined(separator: "\n")
     }
 
     func deleteItems(ids: [UUID]) throws -> [(thumb: String, preview: String?, original: String?)] {
@@ -975,6 +1134,29 @@ actor CaptureLibraryDatabase {
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw lastError("写入 FTS 失败")
         }
+    }
+
+    private static func makeFTSMatchQuery(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let tokens = trimmed
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+
+        let terms: [String] = tokens.compactMap { raw in
+            let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty else { return nil }
+
+            if term.range(of: #"^[A-Za-z0-9_]+$"#, options: .regularExpression) != nil {
+                return term + "*"
+            }
+
+            let escaped = term.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+
+        return terms.joined(separator: " AND ")
     }
 
     private func fetchItems(sql: String, bind: (OpaquePointer?) -> Void) throws -> [CaptureItem] {

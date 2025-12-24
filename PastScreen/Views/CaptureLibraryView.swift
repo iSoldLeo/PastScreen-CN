@@ -93,6 +93,8 @@ final class CaptureLibraryViewModel: ObservableObject {
     }
 
     @Published var sidebarSelection: SidebarSelection = .all
+    @Published var searchText: String = ""
+    @Published var sort: CaptureLibrarySort = .timeDesc
     @Published private(set) var items: [CaptureItem] = []
     @Published private(set) var appGroups: [CaptureLibraryAppGroup] = []
     @Published var selectedItemID: UUID?
@@ -100,6 +102,7 @@ final class CaptureLibraryViewModel: ObservableObject {
 
     private let pageSize = 240
     private var changeObserver: Any?
+    private var reloadTask: Task<Void, Never>?
     private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()
 
     init() {
@@ -108,7 +111,7 @@ final class CaptureLibraryViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { await self?.reload() }
+            self?.scheduleReload(debounce: true)
         }
     }
 
@@ -116,6 +119,7 @@ final class CaptureLibraryViewModel: ObservableObject {
         if let changeObserver {
             NotificationCenter.default.removeObserver(changeObserver)
         }
+        reloadTask?.cancel()
     }
 
     func reload() async {
@@ -132,6 +136,17 @@ final class CaptureLibraryViewModel: ObservableObject {
             self.selectedItemID = items.first?.id
         } else if selectedItemID == nil {
             self.selectedItemID = items.first?.id
+        }
+    }
+
+    func scheduleReload(debounce: Bool) {
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            if debounce {
+                try? await Task.sleep(nanoseconds: 220_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            await self?.reload()
         }
     }
 
@@ -203,19 +218,31 @@ final class CaptureLibraryViewModel: ObservableObject {
     }
 
     private func queryForSelection() -> CaptureLibraryQuery {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
         switch sidebarSelection {
         case .all:
-            return .all
+            var query = CaptureLibraryQuery.all
+            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
+            query.sort = sort
+            return query
         case .pinned:
-            return .pinned
+            var query = CaptureLibraryQuery.pinned
+            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
+            query.sort = sort
+            return query
         case .recent24h:
-            return CaptureLibraryQuery(
-                appBundleID: nil,
-                pinnedOnly: false,
-                createdAfter: Date().addingTimeInterval(-24 * 60 * 60)
-            )
+            var query = CaptureLibraryQuery.all
+            query.createdAfter = Date().addingTimeInterval(-24 * 60 * 60)
+            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
+            query.sort = sort
+            return query
         case .app(let bundleID):
-            return CaptureLibraryQuery(appBundleID: bundleID, pinnedOnly: false, createdAfter: nil)
+            var query = CaptureLibraryQuery.all
+            query.appBundleID = bundleID
+            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
+            query.sort = sort
+            return query
         }
     }
 }
@@ -239,6 +266,11 @@ private struct CaptureLibraryRootView: View {
             inspector
         }
         .navigationSplitViewStyle(.balanced)
+        .searchable(
+            text: $model.searchText,
+            placement: .toolbar,
+            prompt: Text(NSLocalizedString("library.search.prompt", value: "搜索", comment: ""))
+        )
         .background {
             if reduceTransparency {
                 Color(nsColor: .windowBackgroundColor)
@@ -258,18 +290,32 @@ private struct CaptureLibraryRootView: View {
 
             ToolbarItemGroup {
                 Button {
-                    Task { await model.reload() }
+                    model.scheduleReload(debounce: false)
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help(NSLocalizedString("library.refresh", value: "刷新", comment: ""))
+
+                Picker("", selection: $model.sort) {
+                    Text(NSLocalizedString("library.sort.time", value: "时间", comment: "")).tag(CaptureLibrarySort.timeDesc)
+                    Text(NSLocalizedString("library.sort.relevance", value: "相关度", comment: "")).tag(CaptureLibrarySort.relevance)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .disabled(model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .onAppear {
-            Task { await model.reload() }
+            model.scheduleReload(debounce: false)
         }
         .onChange(of: model.sidebarSelection) { _, _ in
-            Task { await model.reload() }
+            model.scheduleReload(debounce: false)
+        }
+        .onChange(of: model.searchText) { _, _ in
+            model.scheduleReload(debounce: true)
+        }
+        .onChange(of: model.sort) { _, _ in
+            model.scheduleReload(debounce: false)
         }
     }
 
