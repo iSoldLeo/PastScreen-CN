@@ -1930,11 +1930,16 @@ final class CaptureLibrary {
 
         return enqueueIndexing(priority: .utility) { worker in
             guard FileManager.default.fileExists(atPath: path) else { return }
-            guard let image = NSImage(contentsOfFile: path) else { return }
+            let cgImage = OCRService.loadCGImage(from: imageURL)
+                ?? NSImage(contentsOfFile: path)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            guard let cgImage else { return }
 
             let text = try await OCRService.recognizeText(
-                in: image,
-                preferredLanguages: languages.isEmpty ? nil : languages
+                in: cgImage,
+                imageSize: CGSize(width: cgImage.width, height: cgImage.height),
+                region: nil,
+                preferredLanguages: languages.isEmpty ? nil : languages,
+                qos: .utility
             )
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
@@ -2282,12 +2287,10 @@ actor CaptureLibraryWorker {
             let existingOCR = job.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if existingOCR.isEmpty {
                 do {
-                    let nsImage = NSImage(
-                        cgImage: job.cgImage,
-                        size: NSSize(width: job.selectionSize.width, height: job.selectionSize.height)
-                    )
                     let text = try await OCRService.recognizeText(
-                        in: nsImage,
+                        in: job.cgImage,
+                        imageSize: job.selectionSize,
+                        region: nil,
                         preferredLanguages: job.autoOCRPreferredLanguages.isEmpty ? nil : job.autoOCRPreferredLanguages,
                         qos: .utility
                     )

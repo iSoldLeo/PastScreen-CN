@@ -175,10 +175,18 @@ final class CaptureLibraryOCRReindexService {
                     await CaptureLibrary.shared.updateOCRLangsForReindex(for: candidate.id, langs: preferredLanguages, notify: false)
                 } else {
                     let url = bestImageURL(for: candidate, rootURL: rootURL)
-                    if let url, FileManager.default.fileExists(atPath: url.path), let image = NSImage(contentsOfFile: url.path) {
+                    if let url, FileManager.default.fileExists(atPath: url.path) {
+                        let cgImage = OCRService.loadCGImage(from: url)
+                            ?? NSImage(contentsOfFile: url.path)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                        guard let cgImage else {
+                            await CaptureLibrary.shared.updateOCRLangsForReindex(for: candidate.id, langs: preferredLanguages, notify: false)
+                            continue
+                        }
                         do {
                             let text = try await OCRService.recognizeText(
-                                in: image,
+                                in: cgImage,
+                                imageSize: CGSize(width: cgImage.width, height: cgImage.height),
+                                region: nil,
                                 preferredLanguages: preferredLanguages.isEmpty ? nil : preferredLanguages,
                                 qos: .utility
                             )

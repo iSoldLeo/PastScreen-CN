@@ -661,15 +661,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 }
 
-                guard let ocrImage = self.makePNGImageForOCR(cgImage: cgImage, pointSize: selectionRect.size) else {
-                    await MainActor.run {
-                        self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    }
-                    return
-                }
-
                 let text = try await OCRService.recognizeText(
-                    in: ocrImage,
+                    in: cgImage,
+                    imageSize: selectionRect.size,
                     region: nil,
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
@@ -1001,15 +995,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 }
 
-                guard let ocrImage = self.makePNGImageForOCR(cgImage: cgImage, pointSize: rect.size) else {
-                    await MainActor.run {
-                        self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    }
-                    return
-                }
-
                 let text = try await OCRService.recognizeText(
-                    in: ocrImage,
+                    in: cgImage,
+                    imageSize: rect.size,
                     region: nil,
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
@@ -1079,15 +1067,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 }
 
-                guard let ocrImage = self.makePNGImageForOCR(cgImage: captureResult.image, pointSize: pointSize) else {
-                    await MainActor.run {
-                        self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    }
-                    return
-                }
-
                 let text = try await OCRService.recognizeText(
-                    in: ocrImage,
+                    in: captureResult.image,
+                    imageSize: pointSize,
                     region: nil,
                     preferredLanguages: settings.ocrRecognitionLanguages
                 )
@@ -1104,13 +1086,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
             }
         }
-    }
-
-    private func makePNGImageForOCR(cgImage: CGImage, pointSize: CGSize) -> NSImage? {
-        let rep = NSBitmapImageRep(cgImage: cgImage)
-        rep.size = pointSize
-        guard let data = rep.representation(using: .png, properties: [:]) else { return nil }
-        return NSImage(data: data)
     }
 
     private func handleOCRResult(_ text: String) {
