@@ -90,6 +90,7 @@ final class CaptureLibraryViewModel: ObservableObject {
         case pinned
         case recent24h
         case app(bundleID: String?)
+        case tag(name: String)
     }
 
     @Published var sidebarSelection: SidebarSelection = .all
@@ -97,6 +98,7 @@ final class CaptureLibraryViewModel: ObservableObject {
     @Published var sort: CaptureLibrarySort = .timeDesc
     @Published private(set) var items: [CaptureItem] = []
     @Published private(set) var appGroups: [CaptureLibraryAppGroup] = []
+    @Published private(set) var tagGroups: [CaptureLibraryTagGroup] = []
     @Published var selectedItemID: UUID?
     @Published var isLoading: Bool = false
 
@@ -127,9 +129,11 @@ final class CaptureLibraryViewModel: ObservableObject {
         defer { isLoading = false }
 
         async let groups = CaptureLibrary.shared.fetchAppGroups()
+        async let tags = CaptureLibrary.shared.fetchTagGroups()
         async let fetched = CaptureLibrary.shared.fetchItems(query: queryForSelection(), limit: pageSize, offset: 0)
 
         appGroups = await groups
+        tagGroups = await tags
         items = await fetched
 
         if let selectedItemID, !items.contains(where: { $0.id == selectedItemID }) {
@@ -217,6 +221,19 @@ final class CaptureLibraryViewModel: ObservableObject {
         CaptureLibrary.shared.revealInFinder(item: item)
     }
 
+    func updateTags(for itemID: UUID, input: String) {
+        let tags = Self.normalizeTags(from: input)
+        Task {
+            await CaptureLibrary.shared.setTags(tags, for: itemID)
+        }
+    }
+
+    func updateNote(for itemID: UUID, note: String?) {
+        Task {
+            await CaptureLibrary.shared.updateNote(note, for: itemID)
+        }
+    }
+
     private func queryForSelection() -> CaptureLibraryQuery {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -243,7 +260,29 @@ final class CaptureLibraryViewModel: ObservableObject {
             query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
             query.sort = sort
             return query
+        case .tag(let name):
+            var query = CaptureLibraryQuery.all
+            query.tag = name
+            query.searchText = trimmedSearch.isEmpty ? nil : trimmedSearch
+            query.sort = sort
+            return query
         }
+    }
+
+    private static func normalizeTags(from input: String) -> [String] {
+        let separators = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: ",，;；"))
+        let parts = input
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var unique: [String] = []
+        var seen = Set<String>()
+        for tag in parts where seen.insert(tag).inserted {
+            unique.append(tag)
+        }
+        return Array(unique.prefix(20))
     }
 }
 
@@ -359,6 +398,26 @@ private struct CaptureLibraryRootView: View {
                     .tag(CaptureLibraryViewModel.SidebarSelection.app(bundleID: group.bundleID))
                 }
             }
+
+            if !model.tagGroups.isEmpty {
+                Section(NSLocalizedString("library.section.tags", value: "标签", comment: "")) {
+                    ForEach(model.tagGroups) { group in
+                        HStack(spacing: 10) {
+                            Label(group.name, systemImage: "tag")
+                                .labelStyle(.titleOnly)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Text("\(group.itemCount)")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(CaptureLibraryViewModel.SidebarSelection.tag(name: group.name))
+                    }
+                }
+            }
         }
         .listStyle(.sidebar)
     }
@@ -437,7 +496,13 @@ private struct CaptureLibraryRootView: View {
                     onCopyImage: { model.copyImage(item) },
                     onReveal: { model.reveal(item) },
                     onTogglePinned: { model.togglePinned(item) },
-                    onDelete: { model.delete(item) }
+                    onDelete: { model.delete(item) },
+                    onUpdateTags: { tagsText in
+                        model.updateTags(for: item.id, input: tagsText)
+                    },
+                    onUpdateNote: { note in
+                        model.updateNote(for: item.id, note: note)
+                    }
                 )
             } else {
                 VStack(spacing: 12) {
@@ -515,8 +580,13 @@ private struct CaptureLibraryInspectorView: View {
     let onReveal: () -> Void
     let onTogglePinned: () -> Void
     let onDelete: () -> Void
+    let onUpdateTags: (String) -> Void
+    let onUpdateNote: (String?) -> Void
 
     @State private var image: NSImage?
+    @State private var tagsText: String = ""
+    @State private var noteText: String = ""
+    @State private var noteUpdateTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -550,11 +620,17 @@ private struct CaptureLibraryInspectorView: View {
 
             info
 
+            metadataEditor
+
             Divider()
 
             actions
 
             Spacer(minLength: 0)
+        }
+        .task(id: item.id) {
+            tagsText = item.tagsCache
+            noteText = item.note ?? ""
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -603,6 +679,50 @@ private struct CaptureLibraryInspectorView: View {
                         Text(NSLocalizedString("library.info.none", value: "未落盘", comment: ""))
                             .foregroundStyle(.secondary)
                     }
+                }
+            }
+        }
+    }
+
+    private var metadataEditor: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(NSLocalizedString("library.info.tags", value: "标签", comment: ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextField(
+                        NSLocalizedString("library.info.tags.placeholder", value: "用空格/逗号分隔，例如：发票 报销", comment: ""),
+                        text: $tagsText
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        onUpdateTags(tagsText)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(NSLocalizedString("library.info.note", value: "备注", comment: ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $noteText)
+                        .font(.system(.body, design: .default))
+                        .frame(minHeight: 78)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        )
+                        .onChange(of: noteText) { _, newValue in
+                            noteUpdateTask?.cancel()
+                            noteUpdateTask = Task {
+                                try? await Task.sleep(nanoseconds: 450_000_000)
+                                guard !Task.isCancelled else { return }
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                onUpdateNote(trimmed.isEmpty ? nil : trimmed)
+                            }
+                        }
                 }
             }
         }

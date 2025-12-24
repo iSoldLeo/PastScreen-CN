@@ -94,6 +94,12 @@ struct CaptureLibraryAppGroup: Identifiable, Hashable {
     var itemCount: Int
 }
 
+struct CaptureLibraryTagGroup: Identifiable, Hashable {
+    var id: String { name }
+    var name: String
+    var itemCount: Int
+}
+
 enum CaptureLibrarySort: Int, CaseIterable, Hashable {
     case timeDesc = 0
     case relevance = 1
@@ -104,6 +110,7 @@ struct CaptureLibraryQuery: Hashable {
     var pinnedOnly: Bool
     var createdAfter: Date?
     var createdBefore: Date?
+    var tag: String?
     var searchText: String?
     var sort: CaptureLibrarySort
 
@@ -113,6 +120,7 @@ struct CaptureLibraryQuery: Hashable {
             pinnedOnly: false,
             createdAfter: nil,
             createdBefore: nil,
+            tag: nil,
             searchText: nil,
             sort: .timeDesc
         )
@@ -124,6 +132,7 @@ struct CaptureLibraryQuery: Hashable {
             pinnedOnly: true,
             createdAfter: nil,
             createdBefore: nil,
+            tag: nil,
             searchText: nil,
             sort: .timeDesc
         )
@@ -411,6 +420,16 @@ actor CaptureLibraryDatabase {
                 if query.createdBefore != nil {
                     whereClauses.append("c.created_at <= ?")
                 }
+                if query.tag != nil {
+                    whereClauses.append("""
+                    EXISTS (
+                      SELECT 1
+                      FROM tags t
+                      JOIN capture_item_tags cit ON t.id = cit.tag_id
+                      WHERE cit.item_id = c.id AND t.name = ?
+                    )
+                    """)
+                }
 
                 let whereSQL = "WHERE " + whereClauses.joined(separator: " AND ")
 
@@ -468,6 +487,10 @@ actor CaptureLibraryDatabase {
                             bindInt64(stmt, index: idx, value: Self.epochMillis(createdBefore))
                             idx += 1
                         }
+                        if let tag = query.tag {
+                            bindText(stmt, index: idx, value: tag)
+                            idx += 1
+                        }
                         sqlite3_bind_int(stmt, idx, Int32(limit))
                         sqlite3_bind_int(stmt, idx + 1, Int32(offset))
                     }
@@ -487,6 +510,16 @@ actor CaptureLibraryDatabase {
         }
         if query.createdBefore != nil {
             whereClauses.append("created_at <= ?")
+        }
+        if query.tag != nil {
+            whereClauses.append("""
+            EXISTS (
+              SELECT 1
+              FROM tags t
+              JOIN capture_item_tags cit ON t.id = cit.tag_id
+              WHERE cit.item_id = capture_items.id AND t.name = ?
+            )
+            """)
         }
 
         let whereSQL: String
@@ -535,6 +568,10 @@ actor CaptureLibraryDatabase {
                     bindInt64(stmt, index: idx, value: Self.epochMillis(createdBefore))
                     idx += 1
                 }
+                if let tag = query.tag {
+                    bindText(stmt, index: idx, value: tag)
+                    idx += 1
+                }
                 sqlite3_bind_int(stmt, idx, Int32(limit))
                 sqlite3_bind_int(stmt, idx + 1, Int32(offset))
             }
@@ -567,6 +604,32 @@ actor CaptureLibraryDatabase {
                     itemCount: count
                 )
             )
+        }
+        return groups
+    }
+
+    func fetchTagGroups() throws -> [CaptureLibraryTagGroup] {
+        let sql = """
+        SELECT
+          t.name,
+          COUNT(*) AS item_count
+        FROM tags t
+        JOIN capture_item_tags cit ON t.id = cit.tag_id
+        JOIN capture_items c ON c.id = cit.item_id
+        GROUP BY t.id
+        ORDER BY item_count DESC, t.name ASC
+        """
+
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        var groups: [CaptureLibraryTagGroup] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let name = columnString(stmt, index: 0) ?? ""
+            let count = Int(sqlite3_column_int(stmt, 1))
+            if !name.isEmpty {
+                groups.append(CaptureLibraryTagGroup(name: name, itemCount: count))
+            }
         }
         return groups
     }
@@ -843,6 +906,125 @@ actor CaptureLibraryDatabase {
         }
 
         try rebuildFTS(for: id)
+    }
+
+    func updateNote(for id: UUID, note: String?, now: Date) throws {
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = (trimmed?.isEmpty ?? true) ? nil : trimmed
+
+        let sql = """
+        UPDATE capture_items
+        SET
+          note = ?,
+          updated_at = ?
+        WHERE id = ?
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        bindText(stmt, index: 1, value: value)
+        bindInt64(stmt, index: 2, value: Self.epochMillis(now))
+        bindText(stmt, index: 3, value: id.uuidString)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw lastError("更新备注失败")
+        }
+
+        try rebuildFTS(for: id)
+    }
+
+    func setTags(_ tags: [String], for id: UUID, now: Date) throws {
+        let normalized = Self.normalizeTags(tags)
+        let tagsCache = normalized.joined(separator: " ")
+
+        do {
+            try exec("BEGIN IMMEDIATE;")
+
+            let updateItem = """
+            UPDATE capture_items
+            SET
+              tags_cache = ?,
+              updated_at = ?
+            WHERE id = ?
+            """
+            let updateStmt = try prepare(updateItem)
+            defer { sqlite3_finalize(updateStmt) }
+            bindText(updateStmt, index: 1, value: tagsCache)
+            bindInt64(updateStmt, index: 2, value: Self.epochMillis(now))
+            bindText(updateStmt, index: 3, value: id.uuidString)
+            guard sqlite3_step(updateStmt) == SQLITE_DONE else {
+                throw lastError("更新标签失败")
+            }
+
+            let deleteSQL = "DELETE FROM capture_item_tags WHERE item_id = ?"
+            let deleteStmt = try prepare(deleteSQL)
+            defer { sqlite3_finalize(deleteStmt) }
+            bindText(deleteStmt, index: 1, value: id.uuidString)
+            guard sqlite3_step(deleteStmt) == SQLITE_DONE else {
+                throw lastError("清理旧标签关联失败")
+            }
+
+            let insertTagSQL = "INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)"
+            let insertTagStmt = try prepare(insertTagSQL)
+            defer { sqlite3_finalize(insertTagStmt) }
+
+            let selectTagIDSQL = "SELECT id FROM tags WHERE name = ? LIMIT 1"
+            let selectTagIDStmt = try prepare(selectTagIDSQL)
+            defer { sqlite3_finalize(selectTagIDStmt) }
+
+            let insertMapSQL = "INSERT OR IGNORE INTO capture_item_tags (item_id, tag_id) VALUES (?, ?)"
+            let insertMapStmt = try prepare(insertMapSQL)
+            defer { sqlite3_finalize(insertMapStmt) }
+
+            let nowMillis = Self.epochMillis(now)
+            for tag in normalized {
+                sqlite3_reset(insertTagStmt)
+                sqlite3_clear_bindings(insertTagStmt)
+                bindText(insertTagStmt, index: 1, value: tag)
+                bindInt64(insertTagStmt, index: 2, value: nowMillis)
+                guard sqlite3_step(insertTagStmt) == SQLITE_DONE else {
+                    throw lastError("写入 tags 失败")
+                }
+
+                sqlite3_reset(selectTagIDStmt)
+                sqlite3_clear_bindings(selectTagIDStmt)
+                bindText(selectTagIDStmt, index: 1, value: tag)
+                guard sqlite3_step(selectTagIDStmt) == SQLITE_ROW else {
+                    continue
+                }
+
+                let tagID = sqlite3_column_int64(selectTagIDStmt, 0)
+                guard tagID > 0 else { continue }
+
+                sqlite3_reset(insertMapStmt)
+                sqlite3_clear_bindings(insertMapStmt)
+                bindText(insertMapStmt, index: 1, value: id.uuidString)
+                sqlite3_bind_int64(insertMapStmt, 2, tagID)
+                guard sqlite3_step(insertMapStmt) == SQLITE_DONE else {
+                    throw lastError("写入标签关联失败")
+                }
+            }
+
+            try rebuildFTS(for: id)
+
+            try exec("COMMIT;")
+        } catch {
+            try? exec("ROLLBACK;")
+            throw error
+        }
+    }
+
+    private static func normalizeTags(_ tags: [String]) -> [String] {
+        let trimmed = tags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var unique: [String] = []
+        var seen = Set<String>()
+        for tag in trimmed where seen.insert(tag).inserted {
+            unique.append(tag)
+        }
+        return Array(unique.prefix(20))
     }
 
     private func rebuildFTS(for id: UUID) throws {
@@ -1480,6 +1662,34 @@ final class CaptureLibrary {
         }
     }
 
+    func fetchTagGroups() async -> [CaptureLibraryTagGroup] {
+        guard AppSettings.shared.captureLibraryEnabled else { return [] }
+        do {
+            return try await worker.fetchTagGroups()
+        } catch {
+            logError("CaptureLibrary fetchTagGroups failed: \(error.localizedDescription)", category: "LIB")
+            return []
+        }
+    }
+
+    func setTags(_ tags: [String], for id: UUID) async {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        do {
+            try await worker.setTags(tags, for: id, now: Date())
+        } catch {
+            logError("CaptureLibrary setTags failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    func updateNote(_ note: String?, for id: UUID) async {
+        guard AppSettings.shared.captureLibraryEnabled else { return }
+        do {
+            try await worker.updateNote(for: id, note: note, now: Date())
+        } catch {
+            logError("CaptureLibrary updateNote failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
     func setPinned(_ pinned: Bool, for id: UUID) async {
         guard AppSettings.shared.captureLibraryEnabled else { return }
         do {
@@ -1759,6 +1969,26 @@ actor CaptureLibraryWorker {
         try prepareIfNeeded()
         guard let database else { return [] }
         return try await database.fetchAppGroups()
+    }
+
+    func fetchTagGroups() async throws -> [CaptureLibraryTagGroup] {
+        try prepareIfNeeded()
+        guard let database else { return [] }
+        return try await database.fetchTagGroups()
+    }
+
+    func setTags(_ tags: [String], for id: UUID, now: Date) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.setTags(tags, for: id, now: now)
+        notifyChanged()
+    }
+
+    func updateNote(for id: UUID, note: String?, now: Date) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.updateNote(for: id, note: note, now: now)
+        notifyChanged()
     }
 
     func setPinned(_ pinned: Bool, for id: UUID, now: Date) async throws {
