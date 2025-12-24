@@ -137,7 +137,11 @@ struct OCRService {
         }
         if #available(macOS 13.0, *) {
             // Honor user-selected OCR languages; fall back to auto-detect when the list is empty.
-            let requestedLanguages = normalizeRecognitionLanguages(preferredLanguages)
+            let requestedLanguages = normalizeRecognitionLanguages(
+                preferredLanguages,
+                recognitionLevel: request.recognitionLevel,
+                revision: request.revision
+            )
             request.automaticallyDetectsLanguage = requestedLanguages.isEmpty
             if !requestedLanguages.isEmpty {
                 request.recognitionLanguages = requestedLanguages
@@ -146,7 +150,11 @@ struct OCRService {
             return try perform(request: request, cgImage: cgImage, requestedLanguages: requestedLanguages)
         }
 
-        let requestedLanguages = normalizeRecognitionLanguages(preferredLanguages)
+        let requestedLanguages = normalizeRecognitionLanguages(
+            preferredLanguages,
+            recognitionLevel: request.recognitionLevel,
+            revision: request.revision
+        )
         if !requestedLanguages.isEmpty {
             request.recognitionLanguages = requestedLanguages
         }
@@ -181,8 +189,86 @@ struct OCRService {
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func normalizeRecognitionLanguages(_ preferredLanguages: [String]?) -> [String] {
-        AppSettings.normalizeOCRRecognitionLanguages(preferredLanguages ?? [])
+    private static func normalizeRecognitionLanguages(
+        _ preferredLanguages: [String]?,
+        recognitionLevel: VNRequestTextRecognitionLevel,
+        revision: Int
+    ) -> [String] {
+        let normalized = AppSettings.normalizeOCRRecognitionLanguages(preferredLanguages ?? [])
+        guard !normalized.isEmpty else { return [] }
+
+        let supportedList = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(for: recognitionLevel, revision: revision)) ?? []
+        let supported = Set(supportedList)
+
+        var out: [String] = []
+        out.reserveCapacity(normalized.count)
+        var seen = Set<String>()
+
+        for lang in normalized {
+            guard let mapped = mapVisionLanguage(lang, supported: supported) else { continue }
+            guard seen.insert(mapped).inserted else { continue }
+            out.append(mapped)
+        }
+
+        return prioritizeVisionRecognitionLanguages(out)
+    }
+
+    private static func mapVisionLanguage(_ language: String, supported: Set<String>) -> String? {
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let tag = trimmed.replacingOccurrences(of: "_", with: "-")
+        if supported.isEmpty { return tag }
+        if supported.contains(tag) { return tag }
+
+        let parts = tag.split(separator: "-").map(String.init)
+        if parts.count >= 2 {
+            let first2 = parts[0...1].joined(separator: "-")
+            if supported.contains(first2) { return first2 }
+        }
+        if parts.count >= 3 {
+            let first3 = parts[0...2].joined(separator: "-")
+            if supported.contains(first3) { return first3 }
+        }
+
+        let base = parts.first ?? tag
+        if base == "zh" {
+            if let region = parts.first(where: { $0.count == 2 })?.uppercased() {
+                if ["TW", "HK", "MO"].contains(region), supported.contains("zh-Hant") { return "zh-Hant" }
+                if ["CN", "SG", "MY"].contains(region), supported.contains("zh-Hans") { return "zh-Hans" }
+            }
+            if supported.contains("zh-Hans") { return "zh-Hans" }
+            if supported.contains("zh-Hant") { return "zh-Hant" }
+        }
+
+        if base == "en", supported.contains("en-US") { return "en-US" }
+
+        return nil
+    }
+
+    private static func prioritizeVisionRecognitionLanguages(_ languages: [String]) -> [String] {
+        guard !languages.isEmpty else { return [] }
+
+        let containsChinese = languages.contains("zh-Hans") || languages.contains("zh-Hant")
+        guard containsChinese else { return languages }
+
+        var out: [String] = []
+        out.reserveCapacity(3)
+
+        if languages.contains("zh-Hant") { out.append("zh-Hant") }
+        if languages.contains("zh-Hans") { out.append("zh-Hans") }
+        if languages.contains("en-US") { out.append("en-US") }
+
+        let allowed = Set(out)
+        let dropped = languages.filter { !allowed.contains($0) }
+        if !dropped.isEmpty {
+            logWarning(
+                "OCR: Vision 中文识别仅支持与英文混用；已忽略其它语言：\(dropped.joined(separator: " "))",
+                category: "OCR"
+            )
+        }
+
+        return out
     }
 
     /// Vision's regionOfInterest is normalized and origin is bottom-left.

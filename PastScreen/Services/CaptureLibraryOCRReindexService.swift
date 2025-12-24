@@ -170,8 +170,10 @@ final class CaptureLibraryOCRReindexService {
                 guard !Task.isCancelled else { return }
                 guard defaults.string(forKey: DefaultsKeys.targetLangsKey) == targetKey else { return }
 
-                let existingLangSet = langSet(from: candidate.ocrLangs)
-                if existingLangSet == targetSet {
+                let rawLangs = candidate.ocrLangs ?? ""
+                let existingLangSet = langSet(from: rawLangs)
+                let hasLegacySeparators = rawLangs.contains(",") || rawLangs.contains("，") || rawLangs.contains("_")
+                if existingLangSet == targetSet, !hasLegacySeparators {
                     await CaptureLibrary.shared.updateOCRLangsForReindex(for: candidate.id, langs: preferredLanguages, notify: false)
                 } else {
                     let url = bestImageURL(for: candidate, rootURL: rootURL)
