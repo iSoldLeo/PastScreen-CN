@@ -24,9 +24,14 @@ enum OCRServiceError: LocalizedError {
 }
 
 struct OCRService {
-    static func recognizeText(in image: NSImage, region: CGRect? = nil, preferredLanguages: [String]? = nil) async throws -> String {
+    static func recognizeText(
+        in image: NSImage,
+        region: CGRect? = nil,
+        preferredLanguages: [String]? = nil,
+        qos: DispatchQoS.QoSClass = .userInitiated
+    ) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: qos).async {
                 do {
                     let text = try recognizeTextSync(in: image, region: region, preferredLanguages: preferredLanguages)
                     continuation.resume(returning: text)

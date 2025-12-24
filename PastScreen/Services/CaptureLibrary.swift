@@ -170,6 +170,16 @@ struct CaptureLibraryPreviewCandidate: Hashable {
     var bytesPreview: Int
 }
 
+struct CaptureLibraryOCRReindexCandidate: Hashable {
+    var id: UUID
+    var createdAtMillis: Int64
+    var internalThumbPath: String
+    var internalPreviewPath: String?
+    var internalOriginalPath: String?
+    var externalFilePath: String?
+    var ocrLangs: String?
+}
+
 // MARK: - File Store
 
 struct CaptureLibraryFileStore {
@@ -653,6 +663,82 @@ actor CaptureLibraryDatabase {
         return groups
     }
 
+    func fetchOCRReindexCandidates(
+        targetLangs: String,
+        limit: Int,
+        cursorCreatedAtMillis: Int64?,
+        cursorID: String?
+    ) throws -> [CaptureLibraryOCRReindexCandidate] {
+        guard limit > 0 else { return [] }
+
+        var whereClauses: [String] = [
+            "ocr_text IS NOT NULL",
+            "COALESCE(ocr_langs, '') != ?"
+        ]
+
+        let useCursor = cursorCreatedAtMillis != nil && cursorID != nil
+        if useCursor {
+            whereClauses.append("(created_at < ? OR (created_at = ? AND id < ?))")
+        }
+
+        let sql = """
+        SELECT
+          id,
+          created_at,
+          internal_thumb_path,
+          internal_preview_path,
+          internal_original_path,
+          external_file_path,
+          ocr_langs
+        FROM capture_items
+        WHERE \(whereClauses.joined(separator: " AND "))
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """
+
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        var idx: Int32 = 1
+        bindText(stmt, index: idx, value: targetLangs); idx += 1
+        if useCursor, let cursorCreatedAtMillis, let cursorID {
+            bindInt64(stmt, index: idx, value: cursorCreatedAtMillis); idx += 1
+            bindInt64(stmt, index: idx, value: cursorCreatedAtMillis); idx += 1
+            bindText(stmt, index: idx, value: cursorID); idx += 1
+        }
+        sqlite3_bind_int(stmt, idx, Int32(limit))
+
+        var out: [CaptureLibraryOCRReindexCandidate] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard
+                let idText = columnString(stmt, index: 0),
+                let id = UUID(uuidString: idText)
+            else {
+                continue
+            }
+            let createdAtMillis = sqlite3_column_int64(stmt, 1)
+            let thumbPath = columnString(stmt, index: 2) ?? ""
+            let previewPath = columnString(stmt, index: 3)
+            let originalPath = columnString(stmt, index: 4)
+            let externalPath = columnString(stmt, index: 5)
+            let ocrLangs = columnString(stmt, index: 6)
+
+            out.append(
+                CaptureLibraryOCRReindexCandidate(
+                    id: id,
+                    createdAtMillis: createdAtMillis,
+                    internalThumbPath: thumbPath,
+                    internalPreviewPath: previewPath,
+                    internalOriginalPath: originalPath,
+                    externalFilePath: externalPath,
+                    ocrLangs: ocrLangs
+                )
+            )
+        }
+
+        return out
+    }
+
     func fetchStats() throws -> CaptureLibraryStats {
         let sql = """
         SELECT
@@ -859,7 +945,7 @@ actor CaptureLibraryDatabase {
         bindText(stmt, index: index, value: item.tagsCache); index += 1
 
         bindText(stmt, index: index, value: item.ocrText); index += 1
-        bindText(stmt, index: index, value: item.ocrLangs.isEmpty ? nil : item.ocrLangs.joined(separator: " ")); index += 1
+        bindText(stmt, index: index, value: Self.normalizeOCRLangs(item.ocrLangs)); index += 1
         bindInt64(stmt, index: index, value: item.ocrUpdatedAt.map(Self.epochMillis)); index += 1
 
         bindText(stmt, index: index, value: item.embeddingModel); index += 1
@@ -877,6 +963,21 @@ actor CaptureLibraryDatabase {
         }
 
         try upsertFTS(itemID: item.id.uuidString, text: ftsText)
+    }
+
+    private static func normalizeOCRLangs(_ langs: [String]) -> String? {
+        let cleaned = langs
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var unique = Set<String>()
+        var out: [String] = []
+        for lang in cleaned where unique.insert(lang).inserted {
+            out.append(lang)
+        }
+
+        let sorted = out.sorted()
+        return sorted.isEmpty ? nil : sorted.joined(separator: " ")
     }
 
     func setPinned(_ pinned: Bool, for id: UUID, now: Date) throws {
@@ -956,6 +1057,8 @@ actor CaptureLibraryDatabase {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
 
+        let normalizedLangs = Self.normalizeOCRLangs(langs)
+
         let sql = """
         UPDATE capture_items
         SET
@@ -969,7 +1072,7 @@ actor CaptureLibraryDatabase {
         defer { sqlite3_finalize(stmt) }
 
         bindText(stmt, index: 1, value: trimmedText)
-        bindText(stmt, index: 2, value: langs.isEmpty ? nil : langs.joined(separator: " "))
+        bindText(stmt, index: 2, value: normalizedLangs)
         bindInt64(stmt, index: 3, value: Self.epochMillis(now))
         bindInt64(stmt, index: 4, value: Self.epochMillis(now))
         bindText(stmt, index: 5, value: id.uuidString)
@@ -979,6 +1082,30 @@ actor CaptureLibraryDatabase {
         }
 
         try rebuildFTS(for: id)
+    }
+
+    func updateOCRLangsOnly(for id: UUID, langs: [String], now: Date) throws {
+        let normalizedLangs = Self.normalizeOCRLangs(langs)
+
+        let sql = """
+        UPDATE capture_items
+        SET
+          ocr_langs = ?,
+          ocr_updated_at = ?,
+          updated_at = ?
+        WHERE id = ?
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        bindText(stmt, index: 1, value: normalizedLangs)
+        bindInt64(stmt, index: 2, value: Self.epochMillis(now))
+        bindInt64(stmt, index: 3, value: Self.epochMillis(now))
+        bindText(stmt, index: 4, value: id.uuidString)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw lastError("更新 OCR 语言失败")
+        }
     }
 
     func updateEmbedding(
@@ -1812,7 +1939,42 @@ final class CaptureLibrary {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
 
-            try await worker.updateOCR(for: id, text: trimmed, langs: languages, now: Date())
+            try await worker.updateOCR(for: id, text: trimmed, langs: languages, now: Date(), notify: true)
+        }
+    }
+
+    func fetchOCRReindexCandidates(
+        targetLangs: String,
+        limit: Int,
+        cursorCreatedAtMillis: Int64?,
+        cursorID: String?
+    ) async -> [CaptureLibraryOCRReindexCandidate] {
+        do {
+            return try await worker.fetchOCRReindexCandidates(
+                targetLangs: targetLangs,
+                limit: limit,
+                cursorCreatedAtMillis: cursorCreatedAtMillis,
+                cursorID: cursorID
+            )
+        } catch {
+            logError("CaptureLibrary fetchOCRReindexCandidates failed: \(error.localizedDescription)", category: "LIB")
+            return []
+        }
+    }
+
+    func updateOCRForReindex(for id: UUID, text: String, langs: [String], notify: Bool) async {
+        do {
+            try await worker.updateOCR(for: id, text: text, langs: langs, now: Date(), notify: notify)
+        } catch {
+            logError("CaptureLibrary updateOCRForReindex failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    func updateOCRLangsForReindex(for id: UUID, langs: [String], notify: Bool) async {
+        do {
+            try await worker.updateOCRLangsOnly(for: id, langs: langs, now: Date(), notify: notify)
+        } catch {
+            logError("CaptureLibrary updateOCRLangsForReindex failed: \(error.localizedDescription)", category: "LIB")
         }
     }
 
@@ -2126,7 +2288,8 @@ actor CaptureLibraryWorker {
                     )
                     let text = try await OCRService.recognizeText(
                         in: nsImage,
-                        preferredLanguages: job.autoOCRPreferredLanguages.isEmpty ? nil : job.autoOCRPreferredLanguages
+                        preferredLanguages: job.autoOCRPreferredLanguages.isEmpty ? nil : job.autoOCRPreferredLanguages,
+                        qos: .utility
                     )
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
@@ -2165,6 +2328,22 @@ actor CaptureLibraryWorker {
         return try await database.fetchTagGroups()
     }
 
+    func fetchOCRReindexCandidates(
+        targetLangs: String,
+        limit: Int,
+        cursorCreatedAtMillis: Int64?,
+        cursorID: String?
+    ) async throws -> [CaptureLibraryOCRReindexCandidate] {
+        try prepareIfNeeded()
+        guard let database else { return [] }
+        return try await database.fetchOCRReindexCandidates(
+            targetLangs: targetLangs,
+            limit: limit,
+            cursorCreatedAtMillis: cursorCreatedAtMillis,
+            cursorID: cursorID
+        )
+    }
+
     func setTags(_ tags: [String], for id: UUID, now: Date) async throws {
         try prepareIfNeeded()
         guard let database else { return }
@@ -2179,11 +2358,18 @@ actor CaptureLibraryWorker {
         notifyChanged()
     }
 
-    func updateOCR(for id: UUID, text: String, langs: [String], now: Date) async throws {
+    func updateOCR(for id: UUID, text: String, langs: [String], now: Date, notify: Bool) async throws {
         try prepareIfNeeded()
         guard let database else { return }
         try await database.updateOCR(for: id, text: text, langs: langs, now: now)
-        notifyChanged()
+        if notify { notifyChanged() }
+    }
+
+    func updateOCRLangsOnly(for id: UUID, langs: [String], now: Date, notify: Bool) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.updateOCRLangsOnly(for: id, langs: langs, now: now)
+        if notify { notifyChanged() }
     }
 
     func updateEmbedding(
