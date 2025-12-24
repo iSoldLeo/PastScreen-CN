@@ -554,6 +554,12 @@ struct StorageSettingsView: View {
                 )
                 .disabled(!settings.captureLibraryEnabled)
 
+                Toggle(
+                    NSLocalizedString("settings.library.semantic_search", value: "语义增强（实验，仅离线；不可用时自动降级）", comment: ""),
+                    isOn: $settings.captureLibrarySemanticSearchEnabled
+                )
+                .disabled(!settings.captureLibraryEnabled)
+
                 Divider()
 
                 LabeledContent(NSLocalizedString("settings.library.retention_days", value: "保留天数", comment: "")) {

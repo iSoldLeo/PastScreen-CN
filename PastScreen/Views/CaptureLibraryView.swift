@@ -129,13 +129,22 @@ final class CaptureLibraryViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         async let groups = CaptureLibrary.shared.fetchAppGroups()
         async let tags = CaptureLibrary.shared.fetchTagGroups()
         async let fetched = CaptureLibrary.shared.fetchItems(query: queryForSelection(), limit: pageSize, offset: 0)
 
         appGroups = await groups
         tagGroups = await tags
-        items = await fetched
+
+        let fetchedItems = await fetched
+        if AppSettings.shared.captureLibrarySemanticSearchEnabled,
+           sort == .relevance,
+           !trimmedSearch.isEmpty {
+            items = await CaptureLibrarySemanticSearchService.shared.rerank(items: fetchedItems, queryText: trimmedSearch)
+        } else {
+            items = fetchedItems
+        }
 
         if let selectedItemID, !items.contains(where: { $0.id == selectedItemID }) {
             self.selectedItemID = items.first?.id

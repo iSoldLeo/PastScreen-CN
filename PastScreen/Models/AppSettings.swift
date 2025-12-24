@@ -414,6 +414,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibrarySemanticSearchEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibrarySemanticSearchEnabled, forKey: "captureLibrarySemanticSearchEnabled")
+        }
+    }
+
     @Published var captureLibraryRetentionDays: Int {
         didSet {
             let clamped = min(max(captureLibraryRetentionDays, 1), 365)
@@ -594,6 +600,7 @@ class AppSettings: ObservableObject {
         self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
         self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
         self.captureLibraryAutoOCR = UserDefaults.standard.object(forKey: "captureLibraryAutoOCR") as? Bool ?? false
+        self.captureLibrarySemanticSearchEnabled = UserDefaults.standard.object(forKey: "captureLibrarySemanticSearchEnabled") as? Bool ?? false
 
         let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
         self.captureLibraryRetentionDays = retention > 0 ? retention : 30
