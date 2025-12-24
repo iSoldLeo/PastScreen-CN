@@ -933,6 +933,35 @@ actor CaptureLibraryDatabase {
         try rebuildFTS(for: id)
     }
 
+    func updateOCR(for id: UUID, text: String, langs: [String], now: Date) throws {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+
+        let sql = """
+        UPDATE capture_items
+        SET
+          ocr_text = ?,
+          ocr_langs = ?,
+          ocr_updated_at = ?,
+          updated_at = ?
+        WHERE id = ?
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+
+        bindText(stmt, index: 1, value: trimmedText)
+        bindText(stmt, index: 2, value: langs.isEmpty ? nil : langs.joined(separator: " "))
+        bindInt64(stmt, index: 3, value: Self.epochMillis(now))
+        bindInt64(stmt, index: 4, value: Self.epochMillis(now))
+        bindText(stmt, index: 5, value: id.uuidString)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw lastError("更新 OCR 失败")
+        }
+
+        try rebuildFTS(for: id)
+    }
+
     func setTags(_ tags: [String], for id: UUID, now: Date) throws {
         let normalized = Self.normalizeTags(tags)
         let tagsCache = normalized.joined(separator: " ")
@@ -1579,6 +1608,9 @@ final class CaptureLibrary {
     private let pendingLock = NSLock()
     private var pendingJobs: Int = 0
     private let maxPendingJobs: Int = 8
+    private let indexingLock = NSLock()
+    private var pendingIndexJobs: Int = 0
+    private let maxPendingIndexJobs: Int = 2
 
     private init() {}
 
@@ -1609,6 +1641,8 @@ final class CaptureLibrary {
         guard AppSettings.shared.captureLibraryEnabled else { return nil }
 
         let storePreviews = AppSettings.shared.captureLibraryStorePreviews
+        let autoOCR = AppSettings.shared.captureLibraryAutoOCR
+        let autoOCRPreferredLanguages = AppSettings.shared.ocrRecognitionLanguages
         let createdAt = Date()
 
         let job = CaptureLibraryAddJob(
@@ -1625,7 +1659,9 @@ final class CaptureLibrary {
             cgImage: cgImage,
             storePreview: storePreviews,
             ocrText: ocrText,
-            ocrLangs: ocrLangs
+            ocrLangs: ocrLangs,
+            autoOCR: autoOCR,
+            autoOCRPreferredLanguages: autoOCRPreferredLanguages
         )
 
         let enqueued = enqueue(priority: .utility) { worker in
@@ -1687,6 +1723,27 @@ final class CaptureLibrary {
             try await worker.updateNote(for: id, note: note, now: Date())
         } catch {
             logError("CaptureLibrary updateNote failed: \(error.localizedDescription)", category: "LIB")
+        }
+    }
+
+    @discardableResult
+    func requestOCR(for id: UUID, imageURL: URL, preferredLanguages: [String]) -> Bool {
+        guard AppSettings.shared.captureLibraryEnabled else { return false }
+        let path = imageURL.path
+        let languages = preferredLanguages
+
+        return enqueueIndexing(priority: .utility) { worker in
+            guard FileManager.default.fileExists(atPath: path) else { return }
+            guard let image = NSImage(contentsOfFile: path) else { return }
+
+            let text = try await OCRService.recognizeText(
+                in: image,
+                preferredLanguages: languages.isEmpty ? nil : languages
+            )
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+
+            try await worker.updateOCR(for: id, text: trimmed, langs: languages, now: Date())
         }
     }
 
@@ -1829,6 +1886,28 @@ final class CaptureLibrary {
         return true
     }
 
+    @discardableResult
+    private func enqueueIndexing(
+        priority: TaskPriority,
+        operation: @escaping (CaptureLibraryWorker) async throws -> Void
+    ) -> Bool {
+        guard acquireIndexSlot() else {
+            logWarning("CaptureLibrary indexing backlog full; drop job.", category: "LIB")
+            return false
+        }
+
+        Task.detached(priority: priority) { [weak self] in
+            defer { self?.releaseIndexSlot() }
+            do {
+                try await operation(CaptureLibrary.shared.worker)
+            } catch {
+                logError("CaptureLibrary indexing job failed: \(error.localizedDescription)", category: "LIB")
+            }
+        }
+
+        return true
+    }
+
     private func acquireJobSlot() -> Bool {
         pendingLock.lock()
         defer { pendingLock.unlock() }
@@ -1841,6 +1920,20 @@ final class CaptureLibrary {
         pendingLock.lock()
         pendingJobs = max(0, pendingJobs - 1)
         pendingLock.unlock()
+    }
+
+    private func acquireIndexSlot() -> Bool {
+        indexingLock.lock()
+        defer { indexingLock.unlock() }
+        if pendingIndexJobs >= maxPendingIndexJobs { return false }
+        pendingIndexJobs += 1
+        return true
+    }
+
+    private func releaseIndexSlot() {
+        indexingLock.lock()
+        pendingIndexJobs = max(0, pendingIndexJobs - 1)
+        indexingLock.unlock()
     }
 }
 
@@ -1864,6 +1957,9 @@ fileprivate struct CaptureLibraryAddJob {
 
     let ocrText: String?
     let ocrLangs: [String]
+
+    let autoOCR: Bool
+    let autoOCRPreferredLanguages: [String]
 }
 
 actor CaptureLibraryWorker {
@@ -1950,6 +2046,29 @@ actor CaptureLibraryWorker {
 
         try await database.insertCapture(item, ftsText: ftsText)
         notifyChanged()
+
+        if job.autoOCR {
+            let existingOCR = job.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if existingOCR.isEmpty {
+                do {
+                    let nsImage = NSImage(
+                        cgImage: job.cgImage,
+                        size: NSSize(width: job.selectionSize.width, height: job.selectionSize.height)
+                    )
+                    let text = try await OCRService.recognizeText(
+                        in: nsImage,
+                        preferredLanguages: job.autoOCRPreferredLanguages.isEmpty ? nil : job.autoOCRPreferredLanguages
+                    )
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        try await database.updateOCR(for: job.id, text: trimmed, langs: job.autoOCRPreferredLanguages, now: Date())
+                        notifyChanged()
+                    }
+                } catch {
+                    logWarning("CaptureLibrary auto OCR failed: \(error.localizedDescription)", category: "LIB")
+                }
+            }
+        }
     }
 
     func updateExternalFilePath(for id: UUID, path: String?, now: Date) async throws {
@@ -1988,6 +2107,13 @@ actor CaptureLibraryWorker {
         try prepareIfNeeded()
         guard let database else { return }
         try await database.updateNote(for: id, note: note, now: now)
+        notifyChanged()
+    }
+
+    func updateOCR(for id: UUID, text: String, langs: [String], now: Date) async throws {
+        try prepareIfNeeded()
+        guard let database else { return }
+        try await database.updateOCR(for: id, text: text, langs: langs, now: now)
         notifyChanged()
     }
 

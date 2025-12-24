@@ -105,6 +105,7 @@ final class CaptureLibraryViewModel: ObservableObject {
     private let pageSize = 240
     private var changeObserver: Any?
     private var reloadTask: Task<Void, Never>?
+    private var requestedOCR = Set<UUID>()
     private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()
 
     init() {
@@ -198,6 +199,9 @@ final class CaptureLibraryViewModel: ObservableObject {
     }
 
     func togglePinned(_ item: CaptureItem) {
+        if !item.isPinned {
+            requestOCRIfNeeded(for: item)
+        }
         Task {
             await CaptureLibrary.shared.setPinned(!item.isPinned, for: item.id)
         }
@@ -219,6 +223,23 @@ final class CaptureLibraryViewModel: ObservableObject {
 
     func reveal(_ item: CaptureItem) {
         CaptureLibrary.shared.revealInFinder(item: item)
+    }
+
+    func requestOCRIfNeeded(for item: CaptureItem) {
+        let existing = item.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard existing.isEmpty else { return }
+        guard let url = previewURL(for: item) else { return }
+
+        guard !requestedOCR.contains(item.id) else { return }
+
+        let enqueued = CaptureLibrary.shared.requestOCR(
+            for: item.id,
+            imageURL: url,
+            preferredLanguages: AppSettings.shared.ocrRecognitionLanguages
+        )
+        if enqueued {
+            requestedOCR.insert(item.id)
+        }
     }
 
     func updateTags(for itemID: UUID, input: String) {
@@ -502,6 +523,9 @@ private struct CaptureLibraryRootView: View {
                     },
                     onUpdateNote: { note in
                         model.updateNote(for: item.id, note: note)
+                    },
+                    onRequestOCR: {
+                        model.requestOCRIfNeeded(for: item)
                     }
                 )
             } else {
@@ -582,6 +606,7 @@ private struct CaptureLibraryInspectorView: View {
     let onDelete: () -> Void
     let onUpdateTags: (String) -> Void
     let onUpdateNote: (String?) -> Void
+    let onRequestOCR: () -> Void
 
     @State private var image: NSImage?
     @State private var tagsText: String = ""
@@ -631,6 +656,7 @@ private struct CaptureLibraryInspectorView: View {
         .task(id: item.id) {
             tagsText = item.tagsCache
             noteText = item.note ?? ""
+            onRequestOCR()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }

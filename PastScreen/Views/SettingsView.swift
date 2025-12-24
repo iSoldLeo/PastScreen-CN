@@ -548,6 +548,12 @@ struct StorageSettingsView: View {
                 )
                 .disabled(!settings.captureLibraryEnabled)
 
+                Toggle(
+                    NSLocalizedString("settings.library.auto_ocr", value: "自动 OCR 以增强搜索（可能耗时/耗电）", comment: ""),
+                    isOn: $settings.captureLibraryAutoOCR
+                )
+                .disabled(!settings.captureLibraryEnabled)
+
                 Divider()
 
                 LabeledContent(NSLocalizedString("settings.library.retention_days", value: "保留天数", comment: "")) {

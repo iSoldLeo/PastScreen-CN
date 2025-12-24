@@ -408,6 +408,12 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibraryAutoOCR: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryAutoOCR, forKey: "captureLibraryAutoOCR")
+        }
+    }
+
     @Published var captureLibraryRetentionDays: Int {
         didSet {
             let clamped = min(max(captureLibraryRetentionDays, 1), 365)
@@ -587,6 +593,7 @@ class AppSettings: ObservableObject {
 
         self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
         self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
+        self.captureLibraryAutoOCR = UserDefaults.standard.object(forKey: "captureLibraryAutoOCR") as? Bool ?? false
 
         let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
         self.captureLibraryRetentionDays = retention > 0 ? retention : 30
