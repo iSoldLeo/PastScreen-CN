@@ -1535,6 +1535,11 @@ private static func makeFTSText(
                 return term + "*"
             }
 
+            if term.range(of: #"^[\p{L}\p{Nd}]+$"#, options: .regularExpression) != nil {
+                // For CJK/other scripts: use prefix match so "微信" can match "微信支付".
+                return term + "*"
+            }
+
             let escaped = term.replacingOccurrences(of: "\"", with: "\"\"")
             return "\"\(escaped)\""
         }
