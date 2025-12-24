@@ -182,16 +182,7 @@ struct OCRService {
     }
 
     private static func normalizeRecognitionLanguages(_ preferredLanguages: [String]?) -> [String] {
-        let trimmed = (preferredLanguages ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var unique: [String] = []
-        var seen = Set<String>()
-        for language in trimmed where seen.insert(language).inserted {
-            unique.append(language)
-        }
-        return unique
+        AppSettings.normalizeOCRRecognitionLanguages(preferredLanguages ?? [])
     }
 
     /// Vision's regionOfInterest is normalized and origin is bottom-left.

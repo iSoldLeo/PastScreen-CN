@@ -220,32 +220,16 @@ final class CaptureLibraryOCRReindexService {
     }
 
     private static func normalizedPreferredLanguages(_ raw: [String]) -> [String] {
-        let cleaned = raw
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var seen = Set<String>()
-        var out: [String] = []
-        for lang in cleaned where seen.insert(lang).inserted {
-            out.append(lang)
-        }
-        return out
+        AppSettings.normalizeOCRRecognitionLanguages(raw)
     }
 
     private static func langsKey(for preferredLanguages: [String]) -> String {
-        let sorted = preferredLanguages
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .sorted()
+        let sorted = AppSettings.normalizeOCRRecognitionLanguages(preferredLanguages).sorted()
         return sorted.joined(separator: " ")
     }
 
     private static func langSet(from stored: String?) -> Set<String> {
-        let parts = (stored ?? "")
-            .split(whereSeparator: \.isWhitespace)
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return Set(parts)
+        Set(AppSettings.normalizeOCRRecognitionLanguages([stored ?? ""]))
     }
 
     private static func bestImageURL(for candidate: CaptureLibraryOCRReindexCandidate, rootURL: URL?) -> URL? {

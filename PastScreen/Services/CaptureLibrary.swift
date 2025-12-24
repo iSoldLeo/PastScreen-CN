@@ -966,17 +966,8 @@ actor CaptureLibraryDatabase {
     }
 
     private static func normalizeOCRLangs(_ langs: [String]) -> String? {
-        let cleaned = langs
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var unique = Set<String>()
-        var out: [String] = []
-        for lang in cleaned where unique.insert(lang).inserted {
-            out.append(lang)
-        }
-
-        let sorted = out.sorted()
+        let normalized = AppSettings.normalizeOCRRecognitionLanguages(langs)
+        let sorted = normalized.sorted()
         return sorted.isEmpty ? nil : sorted.joined(separator: " ")
     }
 
