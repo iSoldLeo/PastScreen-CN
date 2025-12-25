@@ -1256,9 +1256,33 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(trimmed, forType: .string)
+        switch AppSettings.shared.ocrClipboardFormat {
+        case .text:
+            pasteboard.setString(trimmed, forType: .string)
+        case .markdownCodeBlock:
+            pasteboard.setString(makeMarkdownCodeBlock(text: trimmed), forType: .string)
+        }
 
         showOCRFeedback(style: .success, key: "toast.ocr.success", fallback: "OCR 已复制")
+    }
+
+    private func makeMarkdownCodeBlock(text: String) -> String {
+        let fence = String(repeating: "`", count: max(3, longestBacktickRun(in: text) + 1))
+        return "\(fence)text\n\(text)\n\(fence)"
+    }
+
+    private func longestBacktickRun(in text: String) -> Int {
+        var longest = 0
+        var current = 0
+        for scalar in text.unicodeScalars {
+            if scalar == "`" {
+                current += 1
+                if current > longest { longest = current }
+            } else {
+                current = 0
+            }
+        }
+        return longest
     }
 
     private func showOCRFeedback(style: DynamicIslandManager.Style, key: String, fallback: String) {
@@ -1614,37 +1638,31 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         let settings = AppSettings.shared
 
-        // Only save when user enabled it and a valid folder is configured
-        var filePath: String?
-
-        // Check for App Override
-        var usePathOnly = false
-        if let bundleID = previousApp?.bundleIdentifier,
-           let override = settings.getOverride(for: bundleID) {
-            if override == .path {
-                usePathOnly = true
+        let effectiveFormat: CaptureClipboardFormat = {
+            if let bundleID = previousApp?.bundleIdentifier,
+               let override = settings.getOverride(for: bundleID),
+               override == .path {
+                return .path
             }
-        }
+            return settings.captureClipboardFormat
+        }()
 
-        if usePathOnly, allowSaving {
-            filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
-        }
-
-        if usePathOnly {
-            // PATH ONLY - For terminals
-            if let imagePath = filePath {
-                pasteboard.setString(imagePath, forType: .string)
-            } else {
-                // Fallback to image copy if no path is available
-                pasteboard.writeObjects([image])
+        let filePath: String? = {
+            switch effectiveFormat {
+            case .image:
+                return nil
+            case .path, .markdownImage:
+                guard allowSaving else { return nil }
+                return saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
             }
-        } else {
-            // IMAGE ONLY - Default behavior (works with AI agents, browsers, etc.)
+        }()
+
+        switch effectiveFormat {
+        case .image:
             if let pngData = makePNGClipboardData(cgImage: cgImage, pointSize: pointSize) {
                 let item = NSPasteboardItem()
                 item.setData(pngData, forType: .png)
 
-                // Keep a TIFF fallback for apps that expect the legacy type
                 if let tiffData = image.tiffRepresentation {
                     item.setData(tiffData, forType: .tiff)
                 }
@@ -1653,15 +1671,40 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } else {
                 pasteboard.writeObjects([image])
             }
-        }
+            return nil
 
-        return filePath
+        case .path:
+            if let filePath, !filePath.isEmpty {
+                pasteboard.setString(filePath, forType: .string)
+                return filePath
+            }
+            pasteboard.writeObjects([image])
+            return nil
+
+        case .markdownImage:
+            if let filePath, let markdown = makeMarkdownImageReference(filePath: filePath) {
+                pasteboard.setString(markdown, forType: .string)
+                return filePath
+            }
+            pasteboard.writeObjects([image])
+            return nil
+        }
     }
 
     private func makePNGClipboardData(cgImage: CGImage, pointSize: CGSize) -> Data? {
         let rep = NSBitmapImageRep(cgImage: cgImage)
         rep.size = pointSize
         return rep.representation(using: .png, properties: [:])
+    }
+
+    private func makeMarkdownImageReference(filePath: String) -> String? {
+        let url = URL(fileURLWithPath: filePath)
+        let alt = url.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "]", with: "")
+            .replacingOccurrences(of: "[", with: "")
+        let ref = url.absoluteString
+        guard !ref.isEmpty else { return nil }
+        return "![\(alt)](\(ref))"
     }
 
     /// Save to disk on a background queue, then hop back to main for UI/notifications.
