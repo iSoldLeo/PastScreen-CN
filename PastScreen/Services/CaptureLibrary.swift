@@ -2636,7 +2636,7 @@ actor CaptureLibrarySemanticSearchService {
 
     private var cachedConfigs: [String: Config] = [:]
 
-    func rerank(items: [CaptureItem], queryText: String) async -> [CaptureItem] {
+    func rerank(items: [CaptureItem], queryText: String, includeFTSWeight: Bool = true) async -> [CaptureItem] {
         let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, items.count > 1 else { return items }
 
@@ -2650,7 +2650,7 @@ actor CaptureLibrarySemanticSearchService {
 
         let n = max(1, items.count - 1)
         for (index, item) in items.enumerated() {
-            let ftsScore = 1.0 - (Double(index) / Double(n))
+            let ftsScore: Double = includeFTSWeight ? (1.0 - (Double(index) / Double(n))) : 0.0
             let semanticText = Self.semanticText(for: item)
             let sourceHash = Self.sha256Hex(semanticText)
 
@@ -2677,7 +2677,12 @@ actor CaptureLibrarySemanticSearchService {
                 semanticScore = 0
             }
 
-            let finalScore = 0.6 * ftsScore + 0.4 * semanticScore
+            let finalScore: Double
+            if includeFTSWeight {
+                finalScore = 0.6 * ftsScore + 0.4 * semanticScore
+            } else {
+                finalScore = semanticScore
+            }
             scored.append((item: item, index: index, finalScore: finalScore))
         }
 
@@ -2833,6 +2838,9 @@ actor CaptureLibrarySemanticSearchService {
         if let appName = item.appName, !appName.isEmpty { parts.append(appName) }
         if !item.tagsCache.isEmpty { parts.append(item.tagsCache) }
         if let note = item.note, !note.isEmpty { parts.append(note) }
+        if let external = item.externalFilePath, !external.isEmpty {
+            parts.append(URL(fileURLWithPath: external).lastPathComponent)
+        }
         if let ocr = item.ocrText, !ocr.isEmpty {
             parts.append(String(ocr.prefix(2_000)))
         }

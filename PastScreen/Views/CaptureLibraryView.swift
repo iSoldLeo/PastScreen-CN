@@ -147,7 +147,10 @@ final class CaptureLibraryViewModel: ObservableObject {
         let effectiveSearch = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         async let groups = CaptureLibrary.shared.fetchAppGroups()
         async let tags = CaptureLibrary.shared.fetchTagGroups()
-        async let fetched = CaptureLibrary.shared.fetchItems(query: query, limit: pageSize, offset: 0)
+        let candidateLimit = (AppSettings.shared.captureLibrarySemanticSearchEnabled && sort == .relevance && !effectiveSearch.isEmpty)
+            ? max(pageSize, 800)
+            : pageSize
+        async let fetched = CaptureLibrary.shared.fetchItems(query: query, limit: candidateLimit, offset: 0)
 
         appGroups = await groups
         tagGroups = await tags
@@ -156,7 +159,25 @@ final class CaptureLibraryViewModel: ObservableObject {
         if AppSettings.shared.captureLibrarySemanticSearchEnabled,
            sort == .relevance,
            !effectiveSearch.isEmpty {
-            items = await CaptureLibrarySemanticSearchService.shared.rerank(items: fetchedItems, queryText: effectiveSearch)
+            if fetchedItems.isEmpty {
+                var fallbackQuery = query
+                fallbackQuery.searchText = nil
+                fallbackQuery.sort = .timeDesc
+                let fallbackCandidates = await CaptureLibrary.shared.fetchItems(query: fallbackQuery, limit: candidateLimit, offset: 0)
+                let reranked = await CaptureLibrarySemanticSearchService.shared.rerank(
+                    items: fallbackCandidates,
+                    queryText: effectiveSearch,
+                    includeFTSWeight: false
+                )
+                items = Array(reranked.prefix(pageSize))
+            } else {
+                let reranked = await CaptureLibrarySemanticSearchService.shared.rerank(
+                    items: fetchedItems,
+                    queryText: effectiveSearch,
+                    includeFTSWeight: true
+                )
+                items = Array(reranked.prefix(pageSize))
+            }
         } else {
             items = fetchedItems
         }
