@@ -85,6 +85,12 @@ final class CaptureLibraryManager: NSObject, NSWindowDelegate {
 
 @MainActor
 final class CaptureLibraryViewModel: ObservableObject {
+    enum PresentationMode: Equatable {
+        case browse
+        case searchResults
+        case searchDetail
+    }
+
     enum SidebarSelection: Hashable {
         case all
         case pinned
@@ -100,7 +106,12 @@ final class CaptureLibraryViewModel: ObservableObject {
     @Published private(set) var appGroups: [CaptureLibraryAppGroup] = []
     @Published private(set) var tagGroups: [CaptureLibraryTagGroup] = []
     @Published var selectedItemID: UUID?
+    @Published var presentationMode: PresentationMode = .browse
     @Published var isLoading: Bool = false
+
+    private var cachedBrowseItems: [CaptureItem] = []
+    private var cachedBrowseSelection: SidebarSelection?
+    private var cachedBrowseSelectedItemID: UUID?
 
     private let pageSize = 240
     private var changeObserver: Any?
@@ -114,7 +125,9 @@ final class CaptureLibraryViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleReload(debounce: true)
+            Task { @MainActor in
+                self?.scheduleReload(debounce: true)
+            }
         }
     }
 
@@ -147,10 +160,58 @@ final class CaptureLibraryViewModel: ObservableObject {
             items = fetchedItems
         }
 
+        if !isSearchActive {
+            cachedBrowseItems = items
+            cachedBrowseSelection = sidebarSelection
+            cachedBrowseSelectedItemID = selectedItemID
+        }
+
         if let selectedItemID, !items.contains(where: { $0.id == selectedItemID }) {
             self.selectedItemID = items.first?.id
         } else if selectedItemID == nil {
             self.selectedItemID = items.first?.id
+        }
+    }
+
+    var isSearchActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func enterSearchDetail(itemID: UUID) {
+        selectedItemID = itemID
+        presentationMode = .searchDetail
+    }
+
+    func backToSearchResults() {
+        presentationMode = .searchResults
+    }
+
+    func handleSearchTextChanged() {
+        if isSearchActive {
+            if presentationMode == .browse {
+                presentationMode = .searchResults
+            } else if presentationMode == .searchDetail {
+                presentationMode = .searchResults
+            }
+        } else {
+            presentationMode = .browse
+            if cachedBrowseSelection == sidebarSelection, !cachedBrowseItems.isEmpty {
+                items = cachedBrowseItems
+                selectedItemID = cachedBrowseSelectedItemID ?? cachedBrowseItems.first?.id
+            }
+        }
+    }
+
+    func prepareForSearchReload() {
+        guard isSearchActive else { return }
+        isLoading = true
+        items = []
+        selectedItemID = nil
+    }
+
+    func handleSidebarSelectionChanged() {
+        if isSearchActive, presentationMode == .searchDetail {
+            presentationMode = .searchResults
         }
     }
 
@@ -316,6 +377,18 @@ final class CaptureLibraryViewModel: ObservableObject {
                 continue
             }
 
+            if let range = parsePeriodKeyword(trimmed, calendar: calendar, now: now) {
+                query.createdAfter = range.start
+                query.createdBefore = range.end
+                continue
+            }
+
+            if let relative = parseRelativeTimeToken(trimmed, calendar: calendar, now: now) {
+                query.createdAfter = relative
+                query.createdBefore = nil
+                continue
+            }
+
             if let days = parseRelativeDaysToken(trimmed) {
                 query.createdAfter = now.addingTimeInterval(TimeInterval(-days * 24 * 60 * 60))
                 query.createdBefore = nil
@@ -473,6 +546,116 @@ final class CaptureLibraryViewModel: ObservableObject {
         return nil
     }
 
+    private func parsePeriodKeyword(_ token: String, calendar: Calendar, now: Date) -> (start: Date, end: Date)? {
+        let lowered = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        func clampedInterval(_ interval: DateInterval?) -> (start: Date, end: Date)? {
+            guard let interval else { return nil }
+            let start = interval.start
+            let end = interval.end.addingTimeInterval(-0.001)
+            return (start, end)
+        }
+
+        // Week
+        if lowered == "本周" || lowered == "这周" || lowered == "本星期" || lowered == "这星期" || lowered == "thisweek" {
+            return clampedInterval(calendar.dateInterval(of: .weekOfYear, for: now))
+        }
+        if lowered == "上周" || lowered == "上星期" || lowered == "lastweek" {
+            guard let date = calendar.date(byAdding: .day, value: -7, to: now) else { return nil }
+            return clampedInterval(calendar.dateInterval(of: .weekOfYear, for: date))
+        }
+
+        // Month
+        if lowered == "本月" || lowered == "这个月" || lowered == "thismonth" {
+            return clampedInterval(calendar.dateInterval(of: .month, for: now))
+        }
+        if lowered == "上月" || lowered == "上个月" || lowered == "lastmonth" {
+            guard let date = calendar.date(byAdding: .month, value: -1, to: now) else { return nil }
+            return clampedInterval(calendar.dateInterval(of: .month, for: date))
+        }
+
+        // Year
+        if lowered == "今年" || lowered == "本年" || lowered == "thisyear" {
+            return clampedInterval(calendar.dateInterval(of: .year, for: now))
+        }
+        if lowered == "去年" || lowered == "lastyear" {
+            guard let date = calendar.date(byAdding: .year, value: -1, to: now) else { return nil }
+            return clampedInterval(calendar.dateInterval(of: .year, for: date))
+        }
+
+        return nil
+    }
+
+    private func parseRelativeTimeToken(_ token: String, calendar: Calendar, now: Date) -> Date? {
+        var lowered = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !lowered.isEmpty else { return nil }
+
+        let prefixes = ["最近", "近", "过去", "过去的", "past", "last"]
+        for prefix in prefixes where lowered.hasPrefix(prefix) {
+            lowered = String(lowered.dropFirst(prefix.count))
+            break
+        }
+
+        enum Unit { case day, week, month }
+
+        let unit: Unit
+        let numberText: String
+
+        if lowered.hasSuffix("天") {
+            unit = .day
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("日") {
+            unit = .day
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("d") {
+            unit = .day
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("周") {
+            unit = .week
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("星期") {
+            unit = .week
+            numberText = String(lowered.dropLast(2))
+        } else if lowered.hasSuffix("w") {
+            unit = .week
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("个月") {
+            unit = .month
+            numberText = String(lowered.dropLast(2))
+        } else if lowered.hasSuffix("月") {
+            unit = .month
+            numberText = String(lowered.dropLast(1))
+        } else if lowered.hasSuffix("m") {
+            unit = .month
+            numberText = String(lowered.dropLast(1))
+        } else {
+            return nil
+        }
+
+        let trimmed = numberText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let count = parseLooseInt(trimmed) ?? (trimmed.isEmpty ? 1 : nil)
+        guard let count, count > 0 else { return nil }
+
+        switch unit {
+        case .day:
+            return now.addingTimeInterval(TimeInterval(-count * 24 * 60 * 60))
+        case .week:
+            return now.addingTimeInterval(TimeInterval(-count * 7 * 24 * 60 * 60))
+        case .month:
+            return calendar.date(byAdding: .month, value: -count, to: now)
+        }
+    }
+
+    private func parseLooseInt(_ text: String) -> Int? {
+        if let value = Int(text) { return value }
+
+        let mapping: [String: Int] = [
+            "一": 1, "二": 2, "两": 2, "俩": 2, "三": 3, "四": 4, "五": 5,
+            "六": 6, "七": 7, "八": 8, "九": 9, "十": 10
+        ]
+        return mapping[text]
+    }
+
     private func parseRelativeDaysToken(_ token: String) -> Int? {
         let lowered = token.lowercased()
 
@@ -562,35 +745,44 @@ private struct CaptureLibraryRootView: View {
         self.onDismiss = onDismiss
     }
 
-    var body: some View {
-        NavigationSplitView {
-            sidebar
-        } content: {
-            grid
-        } detail: {
-            inspector
+    private var chromeBackgroundStyle: AnyShapeStyle {
+        if reduceTransparency {
+            return AnyShapeStyle(Color(nsColor: .windowBackgroundColor))
         }
-        .navigationSplitViewStyle(.balanced)
+        return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    var body: some View {
+        Group {
+            switch model.presentationMode {
+            case .browse:
+                browseView
+            case .searchResults:
+                searchResultsGrid
+            case .searchDetail:
+                searchDetailView
+            }
+        }
         .searchable(
             text: $model.searchText,
             placement: .toolbar,
             prompt: Text(NSLocalizedString("library.search.prompt", value: "搜索", comment: ""))
         )
         .background {
-            if reduceTransparency {
-                Color(nsColor: .windowBackgroundColor)
-            } else {
-                Rectangle().fill(.ultraThinMaterial)
-            }
+            Rectangle().fill(chromeBackgroundStyle)
         }
+        .toolbarBackground(chromeBackgroundStyle, for: .windowToolbar)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
-                Button {
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
+                if model.presentationMode == .searchDetail {
+                    Button {
+                        model.backToSearchResults()
+                    } label: {
+                        Image(systemName: "chevron.left.circle.fill")
+                    }
+                    .help(NSLocalizedString("library.back", value: "返回", comment: ""))
                 }
-                .help(NSLocalizedString("library.close", value: "关闭", comment: ""))
             }
 
             ToolbarItemGroup {
@@ -611,17 +803,36 @@ private struct CaptureLibraryRootView: View {
             }
         }
         .onAppear {
+            model.handleSearchTextChanged()
             model.scheduleReload(debounce: false)
         }
         .onChange(of: model.sidebarSelection) { _, _ in
+            model.handleSidebarSelectionChanged()
             model.scheduleReload(debounce: false)
         }
         .onChange(of: model.searchText) { _, _ in
-            model.scheduleReload(debounce: true)
+            model.handleSearchTextChanged()
+            if model.isSearchActive {
+                model.prepareForSearchReload()
+                model.scheduleReload(debounce: true)
+            } else {
+                model.scheduleReload(debounce: false)
+            }
         }
         .onChange(of: model.sort) { _, _ in
             model.scheduleReload(debounce: false)
         }
+    }
+
+    private var browseView: some View {
+        NavigationSplitView {
+            sidebar
+        } content: {
+            browseList
+        } detail: {
+            inspector
+        }
+        .navigationSplitViewStyle(.balanced)
     }
 
     private var sidebar: some View {
@@ -688,26 +899,91 @@ private struct CaptureLibraryRootView: View {
         .listStyle(.sidebar)
     }
 
-    private var grid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [
-                    GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)
-                ],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                ForEach(model.items) { item in
-                    CaptureLibraryGridItemView(
-                        title: model.title(for: item),
-                        url: model.thumbURL(for: item),
-                        isPinned: item.isPinned,
-                        isSelected: model.selectedItemID == item.id,
-                        debugMode: settings.captureLibraryDebugMode,
-                        ocrLangs: item.ocrLangs,
-                        ocrUpdatedAt: item.ocrUpdatedAt,
-                        ocrText: item.ocrText
-                    )
+	    private var searchResultsGrid: some View {
+	        Group {
+	            if model.isLoading {
+	                VStack(spacing: 12) {
+	                    ProgressView()
+	                        .progressViewStyle(.linear)
+	                        .padding(.horizontal, 16)
+	                        .padding(.top, 12)
+	                    Spacer(minLength: 0)
+	                }
+	            } else {
+	                ScrollView {
+	                    LazyVGrid(
+	                        columns: [
+	                            GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12)
+	                        ],
+	                        alignment: .leading,
+	                        spacing: 12
+	                    ) {
+	                        ForEach(model.items) { item in
+	                            CaptureLibraryGridItemView(
+	                                url: model.thumbURL(for: item),
+	                                isPinned: item.isPinned,
+	                                isSelected: model.selectedItemID == item.id
+	                            )
+	                            .onTapGesture {
+	                                model.enterSearchDetail(itemID: item.id)
+	                            }
+	                            .contextMenu {
+	                                Button {
+	                                    model.copyImage(item)
+	                                } label: {
+	                                    Label(NSLocalizedString("library.action.copy_image", value: "复制图片", comment: ""), systemImage: "doc.on.doc")
+	                                }
+
+	                                Button {
+	                                    model.copyPath(item)
+	                                } label: {
+	                                    Label(NSLocalizedString("library.action.copy_path", value: "复制路径", comment: ""), systemImage: "link")
+	                                }
+
+	                                Button {
+	                                    model.reveal(item)
+	                                } label: {
+	                                    Label(NSLocalizedString("library.action.reveal", value: "在 Finder 显示", comment: ""), systemImage: "folder")
+	                                }
+
+	                                Divider()
+
+	                                Button {
+	                                    model.togglePinned(item)
+	                                } label: {
+	                                    Label(
+	                                        item.isPinned
+	                                            ? NSLocalizedString("library.action.unpin", value: "取消置顶", comment: "")
+	                                            : NSLocalizedString("library.action.pin", value: "置顶", comment: ""),
+	                                        systemImage: item.isPinned ? "pin.slash" : "pin"
+	                                    )
+	                                }
+
+	                                Divider()
+
+	                                Button(role: .destructive) {
+	                                    model.delete(item)
+	                                } label: {
+	                                    Label(NSLocalizedString("library.action.delete", value: "删除", comment: ""), systemImage: "trash")
+	                                }
+	                            }
+	                        }
+	                    }
+	                    .padding(16)
+	                }
+	            }
+	        }
+	    }
+
+	    private var browseList: some View {
+	        ScrollView {
+	            LazyVStack(alignment: .leading, spacing: 12) {
+	                ForEach(model.items) { item in
+	                    CaptureLibraryListRowView(
+	                        url: model.thumbURL(for: item),
+	                        isPinned: item.isPinned,
+	                        isSelected: model.selectedItemID == item.id
+	                    )
                     .onTapGesture {
                         model.selectedItemID = item.id
                     }
@@ -757,92 +1033,125 @@ private struct CaptureLibraryRootView: View {
         }
     }
 
+	    private var searchDetailView: some View {
+	        HSplitView {
+	            browseList
+	                .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+	            inspector
+	        }
+	    }
+
     private var inspector: some View {
-        Group {
-            if let item = model.selectedItem {
-                CaptureLibraryInspectorView(
-                    item: item,
-                    previewURL: model.previewURL(for: item),
-                    debugMode: settings.captureLibraryDebugMode,
-                    onCopyImage: { model.copyImage(item) },
-                    onReveal: { model.reveal(item) },
-                    onTogglePinned: { model.togglePinned(item) },
-                    onDelete: { model.delete(item) },
-                    onUpdateTags: { tagsText in
-                        model.updateTags(for: item.id, input: tagsText)
-                    },
-                    onUpdateNote: { note in
-                        model.updateNote(for: item.id, note: note)
-                    },
-                    onRequestOCR: {
-                        model.requestOCRIfNeeded(for: item)
+        ScrollView {
+            Group {
+                if let item = model.selectedItem {
+                    CaptureLibraryInspectorView(
+                        item: item,
+                        previewURL: model.previewURL(for: item),
+                        debugMode: settings.captureLibraryDebugMode,
+                        onCopyImage: { model.copyImage(item) },
+                        onReveal: { model.reveal(item) },
+                        onTogglePinned: { model.togglePinned(item) },
+                        onDelete: { model.delete(item) },
+                        onUpdateTags: { tagsText in
+                            model.updateTags(for: item.id, input: tagsText)
+                        },
+                        onUpdateNote: { note in
+                            model.updateNote(for: item.id, note: note)
+                        },
+                        onRequestOCR: {
+                            model.requestOCRIfNeeded(for: item)
+                        }
+                    )
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text(NSLocalizedString("library.empty_selection", value: "选择一条截图查看详情", comment: ""))
+                            .foregroundStyle(.secondary)
                     }
-                )
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text(NSLocalizedString("library.empty_selection", value: "选择一条截图查看详情", comment: ""))
-                        .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(16)
         }
-        .padding(16)
     }
 }
 
-private struct CaptureLibraryGridItemView: View {
-    let title: String
+private struct CaptureLibraryListRowView: View {
     let url: URL?
     let isPinned: Bool
     let isSelected: Bool
-    let debugMode: Bool
-    let ocrLangs: [String]
-    let ocrUpdatedAt: Date?
-    let ocrText: String?
 
     @State private var image: NSImage?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .overlay {
-                        if let image {
-                            Image(nsImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .clipped()
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        } else {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
-                        }
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    if let image {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(10)
+                    } else {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(height: 110)
-
-                if isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(8)
                 }
-            }
+                .frame(height: 96)
 
-            Text(title)
-                .font(.caption)
-                .lineLimit(1)
-                .foregroundStyle(.secondary)
-
-            if debugMode {
-                Text(debugOCRText)
-                    .font(.caption2)
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(5)
-                    .textSelection(.enabled)
+                    .padding(8)
+            }
+        }
+        .glassContainer(material: .thickMaterial, cornerRadius: 12, borderOpacity: isSelected ? 0.35 : 0.12, shadowOpacity: 0.03)
+        .task(id: url) {
+            guard let url else {
+                image = nil
+                return
+            }
+            image = await Task.detached(priority: .utility) {
+                NSImage(contentsOfFile: url.path)
+            }.value
+        }
+    }
+}
+
+private struct CaptureLibraryGridItemView: View {
+    let url: URL?
+    let isPinned: Bool
+    let isSelected: Bool
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    if let image {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(10)
+                    } else {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(height: 126)
+
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(8)
             }
         }
         .padding(10)
@@ -856,32 +1165,6 @@ private struct CaptureLibraryGridItemView: View {
                 NSImage(contentsOfFile: url.path)
             }.value
         }
-    }
-
-    private var debugOCRText: String {
-        let langsText = ocrLangs.isEmpty ? "(auto)" : ocrLangs.joined(separator: " ")
-
-        let updatedText: String
-        if let ocrUpdatedAt {
-            updatedText = ocrUpdatedAt.formatted(date: .abbreviated, time: .shortened)
-        } else {
-            updatedText = "-"
-        }
-
-        let trimmed = (ocrText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let collapsed = trimmed
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .prefix(6)
-            .joined(separator: " ")
-        let preview = collapsed.isEmpty ? "<empty>" : String(collapsed.prefix(120))
-
-        return """
-        OCR langs: \(langsText)
-        OCR updated: \(updatedText)
-        OCR: \(preview)
-        """
     }
 }
 
