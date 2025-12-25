@@ -239,6 +239,29 @@ class AppSettings: ObservableObject {
     private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
 
+    static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
+        let separators = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: ",，;；"))
+
+        let parts = raw
+            .flatMap { $0.components(separatedBy: separators) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var unique: [String] = []
+        var seen = Set<String>()
+
+        for part in parts {
+            let canonical = Locale.canonicalIdentifier(from: part)
+            let normalized = canonical.replacingOccurrences(of: "_", with: "-")
+            guard !normalized.isEmpty else { continue }
+            guard seen.insert(normalized).inserted else { continue }
+            unique.append(normalized)
+        }
+
+        return unique
+    }
+
     @Published var saveToFile: Bool {
         didSet {
             UserDefaults.standard.set(saveToFile, forKey: "saveToFile")
@@ -396,6 +419,79 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var captureLibraryEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryEnabled, forKey: "captureLibraryEnabled")
+        }
+    }
+
+    @Published var captureLibraryStorePreviews: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryStorePreviews, forKey: "captureLibraryStorePreviews")
+        }
+    }
+
+    @Published var captureLibraryAutoOCR: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryAutoOCR, forKey: "captureLibraryAutoOCR")
+        }
+    }
+
+    @Published var captureLibrarySemanticSearchEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibrarySemanticSearchEnabled, forKey: "captureLibrarySemanticSearchEnabled")
+        }
+    }
+
+    @Published var captureLibraryDebugMode: Bool {
+        didSet {
+            UserDefaults.standard.set(captureLibraryDebugMode, forKey: "captureLibraryDebugMode")
+        }
+    }
+
+    @Published var captureLibraryRetentionDays: Int {
+        didSet {
+            let clamped = min(max(captureLibraryRetentionDays, 1), 365)
+            if clamped != captureLibraryRetentionDays {
+                captureLibraryRetentionDays = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryRetentionDays")
+        }
+    }
+
+    @Published var captureLibraryMaxItems: Int {
+        didSet {
+            let clamped = min(max(captureLibraryMaxItems, 50), 10_000)
+            if clamped != captureLibraryMaxItems {
+                captureLibraryMaxItems = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxItems")
+        }
+    }
+
+    @Published var captureLibraryMaxBytes: Int {
+        didSet {
+            let clamped = min(max(captureLibraryMaxBytes, 50 * 1024 * 1024), 50 * 1024 * 1024 * 1024)
+            if clamped != captureLibraryMaxBytes {
+                captureLibraryMaxBytes = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxBytes")
+        }
+    }
+
+    @Published var captureLibraryLastCleanupAt: Date? {
+        didSet {
+            if let captureLibraryLastCleanupAt {
+                UserDefaults.standard.set(captureLibraryLastCleanupAt.timeIntervalSince1970, forKey: "captureLibraryLastCleanupAt")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "captureLibraryLastCleanupAt")
+            }
+        }
+    }
+
     // Security Scoped Bookmark for Sandbox access
     @Published var appOverrides: [AppOverride] {
         didSet {
@@ -440,7 +536,12 @@ class AppSettings: ObservableObject {
 
     @Published var ocrRecognitionLanguages: [String] {
         didSet {
-            UserDefaults.standard.set(ocrRecognitionLanguages, forKey: "ocrRecognitionLanguages")
+            let normalized = Self.normalizeOCRRecognitionLanguages(ocrRecognitionLanguages)
+            if normalized != ocrRecognitionLanguages {
+                ocrRecognitionLanguages = normalized
+                return
+            }
+            UserDefaults.standard.set(normalized, forKey: "ocrRecognitionLanguages")
         }
     }
 
@@ -530,6 +631,24 @@ class AppSettings: ObservableObject {
         let seq = UserDefaults.standard.integer(forKey: "screenshotSequence")
         self.screenshotSequence = seq > 0 ? seq : 1
 
+        self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
+        self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
+        self.captureLibraryAutoOCR = UserDefaults.standard.object(forKey: "captureLibraryAutoOCR") as? Bool ?? false
+        self.captureLibrarySemanticSearchEnabled = UserDefaults.standard.object(forKey: "captureLibrarySemanticSearchEnabled") as? Bool ?? false
+        self.captureLibraryDebugMode = UserDefaults.standard.object(forKey: "captureLibraryDebugMode") as? Bool ?? false
+
+        let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
+        self.captureLibraryRetentionDays = retention > 0 ? retention : 30
+
+        let maxItems = UserDefaults.standard.integer(forKey: "captureLibraryMaxItems")
+        self.captureLibraryMaxItems = maxItems > 0 ? maxItems : 500
+
+        let maxBytes = UserDefaults.standard.object(forKey: "captureLibraryMaxBytes") as? Int ?? (1 * 1024 * 1024 * 1024)
+        self.captureLibraryMaxBytes = maxBytes > 0 ? maxBytes : (1 * 1024 * 1024 * 1024)
+
+        let lastCleanupTs = UserDefaults.standard.double(forKey: "captureLibraryLastCleanupAt")
+        self.captureLibraryLastCleanupAt = lastCleanupTs > 0 ? Date(timeIntervalSince1970: lastCleanupTs) : nil
+
         if let data = UserDefaults.standard.data(forKey: "appOverrides"),
            let decoded = try? JSONDecoder().decode([AppOverride].self, from: data) {
             self.appOverrides = decoded
@@ -554,7 +673,9 @@ class AppSettings: ObservableObject {
         }
         self.enabledEditingTools = resolvedEnabledTools
         self.radialWheelEnabled = UserDefaults.standard.object(forKey: "radialWheelEnabled") as? Bool ?? true
-        self.ocrRecognitionLanguages = UserDefaults.standard.stringArray(forKey: "ocrRecognitionLanguages") ?? Self.defaultOCRRecognitionLanguages
+        self.ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(
+            UserDefaults.standard.stringArray(forKey: "ocrRecognitionLanguages") ?? Self.defaultOCRRecognitionLanguages
+        )
 
         let defaultRadials = DrawingTool.defaultRadialIdentifiers
         let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials
@@ -579,11 +700,11 @@ class AppSettings: ObservableObject {
         } else {
             updated.removeAll { $0 == code }
         }
-        ocrRecognitionLanguages = updated
+        ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(updated)
     }
 
     func resetOCRLanguagesToDefault() {
-        ocrRecognitionLanguages = Self.defaultOCRRecognitionLanguages
+        ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(Self.defaultOCRRecognitionLanguages)
     }
 
     func ensureFolderExists() {

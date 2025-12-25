@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "Tipps beim Start von PastScreen-CN anzeigen";
 "settings.general.help_section" = "Hilfe & Support";
 "settings.general.help.prompt" = "Brauchen Sie einen schnellen Einstieg?";
-"settings.general.help.view_tutorial" = "Tutorial ansehen";
+"settings.general.help.view_tutorial" = "Benutzerhandbuch öffnen";
 "settings.general.privacy_section" = "Datenschutz";
 "settings.general.privacy.title" = "Ihre Privatsphäre zählt";
 "settings.general.privacy.description" = "PastScreen-CN sammelt nichts; alles bleibt auf Ihrem Mac.";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "App-Regel hinzufügen";
 "settings.apps.select_app_message" = "App wählen";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN Benutzerhandbuch";
+"tutorial.subtitle" = "Schnell aufnehmen, automatisch in die Zwischenablage.";
+"tutorial.open_settings" = "Einstellungen öffnen";
+"tutorial.close" = "Schließen";
+
+"tutorial.section.getting_started" = "Erste Schritte";
+"tutorial.getting_started.body" = "PastScreen-CN ist ein Screenshot-Tool in der Menüleiste: Nach der Auswahl wird automatisch in die Zwischenablage kopiert; bei Bedarf kann auch in Dateien gespeichert werden.";
+"tutorial.getting_started.steps" = "1. Beim ersten Start „Bildschirmaufnahme“ und „Bedienungshilfen“ erlauben.\n2. Mit dem Kurzbefehl eine Bereichsaufnahme starten.\n3. Für Markierungen „Erweiterte Aufnahme“ verwenden.\n4. Zum Speichern: Einstellungen > Speicher, Ordner wählen und Speichern aktivieren.";
+
+"tutorial.section.permissions" = "Berechtigungen (erforderlich)";
+"tutorial.permission.request" = "Zugriff anfordern";
+"tutorial.permissions.footer" = "Pfad: Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme / Bedienungshilfen.";
+
+"tutorial.section.shortcuts" = "Kurzbefehle";
+"tutorial.shortcut.quick" = "Bereichsaufnahme";
+"tutorial.shortcut.advanced" = "Erweiterte Aufnahme (Markieren)";
+"tutorial.shortcut.ocr" = "OCR-Aufnahme";
+"tutorial.shortcuts.footer" = "Kurzbefehl in Einstellungen > Aufnahme neu aufnehmen.";
+
+"tutorial.section.capture" = "So funktioniert’s";
+"tutorial.capture.tips" = "• Hotkey drücken, dann Bereich ziehen; loslassen zum Abschließen.\n• Während der Auswahl Rechtsklick zum Abbrechen.\n• Danach wird automatisch in die Zwischenablage kopiert; Verlauf lässt sich auch in der Menüleiste ansehen/kopieren.";
+
+"tutorial.section.storage" = "In Datei speichern (optional)";
+"tutorial.storage.body" = "Standardmäßig wird in die Zwischenablage kopiert. Wenn du automatisch speichern möchtest: In Einstellungen > Speicher Speichern aktivieren und einen Ordner wählen.";
+"tutorial.storage.switch" = "Automatisch speichern";
+"tutorial.storage.folder" = "Speicherordner";
+
+"tutorial.section.troubleshooting" = "Häufige Probleme";
+"tutorial.troubleshooting.body" = "• Hotkey funktioniert nicht: prüfen, ob PastScreen-CN unter „Bedienungshilfen“ erlaubt ist.\n• Keine Aufnahme möglich: „Bildschirmaufnahme“-Berechtigung prüfen; nach dem Erteilen ggf. App neu starten.\n• Keine Dateien: wenn Speichern aus ist, liegt der Screenshot nur in der Zwischenablage.";
 
 /* Onboarding */
 "onboarding.title" = "Willkommen bei PastScreen-CN 📸";

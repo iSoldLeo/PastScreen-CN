@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "PastScreen-CN 起動時にヒントを表示";
 "settings.general.help_section" = "ヘルプとサポート";
 "settings.general.help.prompt" = "クイックスタートが必要ですか？";
-"settings.general.help.view_tutorial" = "チュートリアルを見る";
+"settings.general.help.view_tutorial" = "ユーザーガイドを開く";
 "settings.general.privacy_section" = "プライバシー";
 "settings.general.privacy.title" = "あなたのプライバシーを重視します";
 "settings.general.privacy.description" = "PastScreen-CN は何も収集せず、すべて Mac に残ります。";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "アプリのルールを追加";
 "settings.apps.select_app_message" = "アプリを選択";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN 使い方ガイド";
+"tutorial.subtitle" = "素早くキャプチャして、クリップボードに自動コピー。";
+"tutorial.open_settings" = "設定を開く";
+"tutorial.close" = "閉じる";
+
+"tutorial.section.getting_started" = "はじめに";
+"tutorial.getting_started.body" = "PastScreen-CN はメニューバーのスクリーンショットツールです。範囲選択後、自動でクリップボードにコピーされます。必要に応じてファイル保存もできます。";
+"tutorial.getting_started.steps" = "1. 初回は「画面収録」「アクセシビリティ」を許可します。\n2. ショートカットで範囲キャプチャを開始します。\n3. 注釈が必要なら「高度なキャプチャ」を使います。\n4. ファイルに保存するには、設定 > ストレージで保存を有効にし、保存先を選びます。";
+
+"tutorial.section.permissions" = "権限（必須）";
+"tutorial.permission.request" = "許可を要求";
+"tutorial.permissions.footer" = "場所：システム設定 → プライバシーとセキュリティ → 画面収録 / アクセシビリティ。";
+
+"tutorial.section.shortcuts" = "ショートカット";
+"tutorial.shortcut.quick" = "範囲キャプチャ";
+"tutorial.shortcut.advanced" = "高度なキャプチャ（注釈）";
+"tutorial.shortcut.ocr" = "OCR キャプチャ";
+"tutorial.shortcuts.footer" = "ショートカットは 設定 > キャプチャ で再登録できます。";
+
+"tutorial.section.capture" = "撮り方";
+"tutorial.capture.tips" = "• ショートカットを押してドラッグで範囲選択し、離すと完了します。\n• 選択中に右クリックでキャンセルできます。\n• 完了後は自動でクリップボードにコピーされ、メニューバーから履歴の表示/コピーもできます。";
+
+"tutorial.section.storage" = "ファイルに保存（任意）";
+"tutorial.storage.body" = "既定ではクリップボードにコピーされます。自動的にファイルへ保存したい場合は、設定 > ストレージで保存を有効にして保存先を選択します。";
+"tutorial.storage.switch" = "自動保存";
+"tutorial.storage.folder" = "保存先フォルダ";
+
+"tutorial.section.troubleshooting" = "よくある問題";
+"tutorial.troubleshooting.body" = "• ショートカットが効かない：アクセシビリティで PastScreen-CN が許可されているか確認してください。\n• 画面を撮れない：画面収録の権限を確認してください。許可後にアプリの再起動が必要な場合があります。\n• ファイルが見つからない：保存が無効の場合、キャプチャはクリップボードのみです。";
 
 /* Onboarding */
 "onboarding.title" = "PastScreen-CN へようこそ 📸";

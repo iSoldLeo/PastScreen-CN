@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "Afficher des astuces quand PastScreen-CN démarre";
 "settings.general.help_section" = "Aide & Support";
 "settings.general.help.prompt" = "Besoin d’un démarrage rapide ?";
-"settings.general.help.view_tutorial" = "Voir le tutoriel";
+"settings.general.help.view_tutorial" = "Ouvrir le guide";
 "settings.general.privacy_section" = "Confidentialité";
 "settings.general.privacy.title" = "Votre vie privée compte";
 "settings.general.privacy.description" = "PastScreen-CN ne collecte rien ; tout reste sur votre Mac.";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "Ajouter une règle d’app";
 "settings.apps.select_app_message" = "Choisir une app";
+
+/* Tutorial */
+"tutorial.title" = "Guide d’utilisation PastScreen-CN";
+"tutorial.subtitle" = "Capture rapide, copie automatique dans le presse-papiers.";
+"tutorial.open_settings" = "Ouvrir les réglages";
+"tutorial.close" = "Fermer";
+
+"tutorial.section.getting_started" = "Bien démarrer";
+"tutorial.getting_started.body" = "PastScreen-CN est un outil de capture d’écran dans la barre des menus : après sélection, l’image est copiée automatiquement dans le presse‑papiers ; vous pouvez aussi l’enregistrer dans un fichier si besoin.";
+"tutorial.getting_started.steps" = "1. Au premier lancement, autorisez « Enregistrement de l’écran » et « Accessibilité ».\n2. Appuyez sur le raccourci pour démarrer une capture de sélection.\n3. Utilisez « Capture avancée » pour annoter.\n4. Pour enregistrer sur disque : Réglages > Stockage, choisissez un dossier et activez l’enregistrement.";
+
+"tutorial.section.permissions" = "Autorisations (obligatoires)";
+"tutorial.permission.request" = "Demander l’autorisation";
+"tutorial.permissions.footer" = "Chemin : Réglages Système → Confidentialité et sécurité → Enregistrement de l’écran / Accessibilité.";
+
+"tutorial.section.shortcuts" = "Raccourcis";
+"tutorial.shortcut.quick" = "Capture de sélection";
+"tutorial.shortcut.advanced" = "Capture avancée (annotation)";
+"tutorial.shortcut.ocr" = "Capture OCR";
+"tutorial.shortcuts.footer" = "Vous pouvez réenregistrer les raccourcis dans Réglages > Capture.";
+
+"tutorial.section.capture" = "Comment capturer";
+"tutorial.capture.tips" = "• Appuyez sur le raccourci puis faites glisser pour sélectionner ; relâchez pour terminer.\n• Clic droit pendant la sélection pour annuler.\n• Après la capture, la copie dans le presse‑papiers est automatique ; l’historique est aussi accessible depuis la barre des menus.";
+
+"tutorial.section.storage" = "Enregistrer dans un fichier (optionnel)";
+"tutorial.storage.body" = "Par défaut, les captures sont copiées dans le presse‑papiers. Pour enregistrer automatiquement : activez l’enregistrement dans Réglages > Stockage et choisissez un dossier.";
+"tutorial.storage.switch" = "Enregistrement auto";
+"tutorial.storage.folder" = "Dossier d’enregistrement";
+
+"tutorial.section.troubleshooting" = "Dépannage";
+"tutorial.troubleshooting.body" = "• Le raccourci ne fonctionne pas : vérifiez que PastScreen-CN est autorisé dans « Accessibilité ».\n• Impossible de capturer : vérifiez l’autorisation « Enregistrement de l’écran » ; un redémarrage de l’app peut être nécessaire.\n• Fichiers introuvables : si l’enregistrement est désactivé, la capture reste uniquement dans le presse‑papiers.";
 
 /* Onboarding */
 "onboarding.title" = "Bienvenue dans PastScreen-CN 📸";

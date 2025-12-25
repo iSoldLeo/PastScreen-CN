@@ -1,12 +1,13 @@
 import SwiftUI
 import AppKit
+import Combine
 
 struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject var app: AppDelegate
+    @StateObject private var libraryMenuModel = CaptureLibraryMenuModel()
 
-    private var history: [String] { settings.captureHistory }
     private var canRevealLast: Bool { app.lastScreenshotPath != nil }
 
     var body: some View {
@@ -37,27 +38,29 @@ struct MenuBarContentView: View {
 
     private var historySection: some View {
         Group {
+            Button(NSLocalizedString("menu.library.open", value: "打开素材库…", comment: "")) {
+                CaptureLibraryManager.shared.show()
+            }
+
             Button(NSLocalizedString("menu.show_last", comment: "")) {
                 app.revealLastScreenshot()
             }
             .disabled(!canRevealLast)
 
-            if history.isEmpty {
-                Button(NSLocalizedString("menu.history.empty", comment: "")) {}
-                    .disabled(true)
-            } else {
-                Menu(NSLocalizedString("menu.history", comment: "")) {
-                    ForEach(history, id: \.self) { path in
-                        Button((path as NSString).lastPathComponent) {
-                            app.copyFromHistory(path: path)
+            Menu(NSLocalizedString("menu.library.recent", value: "最近 10 条", comment: "")) {
+                if libraryMenuModel.items.isEmpty {
+                    Text(NSLocalizedString("menu.library.recent.empty", value: "暂无", comment: ""))
+                } else {
+                    ForEach(libraryMenuModel.items) { item in
+                        Button(libraryMenuModel.title(for: item)) {
+                            CaptureLibrary.shared.copyImageToClipboard(item: item)
                         }
-                    }
-                    Divider()
-                    Button(NSLocalizedString("menu.history.clear", comment: "")) {
-                        app.clearHistory()
                     }
                 }
             }
+        }
+        .onAppear {
+            libraryMenuModel.refresh()
         }
     }
 
@@ -102,5 +105,60 @@ private extension View {
     func applyHotkey(_ shortcut: KeyboardShortcut?) -> some View {
         guard let shortcut else { return AnyView(self) }
         return AnyView(self.keyboardShortcut(shortcut))
+    }
+}
+
+@MainActor
+private final class CaptureLibraryMenuModel: ObservableObject {
+    @Published var items: [CaptureItem] = []
+
+    private var observer: Any?
+    private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()
+
+    deinit {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    init() {
+        observer = NotificationCenter.default.addObserver(
+            forName: .captureLibraryChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+    }
+
+    func refresh() {
+        Task {
+            let fetched = await CaptureLibrary.shared.fetchItems(query: .all, limit: 30, offset: 0)
+            let copyable = fetched.filter { isCopyable($0) }
+            items = Array(copyable.prefix(10))
+        }
+    }
+
+    func title(for item: CaptureItem) -> String {
+        if let appName = item.appName, !appName.isEmpty {
+            return appName
+        }
+        return item.createdAt.formatted(date: .omitted, time: .shortened)
+    }
+
+    private func isCopyable(_ item: CaptureItem) -> Bool {
+        if let path = item.internalOriginalPath, existsInternal(relativePath: path) { return true }
+        if let path = item.internalPreviewPath, existsInternal(relativePath: path) { return true }
+        if existsInternal(relativePath: item.internalThumbPath) { return true }
+        if let url = item.externalFileURL, FileManager.default.fileExists(atPath: url.path) { return true }
+        return false
+    }
+
+    private func existsInternal(relativePath: String) -> Bool {
+        guard let rootURL else { return false }
+        let url = rootURL.appendingPathComponent(relativePath, isDirectory: false)
+        return FileManager.default.fileExists(atPath: url.path)
     }
 }

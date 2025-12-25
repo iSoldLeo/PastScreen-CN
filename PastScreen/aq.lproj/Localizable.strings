@@ -121,6 +121,37 @@
 "settings.apps.add_rule" = "咕咕嘎嘎";
 "settings.apps.select_app_message" = "咕咕嘎嘎";
 
+/* Tutorial */
+"tutorial.title" = "咕咕嘎嘎";
+"tutorial.subtitle" = "咕咕嘎嘎";
+"tutorial.open_settings" = "咕咕嘎嘎";
+"tutorial.close" = "咕咕嘎嘎";
+
+"tutorial.section.getting_started" = "咕咕嘎嘎";
+"tutorial.getting_started.body" = "咕咕嘎嘎";
+"tutorial.getting_started.steps" = "咕咕嘎嘎";
+
+"tutorial.section.permissions" = "咕咕嘎嘎";
+"tutorial.permission.request" = "咕咕嘎嘎";
+"tutorial.permissions.footer" = "咕咕嘎嘎";
+
+"tutorial.section.shortcuts" = "咕咕嘎嘎";
+"tutorial.shortcut.quick" = "咕咕嘎嘎";
+"tutorial.shortcut.advanced" = "咕咕嘎嘎";
+"tutorial.shortcut.ocr" = "咕咕嘎嘎";
+"tutorial.shortcuts.footer" = "咕咕嘎嘎";
+
+"tutorial.section.capture" = "咕咕嘎嘎";
+"tutorial.capture.tips" = "咕咕嘎嘎";
+
+"tutorial.section.storage" = "咕咕嘎嘎";
+"tutorial.storage.body" = "咕咕嘎嘎";
+"tutorial.storage.switch" = "咕咕嘎嘎";
+"tutorial.storage.folder" = "咕咕嘎嘎";
+
+"tutorial.section.troubleshooting" = "咕咕嘎嘎";
+"tutorial.troubleshooting.body" = "咕咕嘎嘎";
+
 /* Onboarding */
 "onboarding.title" = "咕咕嘎嘎";
 "onboarding.subtitle" = "咕咕嘎嘎";

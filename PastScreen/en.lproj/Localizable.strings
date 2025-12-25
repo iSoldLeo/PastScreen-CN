@@ -40,7 +40,7 @@
 "settings.general.show_tutorial.help" = "Show tips when PastScreen-CN starts";
 "settings.general.help_section" = "Help & Support";
 "settings.general.help.prompt" = "Need a quick start?";
-"settings.general.help.view_tutorial" = "View tutorial";
+"settings.general.help.view_tutorial" = "Open user guide";
 "settings.general.privacy_section" = "Privacy";
 "settings.general.privacy.title" = "Your privacy matters";
 "settings.general.privacy.description" = "PastScreen-CN collects nothing; everything stays on your Mac.";
@@ -120,6 +120,37 @@
 "settings.apps.clipboard.path" = "Path";
 "settings.apps.add_rule" = "Add app rule";
 "settings.apps.select_app_message" = "Choose an app";
+
+/* Tutorial */
+"tutorial.title" = "PastScreen-CN User Guide";
+"tutorial.subtitle" = "Quick capture, auto-copied to the clipboard.";
+"tutorial.open_settings" = "Open Settings";
+"tutorial.close" = "Close";
+
+"tutorial.section.getting_started" = "Getting started";
+"tutorial.getting_started.body" = "PastScreen-CN is a menu bar screenshot tool: after selecting an area, it’s automatically copied to the clipboard; you can also save to files when needed.";
+"tutorial.getting_started.steps" = "1. On first launch, grant \"Screen Recording\" and \"Accessibility\".\n2. Press the hotkey to start a selection capture.\n3. Use \"Advanced Capture\" to annotate.\n4. To save to disk, go to Settings > Storage, choose a folder, and enable saving.";
+
+"tutorial.section.permissions" = "Permissions (required)";
+"tutorial.permission.request" = "Request access";
+"tutorial.permissions.footer" = "Path: System Settings → Privacy & Security → Screen Recording / Accessibility.";
+
+"tutorial.section.shortcuts" = "Shortcuts";
+"tutorial.shortcut.quick" = "Selection capture";
+"tutorial.shortcut.advanced" = "Advanced capture (annotate)";
+"tutorial.shortcut.ocr" = "OCR capture";
+"tutorial.shortcuts.footer" = "You can re-record shortcuts in Settings > Capture.";
+
+"tutorial.section.capture" = "How to capture";
+"tutorial.capture.tips" = "• Press the hotkey, then drag to select an area; release to finish.\n• Right-click during selection to cancel.\n• After capture, it’s automatically copied to the clipboard; you can also view/copy history from the menu bar.";
+
+"tutorial.section.storage" = "Save to files (optional)";
+"tutorial.storage.body" = "By default, captures are copied to the clipboard. If you want to save automatically: enable saving in Settings > Storage and choose a save folder.";
+"tutorial.storage.switch" = "Auto save";
+"tutorial.storage.folder" = "Save folder";
+
+"tutorial.section.troubleshooting" = "Troubleshooting";
+"tutorial.troubleshooting.body" = "• Hotkey not working: check that PastScreen-CN is allowed in Accessibility.\n• Can’t capture: check Screen Recording permission; you may need to restart the app after granting.\n• Can’t find files: if saving is disabled, captures are only in the clipboard.";
 
 /* Onboarding */
 "onboarding.title" = "Welcome to PastScreen-CN 📸";
