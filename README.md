@@ -5,7 +5,7 @@
 <p align="center">极速截图，自动进剪贴板。原生应用，小而快。</p>
 <p align="center">
   <a href="https://www.apple.com/macos/">
-    <img src="https://img.shields.io/badge/platform-macOS%2015+-blue.svg" alt="Platform macOS 14+">
+    <img src="https://img.shields.io/badge/platform-macOS%2014.6+-blue.svg" alt="Platform macOS 14.6+">
   </a>
   <a href="https://swift.org/">
     <img src="https://img.shields.io/badge/Swift-5.9-orange.svg" alt="Swift 5.9">
@@ -26,14 +26,16 @@
 4. **截图**：
    - 选区截图：默认 ⌥⌘S（可在设置中修改）  
    - 高级截图：默认 ⌥⌘⇧S（内置标注器）  
+   - OCR 截图：默认 ⌥⌘⇧O（识别文字并复制到剪贴板）  
    - 全屏截图：菜单栏「全屏截图」
-5. **取消/查看**：选区中右键取消；完成后菜单栏可「查看最后一次截图」或从历史复制。
+5. **取消/查看**：选区中右键取消；完成后菜单栏可「查看最后一次截图」、从「最近 10 条」复制，或打开「素材库」管理。
 
 ---
 
 ## 核心特性
 - 极速选区，原生剪贴板，无中间弹窗
 - 高级截图内置标注 + OCR，支持独立热键
+- 素材库（本地）：置顶/标签/备注/按应用归档，支持搜索与过滤语法
 - 可录制任意组合的全局/高级热键
 - 菜单栏应用，不占 Dock，含历史记录与快捷入口
 - 应用规则：为特定 App 强制「仅路径」或「仅图片」
@@ -47,7 +49,20 @@
 - **保存**：默认只剪贴板；如需落盘，在设置 > 存储里选目录并开启保存
 - **格式**：PNG 或 JPEG，可选带边框输出
 - **应用规则**：为终端/IDE 等指定「仅路径」或「仅图片」
+- **素材库**：可选存预览图/自动 OCR/语义增强（实验），并支持按策略自动清理
+- **OCR 语言**：在设置 > 编辑 > OCR 勾选；不勾选则使用系统默认/自动检测
 - **语言**：跟随系统 / 简体中文 / English / 繁体中文 / 多国语言（nl/de/fr/es/ja/ko 等）
+
+---
+
+## 素材库搜索语法（可选）
+素材库窗口的搜索框支持“空格分词”的过滤语法（过滤条件会从搜索词里剥离）：
+
+- `pinned` / `pin` / `置顶`
+- `#标签`（也支持 `＃标签`）或 `tag:xxx` / `标签:xxx`
+- `app:xxx` / `应用:xxx`（支持 bundle id 或应用名关键字，如 `app:com.apple.Safari` / `app:chrome`）
+- `type:area|window|fullscreen`（也支持 `选区/窗口/全屏`）
+- 时间：`今天` / `昨天`，`本周/上周/本月/上月/今年/去年`，`7d` / `2w` / `3m`，或 `2025-12-24` / `12-24`
 
 ---
 
@@ -71,7 +86,7 @@ PastScreen-CN 离线运行，不上传、不联网。
 
 ## 开发者信息
 
-- 技术栈：Swift 5.9，AppKit + SwiftUI，ScreenCaptureKit，TipKit & AppIntents（macOS 26+）
+- 技术栈：Swift，AppKit + SwiftUI，ScreenCaptureKit，Vision（OCR），SQLite（素材库）；TipKit（macOS 14+）/ AppIntents（macOS 13+）为可选能力
 - 本地构建：
 
 ```bash
@@ -85,6 +100,6 @@ open PastScreen-CN.xcodeproj
 ## 许可证与致谢
 
 - 本仓库整体采用 [GPL-3.0 license](LICENSE/GPL-3.0%20license) 分发。
-- 上游代码按 MIT License 授权，保留其版权声明（见 LICENSE/MIT.md）。
+- 上游代码按 MIT License 授权，保留其版权声明（见 [LICENSE/MIT](LICENSE/MIT)）。
 
 欢迎提 Issue / PR，一起把体验做得更好。 🎯
