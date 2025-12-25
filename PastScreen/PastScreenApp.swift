@@ -16,6 +16,7 @@ import TipKit
 // Notification names
 extension Notification.Name {
     static let screenshotCaptured = Notification.Name("screenshotCaptured")
+    static let automationCaptureCompleted = Notification.Name("automationCaptureCompleted")
     static let showInDockChanged = Notification.Name("showInDockChanged")
     static let hotKeyPressed = Notification.Name("hotKeyPressed")
     static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
@@ -382,11 +383,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
+    func performAreaCaptureForAutomation(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureScreenshot(trigger: .appIntent)
+        }
+    }
+
     func performAdvancedAreaCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
             screenshotService?.captureAdvancedScreenshot(trigger: source)
+        }
+    }
+
+    func performAdvancedAreaCaptureForAutomation(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureAdvancedScreenshot(trigger: .appIntent)
         }
     }
 
@@ -398,10 +423,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
+    func performOCRCaptureForAutomation(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureOCRScreenshot(trigger: .appIntent)
+        }
+    }
+
     func performFullScreenCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         screenshotService.captureFullScreen(trigger: source)
+    }
+
+    func performFullScreenCaptureForAutomation(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
+        screenshotService.capturePreviousApp()
+        screenshotService.captureFullScreen(trigger: .appIntent)
+    }
+
+    func performWindowCaptureForAutomation(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        guard let screenshotService = screenshotService else { return }
+        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
+        screenshotService.capturePreviousApp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+            screenshotService?.captureWindowUnderMouse(trigger: .appIntent, mode: .quick)
+        }
     }
 
     // MARK: - Raccourci clavier global
