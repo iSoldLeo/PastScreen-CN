@@ -24,6 +24,9 @@
 		B0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */; };
 		B0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */; };
 		B0B1C2D3E4F5061728394A5F /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5F /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift */; };
+		B0B1C2D3E4F5061728394A60 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A60 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift */; };
+		B0B1C2D3E4F5061728394A61 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A61 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift */; };
+		B0B1C2D3E4F5061728394A62 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A62 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift */; };
 		C01192DCC563407D92C8930B /* PastScreen/AppIntents/PastScreenShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C0658E24DE4556A0FE4CBE /* PastScreen/AppIntents/PastScreenShortcuts.swift */; };
 		C8B5098401454383965ADB3D /* PastScreen/Models/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FE17A971284945A4DC90DA /* PastScreen/Models/AppSettings.swift */; };
 		C8B50E7E6CFA6290360FE9F4 /* PastScreen/Utils/Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */; };
@@ -55,6 +58,9 @@
 		A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift; sourceTree = "<group>"; };
 		A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift; sourceTree = "<group>"; };
 		A0B1C2D3E4F5061728394A5F /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A60 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A61 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A62 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* PastScreen/Services/CaptureLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary.swift; sourceTree = "<group>"; };
 		A2FE17A971284945A4DC90DA /* PastScreen/Models/AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Models/AppSettings.swift; sourceTree = "<group>"; };
 		BB5E6EECF8874B83905847A6 /* PastScreen/Views/DynamicIslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Views/DynamicIslandView.swift; sourceTree = "<group>"; };
@@ -81,6 +87,9 @@
 				Services/CaptureLibrary/CaptureLibraryFileStore.swift,
 				Services/CaptureLibrary/CaptureLibraryFTS.swift,
 				Services/CaptureLibrary/CaptureLibraryModels.swift,
+				Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift,
+				Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift,
+				Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift,
 				Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift,
 				Services/HotKeyManager.swift,
 				Services/LaunchAtLoginManager.swift,
@@ -164,6 +173,9 @@
 				A0B1C2D3E4F5061728394A5B /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift */,
 				A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */,
 				A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */,
+				A0B1C2D3E4F5061728394A60 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift */,
+				A0B1C2D3E4F5061728394A62 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift */,
+				A0B1C2D3E4F5061728394A61 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift */,
 				A0B1C2D3E4F5061728394A5F /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift */,
 			);
 			name = "Recovered References";
@@ -260,6 +272,9 @@
 				B0B1C2D3E4F5061728394A5C /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift in Sources */,
 				B0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift in Sources */,
 				B0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift in Sources */,
+				B0B1C2D3E4F5061728394A60 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift in Sources */,
+				B0B1C2D3E4F5061728394A62 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift in Sources */,
+				B0B1C2D3E4F5061728394A61 /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseQueries.swift in Sources */,
 				B0B1C2D3E4F5061728394A5F /* PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseSchema.swift in Sources */,
 				EDE6905D705444ADBC933D21 /* PastScreen/Services/HotKeyManager.swift in Sources */,
 				CC0289C6787D45B7AFB04B32 /* PastScreen/Services/LaunchAtLoginManager.swift in Sources */,
