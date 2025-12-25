@@ -172,8 +172,7 @@ final class CaptureLibraryOCRReindexService {
 
                 let rawLangs = candidate.ocrLangs ?? ""
                 let existingLangSet = langSet(from: rawLangs)
-                let hasLegacySeparators = rawLangs.contains(",") || rawLangs.contains("，") || rawLangs.contains("_")
-                if existingLangSet == targetSet, !hasLegacySeparators {
+                if existingLangSet == targetSet {
                     await CaptureLibrary.shared.updateOCRLangsForReindex(for: candidate.id, langs: preferredLanguages, notify: false)
                 } else {
                     let url = bestImageURL(for: candidate, rootURL: rootURL)

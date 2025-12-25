@@ -116,7 +116,8 @@ final class CaptureLibraryViewModel: ObservableObject {
     private let pageSize = 240
     private var changeObserver: Any?
     private var reloadTask: Task<Void, Never>?
-    private var requestedOCR = Set<UUID>()
+    private var lastOCRRequestAt: [UUID: Date] = [:]
+    private let ocrRequestCooldown: TimeInterval = 45
     private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()
 
     init() {
@@ -297,11 +298,18 @@ final class CaptureLibraryViewModel: ObservableObject {
     }
 
     func requestOCRIfNeeded(for item: CaptureItem) {
+        requestOCR(for: item, force: false)
+    }
+
+    func requestOCR(for item: CaptureItem, force: Bool) {
         let existing = item.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard existing.isEmpty else { return }
         guard let url = previewURL(for: item) else { return }
 
-        guard !requestedOCR.contains(item.id) else { return }
+        let now = Date()
+        if !force, let last = lastOCRRequestAt[item.id], now.timeIntervalSince(last) < ocrRequestCooldown {
+            return
+        }
 
         let enqueued = CaptureLibrary.shared.requestOCR(
             for: item.id,
@@ -309,7 +317,7 @@ final class CaptureLibraryViewModel: ObservableObject {
             preferredLanguages: AppSettings.shared.ocrRecognitionLanguages
         )
         if enqueued {
-            requestedOCR.insert(item.id)
+            lastOCRRequestAt[item.id] = now
         }
     }
 
@@ -464,7 +472,15 @@ final class CaptureLibraryViewModel: ObservableObject {
         let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
         let value = stripQuotes(String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines))
         guard !key.isEmpty, !value.isEmpty else { return nil }
+        guard isSupportedQueryKey(key) else { return nil }
         return (key, value)
+    }
+
+    private func isSupportedQueryKey(_ key: String) -> Bool {
+        let lowered = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lowered == "app" || lowered == "tag" || lowered == "type" { return true }
+        if key == "应用" || key == "标签" || key == "类型" { return true }
+        return false
     }
 
     private func stripQuotes(_ value: String) -> String {
@@ -1060,7 +1076,7 @@ private struct CaptureLibraryRootView: View {
                             model.updateNote(for: item.id, note: note)
                         },
                         onRequestOCR: {
-                            model.requestOCRIfNeeded(for: item)
+                            model.requestOCR(for: item, force: true)
                         }
                     )
                 } else {

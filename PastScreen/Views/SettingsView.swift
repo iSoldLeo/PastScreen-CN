@@ -489,6 +489,7 @@ struct StorageSettingsView: View {
     @EnvironmentObject var settings: AppSettings
     @StateObject private var libraryModel = CaptureLibrarySettingsModel()
     @State private var showClearLibraryConfirm = false
+    @State private var scheduledCleanupTask: Task<Void, Never>?
 
     var body: some View {
         SettingsPage {
@@ -639,12 +640,23 @@ struct StorageSettingsView: View {
             libraryModel.refresh()
         }
         .onChange(of: settings.captureLibraryRetentionDays) { _, _ in
-            CaptureLibraryCleanupService.shared.runNow()
+            scheduleCleanupDebounced()
         }
         .onChange(of: settings.captureLibraryMaxItems) { _, _ in
-            CaptureLibraryCleanupService.shared.runNow()
+            scheduleCleanupDebounced()
         }
         .onChange(of: settings.captureLibraryMaxBytes) { _, _ in
+            scheduleCleanupDebounced()
+        }
+    }
+
+    private func scheduleCleanupDebounced() {
+        scheduledCleanupTask?.cancel()
+        guard settings.captureLibraryEnabled else { return }
+
+        scheduledCleanupTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            guard !Task.isCancelled else { return }
             CaptureLibraryCleanupService.shared.runNow()
         }
     }

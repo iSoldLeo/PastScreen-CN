@@ -127,7 +127,9 @@ private final class CaptureLibraryMenuModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refresh()
+            Task { @MainActor in
+                self?.refresh()
+            }
         }
     }
 
@@ -149,6 +151,7 @@ private final class CaptureLibraryMenuModel: ObservableObject {
     private func isCopyable(_ item: CaptureItem) -> Bool {
         if let path = item.internalOriginalPath, existsInternal(relativePath: path) { return true }
         if let path = item.internalPreviewPath, existsInternal(relativePath: path) { return true }
+        if existsInternal(relativePath: item.internalThumbPath) { return true }
         if let url = item.externalFileURL, FileManager.default.fileExists(atPath: url.path) { return true }
         return false
     }

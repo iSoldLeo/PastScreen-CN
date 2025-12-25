@@ -2028,11 +2028,12 @@ final class CaptureLibrary {
 
     @MainActor
     func copyImageToClipboard(item: CaptureItem) {
-        guard let url = bestImageURL(for: item) else {
+        guard let result = bestImageURL(for: item, allowThumbnailFallback: true) else {
             DynamicIslandManager.shared.show(message: "无可复制图片", duration: 2.0, style: .failure)
             return
         }
 
+        let url = result.url
         guard let image = NSImage(contentsOfFile: url.path) else {
             DynamicIslandManager.shared.show(message: "读取图片失败", duration: 2.0, style: .failure)
             return
@@ -2047,7 +2048,11 @@ final class CaptureLibrary {
             NSSound(named: "Pop")?.play()
         }
 
-        DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
+        if result.isThumbnail {
+            DynamicIslandManager.shared.show(message: "已复制（缩略图）", duration: 1.6)
+        } else {
+            DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
+        }
     }
 
     @MainActor
@@ -2071,8 +2076,14 @@ final class CaptureLibrary {
         NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
     }
 
-    private func bestImageURL(for item: CaptureItem) -> URL? {
-        bestAnyURL(for: item, requireCopyableImage: true)
+    private func bestImageURL(for item: CaptureItem, allowThumbnailFallback: Bool) -> (url: URL, isThumbnail: Bool)? {
+        if let url = bestAnyURL(for: item, requireCopyableImage: true) {
+            return (url: url, isThumbnail: false)
+        }
+        guard allowThumbnailFallback else { return nil }
+        guard let url = resolveInternalURL(item.internalThumbPath) else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return (url: url, isThumbnail: true)
     }
 
     private func bestAnyURL(for item: CaptureItem, requireCopyableImage: Bool = false) -> URL? {
@@ -2623,7 +2634,7 @@ actor CaptureLibrarySemanticSearchService {
         var language: NLLanguage
     }
 
-    private var cachedConfig: Config?
+    private var cachedConfigs: [String: Config] = [:]
 
     func rerank(items: [CaptureItem], queryText: String) async -> [CaptureItem] {
         let trimmedQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2681,11 +2692,13 @@ actor CaptureLibrarySemanticSearchService {
     }
 
     private func resolveConfig(for query: String) -> Config? {
-        if let cachedConfig { return cachedConfig }
-
         let candidates = Self.preferredLanguages(for: query)
 
         for lang in candidates {
+            let cacheKey = "sentence:\(lang.rawValue)"
+            if let cached = cachedConfigs[cacheKey] {
+                return cached
+            }
             if let embedding = NLEmbedding.sentenceEmbedding(for: lang) {
                 let config = Config(
                     embedding: embedding,
@@ -2694,12 +2707,16 @@ actor CaptureLibrarySemanticSearchService {
                     isSentence: true,
                     language: lang
                 )
-                cachedConfig = config
+                cachedConfigs[cacheKey] = config
                 return config
             }
         }
 
         for lang in candidates {
+            let cacheKey = "word:\(lang.rawValue)"
+            if let cached = cachedConfigs[cacheKey] {
+                return cached
+            }
             if let embedding = NLEmbedding.wordEmbedding(for: lang) {
                 let config = Config(
                     embedding: embedding,
@@ -2708,7 +2725,7 @@ actor CaptureLibrarySemanticSearchService {
                     isSentence: false,
                     language: lang
                 )
-                cachedConfig = config
+                cachedConfigs[cacheKey] = config
                 return config
             }
         }
