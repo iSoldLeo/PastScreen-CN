@@ -20,6 +20,9 @@
 		96BEC0093CFD4EEB8BFE0233 /* PastScreen/Views/DynamicIslandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5E6EECF8874B83905847A6 /* PastScreen/Views/DynamicIslandView.swift */; };
 		9B36A8B91D194211AFEA7ECB /* PastScreen/Services/PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CBEA9F9EF4411F89100D8C /* PastScreen/Services/PermissionManager.swift */; };
 		9ECB8B05C4C6441B8703E040 /* PastScreen/PastScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AA8D1B48F74216B3EF908B /* PastScreen/PastScreenApp.swift */; };
+		B0B1C2D3E4F5061728394A5C /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5B /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift */; };
+		B0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */; };
+		B0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */; };
 		C01192DCC563407D92C8930B /* PastScreen/AppIntents/PastScreenShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31C0658E24DE4556A0FE4CBE /* PastScreen/AppIntents/PastScreenShortcuts.swift */; };
 		C8B5098401454383965ADB3D /* PastScreen/Models/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FE17A971284945A4DC90DA /* PastScreen/Models/AppSettings.swift */; };
 		C8B50E7E6CFA6290360FE9F4 /* PastScreen/Utils/Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */; };
@@ -47,6 +50,9 @@
 		815929E48D914C43A95E5B2C /* PastScreen/Views/OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Views/OnboardingView.swift; sourceTree = "<group>"; };
 		81AA8D1B48F74216B3EF908B /* PastScreen/PastScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/PastScreenApp.swift; sourceTree = "<group>"; };
 		889C57D1B6C741FD93E2940F /* PastScreen/Components/LiquidGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Components/LiquidGlassComponents.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5B /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* PastScreen/Services/CaptureLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Services/CaptureLibrary.swift; sourceTree = "<group>"; };
 		A2FE17A971284945A4DC90DA /* PastScreen/Models/AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Models/AppSettings.swift; sourceTree = "<group>"; };
 		BB5E6EECF8874B83905847A6 /* PastScreen/Views/DynamicIslandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastScreen/Views/DynamicIslandView.swift; sourceTree = "<group>"; };
@@ -70,6 +76,9 @@
 				Models/OCRLanguageOption.swift,
 				PastScreenApp.swift,
 				Services/CaptureLibrary.swift,
+				Services/CaptureLibrary/CaptureLibraryFileStore.swift,
+				Services/CaptureLibrary/CaptureLibraryFTS.swift,
+				Services/CaptureLibrary/CaptureLibraryModels.swift,
 				Services/HotKeyManager.swift,
 				Services/LaunchAtLoginManager.swift,
 				Services/OCRService.swift,
@@ -149,6 +158,9 @@
 				3E2D1C0B9A8B4C7D6E5F4A3B /* PastScreen/Views/TutorialView.swift */,
 				C8B50E085CA6BEC94CAA2E9B /* PastScreen/Utils/Localization.swift */,
 				A1B2C3D4E5F60718293A4B5C /* PastScreen/Services/CaptureLibrary.swift */,
+				A0B1C2D3E4F5061728394A5B /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift */,
+				A0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift */,
+				A0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -241,6 +253,9 @@
 				013D126AA3DA4A6BB7050E4C /* PastScreen/Models/OCRLanguageOption.swift in Sources */,
 				9ECB8B05C4C6441B8703E040 /* PastScreen/PastScreenApp.swift in Sources */,
 				D1E2F3A4B5C60718293A4B5D /* PastScreen/Services/CaptureLibrary.swift in Sources */,
+				B0B1C2D3E4F5061728394A5C /* PastScreen/Services/CaptureLibrary/CaptureLibraryModels.swift in Sources */,
+				B0B1C2D3E4F5061728394A5D /* PastScreen/Services/CaptureLibrary/CaptureLibraryFileStore.swift in Sources */,
+				B0B1C2D3E4F5061728394A5E /* PastScreen/Services/CaptureLibrary/CaptureLibraryFTS.swift in Sources */,
 				EDE6905D705444ADBC933D21 /* PastScreen/Services/HotKeyManager.swift in Sources */,
 				CC0289C6787D45B7AFB04B32 /* PastScreen/Services/LaunchAtLoginManager.swift in Sources */,
 				0D7184C0DA094EA49847959A /* PastScreen/Services/OCRService.swift in Sources */,

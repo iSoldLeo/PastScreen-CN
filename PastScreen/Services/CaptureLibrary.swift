@@ -13,334 +13,6 @@ import SQLite3
 
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-// MARK: - Public Models
-
-enum CaptureItemCaptureType: Int, Codable, CaseIterable {
-    case area = 0
-    case window = 1
-    case fullscreen = 2
-}
-
-enum CaptureItemCaptureMode: Int, Codable, CaseIterable {
-    case quick = 0
-    case advanced = 1
-    case ocr = 2
-}
-
-enum CaptureItemTrigger: Int, Codable, CaseIterable {
-    case menuBar = 0
-    case hotkey = 1
-    case appIntent = 2
-    case automation = 3
-}
-
-struct CaptureItem: Identifiable, Hashable {
-    var id: UUID
-    var createdAt: Date
-    var updatedAt: Date
-
-    var captureType: CaptureItemCaptureType
-    var captureMode: CaptureItemCaptureMode
-    var trigger: CaptureItemTrigger
-
-    var appBundleID: String?
-    var appName: String?
-    var appPID: Int?
-
-    var selectionSize: CGSize?
-
-    var externalFilePath: String?
-    var internalThumbPath: String
-    var internalPreviewPath: String?
-    var internalOriginalPath: String?
-
-    var thumbSize: CGSize?
-    var previewSize: CGSize?
-
-    var sha256: String?
-
-    var isPinned: Bool
-    var pinnedAt: Date?
-
-    var note: String?
-    var tagsCache: String
-
-    var ocrText: String?
-    var ocrLangs: [String]
-    var ocrUpdatedAt: Date?
-
-    var embeddingModel: String?
-    var embeddingDim: Int?
-    var embedding: Data?
-    var embeddingSourceHash: String?
-    var embeddingUpdatedAt: Date?
-
-    var bytesThumb: Int
-    var bytesPreview: Int
-    var bytesOriginal: Int
-}
-
-extension CaptureItem {
-    var bytesTotal: Int { bytesThumb + bytesPreview + bytesOriginal }
-
-    var externalFileURL: URL? {
-        guard let externalFilePath, !externalFilePath.isEmpty else { return nil }
-        return URL(fileURLWithPath: externalFilePath)
-    }
-}
-
-struct CaptureLibraryAppGroup: Identifiable, Hashable {
-    var id: String { bundleID ?? "__unknown__" }
-    var bundleID: String?
-    var appName: String
-    var itemCount: Int
-}
-
-struct CaptureLibraryTagGroup: Identifiable, Hashable {
-    var id: String { name }
-    var name: String
-    var itemCount: Int
-}
-
-enum CaptureLibrarySort: Int, CaseIterable, Hashable {
-    case timeDesc = 0
-    case relevance = 1
-}
-
-struct CaptureLibraryQuery: Hashable {
-    var appBundleID: String?
-    var pinnedOnly: Bool
-    var captureType: CaptureItemCaptureType?
-    var createdAfter: Date?
-    var createdBefore: Date?
-    var tag: String?
-    var searchText: String?
-    var sort: CaptureLibrarySort
-
-    static var all: Self {
-        CaptureLibraryQuery(
-            appBundleID: nil,
-            pinnedOnly: false,
-            captureType: nil,
-            createdAfter: nil,
-            createdBefore: nil,
-            tag: nil,
-            searchText: nil,
-            sort: .timeDesc
-        )
-    }
-
-    static var pinned: Self {
-        CaptureLibraryQuery(
-            appBundleID: nil,
-            pinnedOnly: true,
-            captureType: nil,
-            createdAfter: nil,
-            createdBefore: nil,
-            tag: nil,
-            searchText: nil,
-            sort: .timeDesc
-        )
-    }
-}
-
-struct CaptureLibraryStats: Hashable {
-    var itemCount: Int
-    var pinnedCount: Int
-    var bytesThumb: Int
-    var bytesPreview: Int
-    var bytesOriginal: Int
-
-    var bytesTotal: Int { bytesThumb + bytesPreview + bytesOriginal }
-
-    static var empty: Self {
-        CaptureLibraryStats(itemCount: 0, pinnedCount: 0, bytesThumb: 0, bytesPreview: 0, bytesOriginal: 0)
-    }
-}
-
-struct CaptureLibraryCleanupPolicy: Hashable {
-    var retentionDays: Int
-    var maxItems: Int
-    var maxBytes: Int
-}
-
-struct CaptureLibraryPreviewCandidate: Hashable {
-    var id: UUID
-    var previewPath: String
-    var bytesPreview: Int
-}
-
-struct CaptureLibraryOCRReindexCandidate: Hashable {
-    var id: UUID
-    var createdAtMillis: Int64
-    var internalThumbPath: String
-    var internalPreviewPath: String?
-    var internalOriginalPath: String?
-    var externalFilePath: String?
-    var ocrLangs: String?
-}
-
-// MARK: - File Store
-
-struct CaptureLibraryFileStore {
-    static let folderName = "CaptureLibrary"
-
-    let rootURL: URL
-    let databaseURL: URL
-    let thumbsURL: URL
-    let previewsURL: URL
-    let originalsURL: URL
-
-    nonisolated init(rootURL: URL) throws {
-        self.rootURL = rootURL
-        self.databaseURL = rootURL.appendingPathComponent("library.sqlite3", isDirectory: false)
-        self.thumbsURL = rootURL.appendingPathComponent("thumbs", isDirectory: true)
-        self.previewsURL = rootURL.appendingPathComponent("previews", isDirectory: true)
-        self.originalsURL = rootURL.appendingPathComponent("originals", isDirectory: true)
-
-        try ensureDirectoriesExist()
-    }
-
-    nonisolated static func defaultRootURL() throws -> URL {
-        let base = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        return base.appendingPathComponent(folderName, isDirectory: true)
-    }
-
-    nonisolated func ensureDirectoriesExist() throws {
-        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: thumbsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: previewsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: originalsURL, withIntermediateDirectories: true)
-    }
-
-    nonisolated func fileURL(forRelativePath relativePath: String) -> URL {
-        rootURL.appendingPathComponent(relativePath, isDirectory: false)
-    }
-
-    nonisolated func deleteIfExists(relativePath: String?) {
-        guard let relativePath, !relativePath.isEmpty else { return }
-        let url = fileURL(forRelativePath: relativePath)
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    nonisolated func writeThumbnail(
-        id: UUID,
-        from image: CGImage,
-        maxDimension: Int = 320,
-        quality: CGFloat = 0.82
-    ) throws -> (relativePath: String, pixelSize: CGSize, byteCount: Int) {
-        let relativePath = "thumbs/\(id.uuidString).jpg"
-        let url = fileURL(forRelativePath: relativePath)
-        let (data, size) = try Self.makeJPEGData(from: image, maxDimension: maxDimension, quality: quality)
-        try data.write(to: url, options: .atomic)
-        return (relativePath, size, data.count)
-    }
-
-    nonisolated func writePreview(
-        id: UUID,
-        from image: CGImage,
-        maxDimension: Int = 1600,
-        quality: CGFloat = 0.86
-    ) throws -> (relativePath: String, pixelSize: CGSize, byteCount: Int) {
-        let relativePath = "previews/\(id.uuidString).jpg"
-        let url = fileURL(forRelativePath: relativePath)
-        let (data, size) = try Self.makeJPEGData(from: image, maxDimension: maxDimension, quality: quality)
-        try data.write(to: url, options: .atomic)
-        return (relativePath, size, data.count)
-    }
-
-    nonisolated static func makePlaceholderThumbnailData(size: CGSize = CGSize(width: 64, height: 64)) throws -> Data {
-        let width = max(Int(size.width), 16)
-        let height = max(Int(size.height), 16)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        guard let context = CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
-        ) else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法创建位图上下文"])
-        }
-
-        context.setFillColor(NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-
-        context.setStrokeColor(NSColor.separatorColor.cgColor)
-        context.setLineWidth(2)
-        context.stroke(CGRect(x: 2, y: 2, width: width - 4, height: height - 4))
-
-        guard let cgImage = context.makeImage() else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -2, userInfo: [NSLocalizedDescriptionKey: "无法生成占位图"])
-        }
-
-        let rep = NSBitmapImageRep(cgImage: cgImage)
-        guard let data = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.82]) else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -3, userInfo: [NSLocalizedDescriptionKey: "无法编码占位图"])
-        }
-        return data
-    }
-
-    nonisolated private static func makeJPEGData(from image: CGImage, maxDimension: Int, quality: CGFloat) throws -> (Data, CGSize) {
-        let scaled = try scaledImage(from: image, maxDimension: maxDimension)
-        let rep = NSBitmapImageRep(cgImage: scaled)
-        guard let data = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]) else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -4, userInfo: [NSLocalizedDescriptionKey: "无法编码 JPEG"])
-        }
-        return (data, CGSize(width: scaled.width, height: scaled.height))
-    }
-
-    nonisolated private static func scaledImage(from image: CGImage, maxDimension: Int) throws -> CGImage {
-        let srcW = image.width
-        let srcH = image.height
-        let maxSide = max(srcW, srcH)
-        guard maxSide > 0 else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -5, userInfo: [NSLocalizedDescriptionKey: "无效图片尺寸"])
-        }
-
-        let targetW: Int
-        let targetH: Int
-        if maxSide <= maxDimension {
-            targetW = srcW
-            targetH = srcH
-        } else {
-            let scale = Double(maxDimension) / Double(maxSide)
-            targetW = max(1, Int(Double(srcW) * scale))
-            targetH = max(1, Int(Double(srcH) * scale))
-        }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        guard let context = CGContext(
-            data: nil,
-            width: targetW,
-            height: targetH,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
-        ) else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -6, userInfo: [NSLocalizedDescriptionKey: "无法创建缩略图上下文"])
-        }
-
-        context.interpolationQuality = .high
-        context.draw(image, in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
-
-        guard let scaled = context.makeImage() else {
-            throw NSError(domain: "CaptureLibraryFileStore", code: -7, userInfo: [NSLocalizedDescriptionKey: "无法生成缩略图"])
-        }
-        return scaled
-    }
-}
-
 // MARK: - Database
 
 actor CaptureLibraryDatabase {
@@ -420,7 +92,7 @@ actor CaptureLibraryDatabase {
     func fetchPage(limit: Int, offset: Int, query: CaptureLibraryQuery) throws -> [CaptureItem] {
         let trimmedSearch = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmedSearch.isEmpty {
-            let matchQuery = Self.makeFTSMatchQuery(from: trimmedSearch)
+            let matchQuery = CaptureLibraryFTS.makeMatchQuery(from: trimmedSearch)
             if !matchQuery.isEmpty {
                 var whereClauses: [String] = ["capture_items_fts MATCH ?"]
                 if query.pinnedOnly {
@@ -1135,7 +807,7 @@ actor CaptureLibraryDatabase {
     }
 
     func setTags(_ tags: [String], for id: UUID, now: Date) throws {
-        let normalized = Self.normalizeTags(tags)
+        let normalized = CaptureLibraryTagNormalizer.normalize(tags)
         let tagsCache = normalized.joined(separator: " ")
 
         do {
@@ -1215,19 +887,6 @@ actor CaptureLibraryDatabase {
         }
     }
 
-    private static func normalizeTags(_ tags: [String]) -> [String] {
-        let trimmed = tags
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var unique: [String] = []
-        var seen = Set<String>()
-        for tag in trimmed where seen.insert(tag).inserted {
-            unique.append(tag)
-        }
-        return Array(unique.prefix(20))
-    }
-
     private func rebuildFTS(for id: UUID) throws {
         let sql = """
         SELECT app_name, external_file_path, tags_cache, note, ocr_text
@@ -1246,7 +905,7 @@ actor CaptureLibraryDatabase {
         let note = columnString(stmt, index: 3)
         let ocrText = columnString(stmt, index: 4)
 
-        let ftsText = Self.makeFTSText(
+        let ftsText = CaptureLibraryFTS.makeText(
             appName: appName,
             externalFilePath: externalFilePath,
             tagsCache: tagsCache,
@@ -1255,24 +914,6 @@ actor CaptureLibraryDatabase {
         )
 
         try upsertFTS(itemID: id.uuidString, text: ftsText)
-    }
-
-private static func makeFTSText(
-        appName: String?,
-        externalFilePath: String?,
-        tagsCache: String,
-        note: String?,
-        ocrText: String?
-    ) -> String {
-        var parts: [String] = []
-        if let appName, !appName.isEmpty { parts.append(appName) }
-        if !tagsCache.isEmpty { parts.append(tagsCache) }
-        if let note, !note.isEmpty { parts.append(note) }
-        if let ocrText, !ocrText.isEmpty { parts.append(ocrText) }
-        if let externalFilePath, !externalFilePath.isEmpty {
-            parts.append(URL(fileURLWithPath: externalFilePath).lastPathComponent)
-        }
-        return parts.joined(separator: "\n")
     }
 
     func deleteItems(ids: [UUID]) throws -> [(thumb: String, preview: String?, original: String?)] {
@@ -1517,34 +1158,6 @@ private static func makeFTSText(
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw lastError("写入 FTS 失败")
         }
-    }
-
-    private static func makeFTSMatchQuery(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-
-        let tokens = trimmed
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-
-        let terms: [String] = tokens.compactMap { raw in
-            let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !term.isEmpty else { return nil }
-
-            if term.range(of: #"^[A-Za-z0-9_]+$"#, options: .regularExpression) != nil {
-                return term + "*"
-            }
-
-            if term.range(of: #"^[\p{L}\p{Nd}]+$"#, options: .regularExpression) != nil {
-                // For CJK/other scripts: use prefix match so "微信" can match "微信支付".
-                return term + "*"
-            }
-
-            let escaped = term.replacingOccurrences(of: "\"", with: "\"\"")
-            return "\"\(escaped)\""
-        }
-
-        return terms.joined(separator: " AND ")
     }
 
     private func fetchItems(sql: String, bind: (OpaquePointer?) -> Void) throws -> [CaptureItem] {
@@ -2279,7 +1892,7 @@ actor CaptureLibraryWorker {
             bytesOriginal: 0
         )
 
-        let ftsText = Self.makeFTSText(
+        let ftsText = CaptureLibraryFTS.makeText(
             appName: item.appName,
             externalFilePath: item.externalFilePath,
             tagsCache: item.tagsCache,
@@ -2580,7 +2193,7 @@ actor CaptureLibraryWorker {
                     bytesOriginal: 0
                 )
 
-                let ftsText = Self.makeFTSText(
+                let ftsText = CaptureLibraryFTS.makeText(
                     appName: nil,
                     externalFilePath: path,
                     tagsCache: "",
@@ -2602,23 +2215,6 @@ actor CaptureLibraryWorker {
         notifyChanged()
     }
 
-    private static func makeFTSText(
-        appName: String?,
-        externalFilePath: String?,
-        tagsCache: String,
-        note: String?,
-        ocrText: String?
-    ) -> String {
-        var parts: [String] = []
-        if let appName, !appName.isEmpty { parts.append(appName) }
-        if !tagsCache.isEmpty { parts.append(tagsCache) }
-        if let note, !note.isEmpty { parts.append(note) }
-        if let ocrText, !ocrText.isEmpty { parts.append(ocrText) }
-        if let externalFilePath, !externalFilePath.isEmpty {
-            parts.append(URL(fileURLWithPath: externalFilePath).lastPathComponent)
-        }
-        return parts.joined(separator: "\n")
-    }
 }
 
 // MARK: - Semantic Search (M3, Experimental)
