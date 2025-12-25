@@ -35,6 +35,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let pointSize: CGSize
         let borderApplied: Bool
         let scale: CGFloat
+        let application: SCRunningApplication?
     }
 
     private enum CaptureMode {
@@ -238,18 +239,37 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                         padding: padding,
                         pointSize: selectionSize,
                         borderApplied: true,
-                        scale: frozenWindow.scale
+                        scale: frozenWindow.scale,
+                        application: frozenWindow.application
                     )
                     self.frozenWindowSnapshots[windowResult.windowID] = frozenWindow
                 }
                 let selectionRect = CGRect(origin: .zero, size: frozenWindow.pointSize)
                 switch self.captureMode {
                 case .advanced:
-                    self.handleAdvancedCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
+                    self.handleAdvancedCapture(
+                        cgImage: frozenWindow.image,
+                        selectionRect: selectionRect,
+                        captureType: .window,
+                        trigger: trigger,
+                        capturedApp: frozenWindow.application
+                    )
                 case .ocr:
-                    self.performOCRFrozenCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
+                    self.performOCRFrozenCapture(
+                        cgImage: frozenWindow.image,
+                        selectionRect: selectionRect,
+                        captureType: .window,
+                        trigger: trigger,
+                        capturedApp: frozenWindow.application
+                    )
                 case .quick:
-                    self.handleSuccessfulCapture(cgImage: frozenWindow.image, selectionRect: selectionRect, captureType: .window, trigger: trigger)
+                    self.handleSuccessfulCapture(
+                        cgImage: frozenWindow.image,
+                        selectionRect: selectionRect,
+                        captureType: .window,
+                        trigger: trigger,
+                        capturedApp: frozenWindow.application
+                    )
                 }
                 self.frozenDisplaySnapshots.removeAll()
                 self.frozenWindowSnapshots.removeAll()
@@ -577,7 +597,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 padding: padding,
                 pointSize: pointSize,
                 borderApplied: true,
-                scale: scaleCGFloat
+                scale: scaleCGFloat,
+                application: window.owningApplication
             )
         } else {
             let padding = NSEdgeInsets()
@@ -587,7 +608,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 padding: padding,
                 pointSize: pointSize,
                 borderApplied: false,
-                scale: scaleCGFloat
+                scale: scaleCGFloat,
+                application: window.owningApplication
             )
         }
     }
@@ -626,7 +648,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         cgImage: CGImage,
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger
+        trigger: CaptureTrigger,
+        capturedApp: SCRunningApplication? = nil
     ) {
         captureMode = .quick
 
@@ -646,15 +669,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 var recognized: String?
                 defer {
+                    let appInfo = resolvedAppInfo(capturedApp: capturedApp)
                     _ = CaptureLibrary.shared.addCapture(
                         cgImage: cgImage,
                         pointSize: selectionRect.size,
                         captureType: captureType,
                         captureMode: .ocr,
                         trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: self.previousApp?.bundleIdentifier,
-                        appName: self.previousApp?.localizedName,
-                        appPID: self.previousApp.map { Int($0.processIdentifier) },
+                        appBundleID: appInfo.bundleID,
+                        appName: appInfo.appName,
+                        appPID: appInfo.pid,
                         externalFilePath: nil,
                         ocrText: recognized,
                         ocrLangs: settings.ocrRecognitionLanguages
@@ -862,7 +886,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 )
                 await MainActor.run {
-                    self.handleSuccessfulCapture(cgImage: captureResult.image, selectionRect: sizeRect, captureType: captureType, trigger: trigger)
+                    self.handleSuccessfulCapture(
+                        cgImage: captureResult.image,
+                        selectionRect: sizeRect,
+                        captureType: captureType,
+                        trigger: trigger,
+                        capturedApp: captureResult.application
+                    )
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -894,7 +924,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     )
                 )
                 await MainActor.run {
-                    self.handleAdvancedCapture(cgImage: captureResult.image, selectionRect: sizeRect, captureType: captureType, trigger: trigger)
+                    self.handleAdvancedCapture(
+                        cgImage: captureResult.image,
+                        selectionRect: sizeRect,
+                        captureType: captureType,
+                        trigger: trigger,
+                        capturedApp: captureResult.application
+                    )
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -917,7 +953,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         cgImage: CGImage,
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger
+        trigger: CaptureTrigger,
+        capturedApp: SCRunningApplication? = nil
     ) {
         captureMode = .quick
         isShowingEditor = true
@@ -935,7 +972,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     editedImage: editedImage,
                     selectionRect: selectionRect,
                     captureType: captureType,
-                    trigger: trigger
+                    trigger: trigger,
+                    capturedApp: capturedApp
                 )
                 self?.isShowingEditor = false
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
@@ -1052,15 +1090,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 var recognized: String?
                 defer {
+                    let appInfo = resolvedAppInfo(capturedApp: captureResult.application)
                     _ = CaptureLibrary.shared.addCapture(
                         cgImage: captureResult.image,
                         pointSize: pointSize,
                         captureType: captureType,
                         captureMode: .ocr,
                         trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: self.previousApp?.bundleIdentifier,
-                        appName: self.previousApp?.localizedName,
-                        appPID: self.previousApp.map { Int($0.processIdentifier) },
+                        appBundleID: appInfo.bundleID,
+                        appName: appInfo.appName,
+                        appPID: appInfo.pid,
                         externalFilePath: nil,
                         ocrText: recognized,
                         ocrLangs: settings.ocrRecognitionLanguages
@@ -1115,7 +1154,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         editedImage: NSImage,
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger
+        trigger: CaptureTrigger,
+        capturedApp: SCRunningApplication? = nil
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
@@ -1143,15 +1183,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
+        let appInfo = resolvedAppInfo(capturedApp: capturedApp)
         let libraryID = CaptureLibrary.shared.addCapture(
             cgImage: cgImage,
             pointSize: selectionRect.size,
             captureType: captureType,
             captureMode: .advanced,
             trigger: libraryTrigger(from: trigger),
-            appBundleID: previousApp?.bundleIdentifier,
-            appName: previousApp?.localizedName,
-            appPID: previousApp.map { Int($0.processIdentifier) },
+            appBundleID: appInfo.bundleID,
+            appName: appInfo.appName,
+            appPID: appInfo.pid,
             externalFilePath: clipboardFilePath
         )
 
@@ -1185,7 +1226,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         cgImage: CGImage,
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger
+        trigger: CaptureTrigger,
+        capturedApp: SCRunningApplication? = nil
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
@@ -1212,15 +1254,16 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
+        let appInfo = resolvedAppInfo(capturedApp: capturedApp)
         let libraryID = CaptureLibrary.shared.addCapture(
             cgImage: cgImage,
             pointSize: selectionRect.size,
             captureType: captureType,
             captureMode: .quick,
             trigger: libraryTrigger(from: trigger),
-            appBundleID: previousApp?.bundleIdentifier,
-            appName: previousApp?.localizedName,
-            appPID: previousApp.map { Int($0.processIdentifier) },
+            appBundleID: appInfo.bundleID,
+            appName: appInfo.appName,
+            appPID: appInfo.pid,
             externalFilePath: clipboardFilePath
         )
 
@@ -1396,6 +1439,21 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         case .automation:
             return .automation
         }
+    }
+
+    private func resolvedAppInfo(capturedApp: SCRunningApplication?) -> (bundleID: String?, appName: String?, pid: Int?) {
+        if let capturedApp {
+            let bundleID = capturedApp.bundleIdentifier ?? previousApp?.bundleIdentifier
+            let appName = capturedApp.applicationName ?? previousApp?.localizedName
+            let pid = Int(capturedApp.processID)
+            return (bundleID, appName, pid)
+        }
+
+        return (
+            previousApp?.bundleIdentifier,
+            previousApp?.localizedName,
+            previousApp.map { Int($0.processIdentifier) }
+        )
     }
 
     /// Copy image to clipboard - SIMPLE LOGIC

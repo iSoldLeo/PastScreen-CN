@@ -754,11 +754,25 @@ private struct CaptureLibraryRootView: View {
     @StateObject private var model = CaptureLibraryViewModel()
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage("captureLibrary.showUnknownAppGroup") private var showUnknownAppGroup: Bool = true
 
     let onDismiss: () -> Void
 
     init(onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
+    }
+
+    private var filteredAppGroups: [CaptureLibraryAppGroup] {
+        guard !showUnknownAppGroup else { return model.appGroups }
+        return model.appGroups.filter { group in
+            if let bundleID = group.bundleID, !bundleID.isEmpty { return true }
+            return false
+        }
+    }
+
+    private func isUnknown(_ group: CaptureLibraryAppGroup) -> Bool {
+        guard let bundleID = group.bundleID else { return true }
+        return bundleID.isEmpty
     }
 
     private var chromeBackgroundStyle: AnyShapeStyle {
@@ -815,7 +829,6 @@ private struct CaptureLibraryRootView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .disabled(model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .onAppear {
@@ -849,6 +862,16 @@ private struct CaptureLibraryRootView: View {
             inspector
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: showUnknownAppGroup) { _, newValue in
+            if !newValue,
+               case .app(let bundleID) = model.sidebarSelection,
+               (bundleID == nil || bundleID?.isEmpty == true) {
+                model.sidebarSelection = .all
+                model.scheduleReload(debounce: false)
+            } else if newValue {
+                model.scheduleReload(debounce: false)
+            }
+        }
     }
 
     private var sidebar: some View {
@@ -870,7 +893,7 @@ private struct CaptureLibraryRootView: View {
             }
 
             Section(NSLocalizedString("library.section.apps", value: "应用", comment: "")) {
-                ForEach(model.appGroups) { group in
+                ForEach(filteredAppGroups) { group in
                     HStack(spacing: 10) {
                         Image(nsImage: model.icon(for: group))
                             .resizable()
@@ -889,6 +912,18 @@ private struct CaptureLibraryRootView: View {
                             .foregroundStyle(.secondary)
                     }
                     .tag(CaptureLibraryViewModel.SidebarSelection.app(bundleID: group.bundleID))
+                    .contextMenu {
+                        if isUnknown(group) {
+                            Button(NSLocalizedString("library.context.hide_unknown", value: "隐藏“未知”分组", comment: "")) {
+                                showUnknownAppGroup = false
+                                if case .app(let bundleID) = model.sidebarSelection,
+                                   bundleID == nil || bundleID?.isEmpty == true {
+                                    model.sidebarSelection = .all
+                                    model.scheduleReload(debounce: false)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -913,6 +948,14 @@ private struct CaptureLibraryRootView: View {
             }
         }
         .listStyle(.sidebar)
+        .contextMenu {
+            if !showUnknownAppGroup {
+                Button(NSLocalizedString("library.context.show_unknown", value: "显示“未知”分组", comment: "")) {
+                    showUnknownAppGroup = true
+                    model.scheduleReload(debounce: false)
+                }
+            }
+        }
     }
 
 	    private var searchResultsGrid: some View {
