@@ -178,6 +178,30 @@ struct CaptureSettingsView: View {
     var body: some View {
         SettingsPage {
             SettingsGlassSection(
+                NSLocalizedString("settings.capture.clipboard_section", value: "复制", comment: ""),
+                systemImage: "doc.on.clipboard"
+            ) {
+                Picker(NSLocalizedString("settings.capture.clipboard.default", value: "截图后复制", comment: ""), selection: $settings.captureClipboardFormat) {
+                    Text(NSLocalizedString("settings.capture.clipboard.image", value: "图片", comment: "")).tag(CaptureClipboardFormat.image)
+                    Text(NSLocalizedString("settings.capture.clipboard.path", value: "路径（文本）", comment: "")).tag(CaptureClipboardFormat.path)
+                    Text(NSLocalizedString("settings.capture.clipboard.markdown_image", value: "Markdown 图片引用", comment: "")).tag(CaptureClipboardFormat.markdownImage)
+                }
+                .pickerStyle(.menu)
+
+                Picker(NSLocalizedString("settings.capture.clipboard.ocr", value: "OCR 后复制", comment: ""), selection: $settings.ocrClipboardFormat) {
+                    Text(NSLocalizedString("settings.capture.clipboard.ocr_text", value: "纯文本", comment: "")).tag(OCRClipboardFormat.text)
+                    Text(NSLocalizedString("settings.capture.clipboard.ocr_markdown", value: "Markdown 代码块", comment: "")).tag(OCRClipboardFormat.markdownCodeBlock)
+                }
+                .pickerStyle(.menu)
+
+                if settings.captureClipboardFormat != .image {
+                    Text(NSLocalizedString("settings.capture.clipboard.requires_saving", value: "复制路径/Markdown 需要启用并设置“保存到磁盘”。", comment: ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            SettingsGlassSection(
                 NSLocalizedString("settings.capture.format_section", comment: ""),
                 systemImage: "photo"
             ) {
@@ -691,8 +715,10 @@ private final class CaptureLibrarySettingsModel: ObservableObject {
             forName: .captureLibraryChanged,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            self?.refresh()
+        ) { _ in
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
         }
     }
 

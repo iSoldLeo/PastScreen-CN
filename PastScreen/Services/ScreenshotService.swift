@@ -46,6 +46,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     private var captureMode: CaptureMode = .quick
     private var captureTrigger: CaptureTrigger = .menuBar
+    private struct AutomationRequest {
+        let id: UUID
+        let returnType: ScreenshotIntentBridge.AutomationReturnType
+    }
+    private var automationRequest: AutomationRequest?
     private var selectionSessionID: UUID?
     private var windowSnapshotTask: Task<Void, Never>?
     private let appBundleID = Bundle.main.bundleIdentifier
@@ -299,6 +304,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         captureMode = .quick
         restorePreviousAppFocus()
 
+        completeAutomationIfNeeded(error: NSLocalizedString("intent.error.canceled", value: "用户已取消", comment: ""))
         scheduleSelectionCleanup()
     }
     private func showErrorAlert(_ message: String) {
@@ -319,6 +325,113 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             if postCaptureFlowEnded && !self.isShowingEditor {
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
+        }
+    }
+
+    func beginAutomationRequest(
+        requestID: UUID,
+        returnType: ScreenshotIntentBridge.AutomationReturnType
+    ) {
+        if let existing = automationRequest {
+            postAutomationResult(
+                requestID: existing.id,
+                filePath: nil,
+                ocrText: nil,
+                error: NSLocalizedString("intent.error.busy", value: "已有截图任务进行中", comment: "")
+            )
+        }
+        automationRequest = AutomationRequest(id: requestID, returnType: returnType)
+    }
+
+    func captureWindowUnderMouse(trigger: CaptureTrigger = .menuBar, mode: CaptureItemCaptureMode = .quick) {
+        captureTrigger = trigger
+
+        let excludingWindowIDs: Set<CGWindowID> = []
+        let excludingPIDs: Set<pid_t> = []
+
+        do {
+            let hit = try WindowCaptureCoordinator.shared.hitTestFrontmostWindowAtMouse(
+                excludingPIDs: excludingPIDs,
+                excludingWindowIDs: excludingWindowIDs,
+                skipSelfWindows: true
+            )
+            switch mode {
+            case .advanced:
+                performAdvancedWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
+            case .ocr:
+                performOCRWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
+            case .quick:
+                performWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
+            }
+        } catch {
+            showErrorNotification(error: error)
+            completeAutomationIfNeeded(error: error.localizedDescription)
+        }
+    }
+
+    private func postAutomationResult(
+        requestID: UUID,
+        filePath: String?,
+        ocrText: String?,
+        error: String?
+    ) {
+        var info: [AnyHashable: Any] = ["requestID": requestID.uuidString]
+        if let filePath { info["filePath"] = filePath }
+        if let ocrText { info["ocrText"] = ocrText }
+        if let error { info["error"] = error }
+        NotificationCenter.default.post(name: .automationCaptureCompleted, object: nil, userInfo: info)
+    }
+
+    private func completeAutomationIfNeeded(filePath: String? = nil, ocrText: String? = nil, error: String? = nil) {
+        guard let request = automationRequest else { return }
+        automationRequest = nil
+        postAutomationResult(requestID: request.id, filePath: filePath, ocrText: ocrText, error: error)
+    }
+
+    private func writeAutomationFileAndPost(
+        requestID: UUID,
+        cgImage: CGImage,
+        pointSize: CGSize
+    ) {
+        saveQueue.async { [weak self] in
+            guard let self else { return }
+            let path = self.writeAutomationFile(cgImage: cgImage, pointSize: pointSize, requestID: requestID)
+            DispatchQueue.main.async {
+                self.postAutomationResult(requestID: requestID, filePath: path, ocrText: nil, error: path == nil ? NSLocalizedString("intent.error.no_file", value: "生成文件失败", comment: "") : nil)
+            }
+        }
+    }
+
+    private func writeAutomationFile(cgImage: CGImage, pointSize: CGSize, requestID: UUID) -> String? {
+        let bitmapImage = NSBitmapImageRep(cgImage: cgImage)
+        bitmapImage.size = pointSize
+
+        let fileType: NSBitmapImageRep.FileType
+        let fileExtension: String
+
+        switch AppSettings.shared.imageFormat {
+        case "jpeg":
+            fileType = .jpeg
+            fileExtension = "jpg"
+        default:
+            fileType = .png
+            fileExtension = "png"
+        }
+
+        guard let data = bitmapImage.representation(using: fileType, properties: [:]) else {
+            return nil
+        }
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PastScreenAutomation", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let filename = "PastScreen-\(requestID.uuidString).\(fileExtension)"
+        let url = folder.appendingPathComponent(filename, isDirectory: false)
+
+        do {
+            try data.write(to: url, options: .atomic)
+            return url.path
+        } catch {
+            return nil
         }
     }
 
@@ -657,6 +770,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             guard let self else { return }
 
             do {
+                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
+                    self.automationRequest = nil
+                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: selectionRect.size)
+                }
+
                 let settings = AppSettings.shared
                 if settings.playSoundOnCapture {
                     let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
@@ -697,10 +815,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 await MainActor.run {
                     self.handleOCRResult(trimmed)
+                    if self.automationRequest?.returnType == .text {
+                        if !trimmed.isEmpty {
+                            self.completeAutomationIfNeeded(ocrText: trimmed)
+                        } else {
+                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
                     self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                    self.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
             }
         }
@@ -822,6 +948,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } catch {
                 DispatchQueue.main.async { [weak self] in
                     self?.showErrorNotification(error: error)
+                    self?.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
             }
         }
@@ -839,6 +966,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         guard rect.width > 0 && rect.height > 0 else {
             DispatchQueue.main.async { [weak self] in
                 self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
+                self?.completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
             return
@@ -859,6 +987,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     guard let self else { return }
                     self.isShowingEditor = false
                     self.showErrorNotification(error: error)
+                    self.completeAutomationIfNeeded(error: error.localizedDescription)
                     NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
@@ -897,6 +1026,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } catch {
                 await MainActor.run { [weak self] in
                     self?.showErrorNotification(error: error)
+                    self?.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
             }
         }
@@ -937,6 +1067,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     guard let self else { return }
                     self.isShowingEditor = false
                     self.showErrorNotification(error: error)
+                    self.completeAutomationIfNeeded(error: error.localizedDescription)
                     NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
@@ -980,6 +1111,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             },
             onCancel: { [weak self] in
                 self?.isShowingEditor = false
+                self?.completeAutomationIfNeeded(error: NSLocalizedString("intent.error.canceled", value: "用户已取消", comment: ""))
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
         )
@@ -997,6 +1129,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         guard rect.width > 0, rect.height > 0 else {
             showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+            completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
             return
         }
 
@@ -1014,6 +1147,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
                         fallback.play()
                     }
+                }
+
+                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
+                    self.automationRequest = nil
+                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: rect.size)
                 }
 
                 var recognized: String?
@@ -1045,10 +1183,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 await MainActor.run {
                     self.handleOCRResult(trimmed)
+                    if self.automationRequest?.returnType == .text {
+                        if !trimmed.isEmpty {
+                            self.completeAutomationIfNeeded(ocrText: trimmed)
+                        } else {
+                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
                     self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                    self.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
             }
         }
@@ -1088,6 +1234,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     height: captureResult.window.frame.size.height + padding.top + padding.bottom
                 )
 
+                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
+                    self.automationRequest = nil
+                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: captureResult.image, pointSize: pointSize)
+                }
+
                 var recognized: String?
                 defer {
                     let appInfo = resolvedAppInfo(capturedApp: captureResult.application)
@@ -1118,10 +1269,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 await MainActor.run {
                     self.handleOCRResult(trimmed)
+                    if self.automationRequest?.returnType == .text {
+                        if !trimmed.isEmpty {
+                            self.completeAutomationIfNeeded(ocrText: trimmed)
+                        } else {
+                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {
                     self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
+                    self.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
             }
         }
@@ -1136,9 +1295,33 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(trimmed, forType: .string)
+        switch AppSettings.shared.ocrClipboardFormat {
+        case .text:
+            pasteboard.setString(trimmed, forType: .string)
+        case .markdownCodeBlock:
+            pasteboard.setString(makeMarkdownCodeBlock(text: trimmed), forType: .string)
+        }
 
         showOCRFeedback(style: .success, key: "toast.ocr.success", fallback: "OCR 已复制")
+    }
+
+    private func makeMarkdownCodeBlock(text: String) -> String {
+        let fence = String(repeating: "`", count: max(3, longestBacktickRun(in: text) + 1))
+        return "\(fence)text\n\(text)\n\(fence)"
+    }
+
+    private func longestBacktickRun(in text: String) -> Int {
+        var longest = 0
+        var current = 0
+        for scalar in text.unicodeScalars {
+            if scalar == "`" {
+                current += 1
+                if current > longest { longest = current }
+            } else {
+                current = 0
+            }
+        }
+        return longest
     }
 
     private func showOCRFeedback(style: DynamicIslandManager.Style, key: String, fallback: String) {
@@ -1159,6 +1342,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
+        let pendingAutomation = automationRequest
+        if pendingAutomation != nil {
+            automationRequest = nil
+        }
 
         // Play capture sound if enabled
         if settings.playSoundOnCapture {
@@ -1173,6 +1360,14 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         // Convert NSImage back to CGImage for clipboard operations
         guard let cgImage = editedImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法处理编辑后的图片"]))
+            if let pendingAutomation {
+                postAutomationResult(
+                    requestID: pendingAutomation.id,
+                    filePath: nil,
+                    ocrText: nil,
+                    error: NSLocalizedString("intent.error.no_file", value: "没有可返回的文件路径", comment: "")
+                )
+            }
             return
         }
 
@@ -1198,6 +1393,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         guard allowSaving else {
             self.showSuccessNotification(filePath: nil)
+            if let pendingAutomation {
+                writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
+            }
             return
         }
 
@@ -1205,6 +1403,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
             settings.addToHistory(filePath)
             self.showSuccessNotification(filePath: filePath)
+            if let pendingAutomation {
+                postAutomationResult(requestID: pendingAutomation.id, filePath: filePath, ocrText: nil, error: nil)
+            }
             return
         }
 
@@ -1218,6 +1419,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
             }
             self.showSuccessNotification(filePath: savedPath)
+            if let pendingAutomation {
+                if let savedPath {
+                    self.postAutomationResult(requestID: pendingAutomation.id, filePath: savedPath, ocrText: nil, error: nil)
+                } else {
+                    self.writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
+                }
+            }
         }
     }
 
@@ -1231,6 +1439,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
+        let pendingAutomation = automationRequest
+        if pendingAutomation != nil {
+            automationRequest = nil
+        }
 
         // Play capture sound if enabled
         if settings.playSoundOnCapture {
@@ -1269,6 +1481,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         guard allowSaving else {
             self.showSuccessNotification(filePath: nil)
+            if let pendingAutomation {
+                writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
+            }
             return
         }
 
@@ -1276,6 +1491,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
             settings.addToHistory(filePath)
             self.showSuccessNotification(filePath: filePath)
+            if let pendingAutomation {
+                postAutomationResult(requestID: pendingAutomation.id, filePath: filePath, ocrText: nil, error: nil)
+            }
             return
         }
 
@@ -1289,6 +1507,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
             }
             self.showSuccessNotification(filePath: savedPath)
+            if let pendingAutomation {
+                if let savedPath {
+                    self.postAutomationResult(requestID: pendingAutomation.id, filePath: savedPath, ocrText: nil, error: nil)
+                } else {
+                    self.writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
+                }
+            }
         }
     }
 
@@ -1416,7 +1641,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func restorePreviousAppFocus() {
         guard let app = previousApp else { return }
         if let appBundleID, app.bundleIdentifier == appBundleID { return }
-        app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        app.activate(options: [.activateAllWindows])
     }
 
     /// Detect the application category based on previously captured app
@@ -1471,37 +1696,31 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         let settings = AppSettings.shared
 
-        // Only save when user enabled it and a valid folder is configured
-        var filePath: String?
-
-        // Check for App Override
-        var usePathOnly = false
-        if let bundleID = previousApp?.bundleIdentifier,
-           let override = settings.getOverride(for: bundleID) {
-            if override == .path {
-                usePathOnly = true
+        let effectiveFormat: CaptureClipboardFormat = {
+            if let bundleID = previousApp?.bundleIdentifier,
+               let override = settings.getOverride(for: bundleID),
+               override == .path {
+                return .path
             }
-        }
+            return settings.captureClipboardFormat
+        }()
 
-        if usePathOnly, allowSaving {
-            filePath = saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
-        }
-
-        if usePathOnly {
-            // PATH ONLY - For terminals
-            if let imagePath = filePath {
-                pasteboard.setString(imagePath, forType: .string)
-            } else {
-                // Fallback to image copy if no path is available
-                pasteboard.writeObjects([image])
+        let filePath: String? = {
+            switch effectiveFormat {
+            case .image:
+                return nil
+            case .path, .markdownImage:
+                guard allowSaving else { return nil }
+                return saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
             }
-        } else {
-            // IMAGE ONLY - Default behavior (works with AI agents, browsers, etc.)
+        }()
+
+        switch effectiveFormat {
+        case .image:
             if let pngData = makePNGClipboardData(cgImage: cgImage, pointSize: pointSize) {
                 let item = NSPasteboardItem()
                 item.setData(pngData, forType: .png)
 
-                // Keep a TIFF fallback for apps that expect the legacy type
                 if let tiffData = image.tiffRepresentation {
                     item.setData(tiffData, forType: .tiff)
                 }
@@ -1510,15 +1729,40 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } else {
                 pasteboard.writeObjects([image])
             }
-        }
+            return nil
 
-        return filePath
+        case .path:
+            if let filePath, !filePath.isEmpty {
+                pasteboard.setString(filePath, forType: .string)
+                return filePath
+            }
+            pasteboard.writeObjects([image])
+            return nil
+
+        case .markdownImage:
+            if let filePath, let markdown = makeMarkdownImageReference(filePath: filePath) {
+                pasteboard.setString(markdown, forType: .string)
+                return filePath
+            }
+            pasteboard.writeObjects([image])
+            return nil
+        }
     }
 
     private func makePNGClipboardData(cgImage: CGImage, pointSize: CGSize) -> Data? {
         let rep = NSBitmapImageRep(cgImage: cgImage)
         rep.size = pointSize
         return rep.representation(using: .png, properties: [:])
+    }
+
+    private func makeMarkdownImageReference(filePath: String) -> String? {
+        let url = URL(fileURLWithPath: filePath)
+        let alt = url.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "]", with: "")
+            .replacingOccurrences(of: "[", with: "")
+        let ref = url.absoluteString
+        guard !ref.isEmpty else { return nil }
+        return "![\(alt)](\(ref))"
     }
 
     /// Save to disk on a background queue, then hop back to main for UI/notifications.

@@ -129,6 +129,21 @@ enum ClipboardFormat: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable {
+    case image = "image"
+    case path = "path"
+    case markdownImage = "markdownImage"
+
+    var id: String { rawValue }
+}
+
+enum OCRClipboardFormat: String, Codable, CaseIterable, Identifiable {
+    case text = "text"
+    case markdownCodeBlock = "markdownCodeBlock"
+
+    var id: String { rawValue }
+}
+
 struct AppOverride: Codable, Identifiable, Equatable {
     var id: String { bundleIdentifier }
     let bundleIdentifier: String
@@ -239,7 +254,7 @@ class AppSettings: ObservableObject {
     private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
 
-    static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
+    nonisolated static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
         let separators = CharacterSet.whitespacesAndNewlines
             .union(CharacterSet(charactersIn: ",，;；"))
 
@@ -252,7 +267,12 @@ class AppSettings: ObservableObject {
         var seen = Set<String>()
 
         for part in parts {
-            let canonical = Locale.canonicalIdentifier(from: part)
+            let canonical: String
+            if #available(macOS 13.0, *) {
+                canonical = Locale.identifier(.bcp47, from: part)
+            } else {
+                canonical = Locale.canonicalIdentifier(from: part)
+            }
             let normalized = canonical.replacingOccurrences(of: "_", with: "-")
             guard !normalized.isEmpty else { continue }
             guard seen.insert(normalized).inserted else { continue }
@@ -321,6 +341,18 @@ class AppSettings: ObservableObject {
     @Published var playSoundOnCapture: Bool {
         didSet {
             UserDefaults.standard.set(playSoundOnCapture, forKey: "playSoundOnCapture")
+        }
+    }
+
+    @Published var captureClipboardFormat: CaptureClipboardFormat {
+        didSet {
+            UserDefaults.standard.set(captureClipboardFormat.rawValue, forKey: "captureClipboardFormat")
+        }
+    }
+
+    @Published var ocrClipboardFormat: OCRClipboardFormat {
+        didSet {
+            UserDefaults.standard.set(ocrClipboardFormat.rawValue, forKey: "ocrClipboardFormat")
         }
     }
 
@@ -587,6 +619,21 @@ class AppSettings: ObservableObject {
             self.frozenWindowLimitPerDisplay = 10
         }
         self.playSoundOnCapture = UserDefaults.standard.object(forKey: "playSoundOnCapture") as? Bool ?? true
+
+        if let raw = UserDefaults.standard.string(forKey: "captureClipboardFormat"),
+           let format = CaptureClipboardFormat(rawValue: raw) {
+            self.captureClipboardFormat = format
+        } else {
+            self.captureClipboardFormat = .image
+        }
+
+        if let raw = UserDefaults.standard.string(forKey: "ocrClipboardFormat"),
+           let format = OCRClipboardFormat(rawValue: raw) {
+            self.ocrClipboardFormat = format
+        } else {
+            self.ocrClipboardFormat = .text
+        }
+
         self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: "globalHotkeyEnabled") as? Bool ?? true
 
         if let data = UserDefaults.standard.data(forKey: "globalHotkey"),

@@ -197,7 +197,15 @@ struct OCRService {
         let normalized = AppSettings.normalizeOCRRecognitionLanguages(preferredLanguages ?? [])
         guard !normalized.isEmpty else { return [] }
 
-        let supportedList = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(for: recognitionLevel, revision: revision)) ?? []
+        let supportedList: [String]
+        if #available(macOS 12.0, *) {
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = recognitionLevel
+            request.revision = revision
+            supportedList = (try? request.supportedRecognitionLanguages()) ?? []
+        } else {
+            supportedList = []
+        }
         let supported = Set(supportedList)
 
         var out: [String] = []
