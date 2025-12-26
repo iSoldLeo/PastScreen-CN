@@ -6,7 +6,7 @@
 import Foundation
 
 enum CaptureLibraryFTS {
-    static func makeText(
+    nonisolated static func makeText(
         appName: String?,
         externalFilePath: String?,
         tagsCache: String,
@@ -24,7 +24,7 @@ enum CaptureLibraryFTS {
         return parts.joined(separator: "\n")
     }
 
-    static func makeMatchQuery(from text: String) -> String {
+    nonisolated static func makeMatchQuery(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
@@ -53,7 +53,7 @@ enum CaptureLibraryFTS {
 }
 
 enum CaptureLibraryTagNormalizer {
-    static func normalize(_ tags: [String]) -> [String] {
+    nonisolated static func normalize(_ tags: [String]) -> [String] {
         let trimmed = tags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -66,4 +66,3 @@ enum CaptureLibraryTagNormalizer {
         return Array(unique.prefix(20))
     }
 }
-

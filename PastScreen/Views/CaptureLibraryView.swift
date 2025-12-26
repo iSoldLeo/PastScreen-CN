@@ -125,8 +125,8 @@ final class CaptureLibraryViewModel: ObservableObject {
             forName: .captureLibraryChanged,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
+        ) { _ in
+            Task { @MainActor [weak self] in
                 self?.scheduleReload(debounce: true)
             }
         }

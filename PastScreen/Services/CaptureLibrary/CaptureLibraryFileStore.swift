@@ -9,7 +9,7 @@ import Foundation
 // MARK: - File Store
 
 struct CaptureLibraryFileStore {
-    static let folderName = "CaptureLibrary"
+    nonisolated static let folderName = "CaptureLibrary"
 
     let rootURL: URL
     let databaseURL: URL
@@ -166,4 +166,3 @@ struct CaptureLibraryFileStore {
         return scaled
     }
 }
-

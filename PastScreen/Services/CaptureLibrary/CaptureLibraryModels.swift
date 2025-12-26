@@ -144,11 +144,9 @@ struct CaptureLibraryStats: Hashable {
     var bytesPreview: Int
     var bytesOriginal: Int
 
-    var bytesTotal: Int { bytesThumb + bytesPreview + bytesOriginal }
+    nonisolated var bytesTotal: Int { bytesThumb + bytesPreview + bytesOriginal }
 
-    static var empty: Self {
-        CaptureLibraryStats(itemCount: 0, pinnedCount: 0, bytesThumb: 0, bytesPreview: 0, bytesOriginal: 0)
-    }
+    nonisolated static let empty = CaptureLibraryStats(itemCount: 0, pinnedCount: 0, bytesThumb: 0, bytesPreview: 0, bytesOriginal: 0)
 }
 
 struct CaptureLibraryCleanupPolicy: Hashable {
@@ -172,4 +170,3 @@ struct CaptureLibraryOCRReindexCandidate: Hashable {
     var externalFilePath: String?
     var ocrLangs: String?
 }
-

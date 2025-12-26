@@ -254,7 +254,7 @@ class AppSettings: ObservableObject {
     private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
 
-    static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
+    nonisolated static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
         let separators = CharacterSet.whitespacesAndNewlines
             .union(CharacterSet(charactersIn: ",，;；"))
 
@@ -267,7 +267,12 @@ class AppSettings: ObservableObject {
         var seen = Set<String>()
 
         for part in parts {
-            let canonical = Locale.canonicalIdentifier(from: part)
+            let canonical: String
+            if #available(macOS 13.0, *) {
+                canonical = Locale.identifier(.bcp47, from: part)
+            } else {
+                canonical = Locale.canonicalIdentifier(from: part)
+            }
             let normalized = canonical.replacingOccurrences(of: "_", with: "-")
             guard !normalized.isEmpty else { continue }
             guard seen.insert(normalized).inserted else { continue }

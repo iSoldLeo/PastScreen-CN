@@ -1598,7 +1598,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private func restorePreviousAppFocus() {
         guard let app = previousApp else { return }
         if let appBundleID, app.bundleIdentifier == appBundleID { return }
-        app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        app.activate(options: [.activateAllWindows])
     }
 
     /// Detect the application category based on previously captured app

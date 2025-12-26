@@ -269,7 +269,11 @@ final class CaptureLibrary {
         }
 
         Task.detached(priority: priority) { [weak self] in
-            defer { self?.releaseJobSlot() }
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.releaseJobSlot()
+                }
+            }
             do {
                 try await operation(CaptureLibrary.shared.worker)
             } catch {
@@ -291,7 +295,11 @@ final class CaptureLibrary {
         }
 
         Task.detached(priority: priority) { [weak self] in
-            defer { self?.releaseIndexSlot() }
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.releaseIndexSlot()
+                }
+            }
             do {
                 try await operation(CaptureLibrary.shared.worker)
             } catch {

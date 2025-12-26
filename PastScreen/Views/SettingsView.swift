@@ -715,8 +715,10 @@ private final class CaptureLibrarySettingsModel: ObservableObject {
             forName: .captureLibraryChanged,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            self?.refresh()
+        ) { _ in
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
         }
     }
 

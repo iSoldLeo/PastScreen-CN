@@ -7,8 +7,6 @@ import CoreGraphics
 import Foundation
 import SQLite3
 
-private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-
 // MARK: - Database
 
 actor CaptureLibraryDatabase {
@@ -140,7 +138,8 @@ actor CaptureLibraryDatabase {
             sqlite3_bind_null(stmt, index)
             return
         }
-        sqlite3_bind_text(stmt, index, value, -1, sqliteTransient)
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        sqlite3_bind_text(stmt, index, value, -1, transient)
     }
 
     func bindInt64(_ stmt: OpaquePointer?, index: Int32, value: Int64?) {
@@ -172,8 +171,9 @@ actor CaptureLibraryDatabase {
             sqlite3_bind_null(stmt, index)
             return
         }
-        value.withUnsafeBytes { rawBuffer in
-            sqlite3_bind_blob(stmt, index, rawBuffer.baseAddress, Int32(value.count), sqliteTransient)
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        _ = value.withUnsafeBytes { rawBuffer in
+            sqlite3_bind_blob(stmt, index, rawBuffer.baseAddress, Int32(value.count), transient)
         }
     }
 
@@ -205,4 +205,3 @@ actor CaptureLibraryDatabase {
         return Data(bytes: bytes, count: count)
     }
 }
-
