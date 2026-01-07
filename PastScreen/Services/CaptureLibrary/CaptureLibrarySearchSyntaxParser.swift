@@ -14,10 +14,7 @@ struct CaptureLibrarySearchSyntaxParser {
     }
 
     static func apply(_ raw: String, to query: inout CaptureLibraryQuery, context: Context) -> String? {
-        let tokens = raw
-            .split(whereSeparator: \.isWhitespace)
-            .map { String($0) }
-            .filter { !$0.isEmpty }
+        let tokens = tokenize(raw).filter { !$0.isEmpty }
 
         var remaining: [String] = []
         remaining.reserveCapacity(tokens.count)
@@ -135,6 +132,38 @@ struct CaptureLibrarySearchSyntaxParser {
             text = String(text.dropFirst().dropLast())
         }
         return text
+    }
+
+    /// Tokenize the query while preserving quoted segments (single or double quotes) so
+    /// values containing spaces stay together, e.g. `app:"Google Chrome"`.
+    private static func tokenize(_ raw: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var activeQuote: Character?
+
+        func flush() {
+            guard !current.isEmpty else { return }
+            tokens.append(current)
+            current = ""
+        }
+
+        for ch in raw {
+            if let quote = activeQuote {
+                current.append(ch)
+                if ch == quote {
+                    activeQuote = nil
+                }
+            } else if ch == "\"" || ch == "'" {
+                activeQuote = ch
+                current.append(ch)
+            } else if ch.isWhitespace {
+                flush()
+            } else {
+                current.append(ch)
+            }
+        }
+        flush()
+        return tokens
     }
 
     private static func resolveAppBundleID(from value: String, appGroups: [CaptureLibraryAppGroup]) -> String? {
@@ -376,4 +405,3 @@ struct CaptureLibrarySearchSyntaxParser {
         return calendar.date(from: components)
     }
 }
-

@@ -400,12 +400,18 @@ extension CaptureLibraryDatabase {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return .empty }
 
+        let itemCount = Int(sqlite3_column_int64(stmt, 0))
+        let pinnedCount = Int(sqlite3_column_int64(stmt, 1))
+        let bytesThumb = Int(sqlite3_column_int64(stmt, 2))
+        let bytesPreview = Int(sqlite3_column_int64(stmt, 3))
+        let bytesOriginal = Int(sqlite3_column_int64(stmt, 4))
+
         return CaptureLibraryStats(
-            itemCount: Int(sqlite3_column_int(stmt, 0)),
-            pinnedCount: Int(sqlite3_column_int(stmt, 1)),
-            bytesThumb: Int(sqlite3_column_int(stmt, 2)),
-            bytesPreview: Int(sqlite3_column_int(stmt, 3)),
-            bytesOriginal: Int(sqlite3_column_int(stmt, 4))
+            itemCount: itemCount,
+            pinnedCount: pinnedCount,
+            bytesThumb: bytesThumb,
+            bytesPreview: bytesPreview,
+            bytesOriginal: bytesOriginal
         )
     }
 
@@ -587,4 +593,3 @@ extension CaptureLibraryDatabase {
         return items
     }
 }
-

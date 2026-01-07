@@ -1668,17 +1668,24 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     private func resolvedAppInfo(capturedApp: SCRunningApplication?) -> (bundleID: String?, appName: String?, pid: Int?) {
         if let capturedApp {
-            let bundleID = capturedApp.bundleIdentifier ?? previousApp?.bundleIdentifier
-            let appName = capturedApp.applicationName ?? previousApp?.localizedName
+            let bundleID = sanitizedAppString(capturedApp.bundleIdentifier) ?? sanitizedAppString(previousApp?.bundleIdentifier)
+            let appName = sanitizedAppString(capturedApp.applicationName) ?? sanitizedAppString(previousApp?.localizedName)
             let pid = Int(capturedApp.processID)
             return (bundleID, appName, pid)
         }
 
         return (
-            previousApp?.bundleIdentifier,
-            previousApp?.localizedName,
+            sanitizedAppString(previousApp?.bundleIdentifier),
+            sanitizedAppString(previousApp?.localizedName),
             previousApp.map { Int($0.processIdentifier) }
         )
+    }
+
+    private func sanitizedAppString(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 
     /// Copy image to clipboard - SIMPLE LOGIC

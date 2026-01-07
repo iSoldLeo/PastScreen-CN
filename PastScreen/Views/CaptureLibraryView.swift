@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import QuickLookUI
 
 final class CaptureLibraryWindow: NSWindow {
     override var canBecomeKey: Bool { true }
@@ -80,6 +81,35 @@ final class CaptureLibraryManager: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         window = nil
         hostingController = nil
+    }
+}
+
+// Quick Look 预览协调器
+private final class CaptureLibraryQuickLookCoordinator: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    static let shared = CaptureLibraryQuickLookCoordinator()
+    private var items: [URL] = []
+
+    func show(url: URL) {
+        show(urls: [url])
+    }
+
+    func show(urls: [URL]) {
+        guard let panel = QLPreviewPanel.shared() else { return }
+        items = urls
+        panel.dataSource = self
+        panel.delegate = self
+        panel.reloadData()
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        items.count
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        guard index >= 0, index < items.count else { return nil }
+        return items[index] as NSURL
     }
 }
 
@@ -316,6 +346,11 @@ final class CaptureLibraryViewModel: ObservableObject {
 
     func reveal(_ item: CaptureItem) {
         CaptureLibrary.shared.revealInFinder(item: item)
+    }
+
+    func quickLook(_ item: CaptureItem) {
+        guard let url = previewURL(for: item) ?? item.externalFileURL else { return }
+        CaptureLibraryQuickLookCoordinator.shared.show(url: url)
     }
 
     func requestOCRIfNeeded(for item: CaptureItem) {
@@ -774,6 +809,7 @@ private struct CaptureLibraryRootView: View {
                         previewURL: model.previewURL(for: item),
                         debugMode: settings.captureLibraryDebugMode,
                         onCopyImage: { model.copyImage(item) },
+                        onQuickLook: { model.quickLook(item) },
                         onReveal: { model.reveal(item) },
                         onTogglePinned: { model.togglePinned(item) },
                         onDelete: { model.delete(item) },
@@ -897,6 +933,7 @@ private struct CaptureLibraryInspectorView: View {
     let previewURL: URL?
     let debugMode: Bool
     let onCopyImage: () -> Void
+    let onQuickLook: () -> Void
     let onReveal: () -> Void
     let onTogglePinned: () -> Void
     let onDelete: () -> Void
@@ -929,6 +966,18 @@ private struct CaptureLibraryInspectorView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 280)
+            .overlay(alignment: .topTrailing) {
+                if previewURL != nil {
+                    Button(action: onQuickLook) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(8)
+                    }
+                    .buttonStyle(.borderless)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .padding(8)
+                }
+            }
             .task(id: previewURL) {
                 guard let previewURL else {
                     image = nil
