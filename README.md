@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/platform-macOS%2014.6+-blue.svg" alt="Platform macOS 14.6+">
   </a>
   <a href="https://swift.org/">
-    <img src="https://img.shields.io/badge/Swift-5.9-orange.svg" alt="Swift 5.9">
+    <img src="https://img.shields.io/badge/Swift-6-orange.svg" alt="Swift 6">
   </a>
   <br>
   <a href="./README-EN.md" style="color:#0a84ff; font-weight:600; text-decoration:none;">English README</a>
