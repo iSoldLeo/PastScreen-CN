@@ -106,3 +106,4 @@ AGENTS.md
 # Build logs and temporary files
 build_log*.txt
 *.log
+.kiro/
