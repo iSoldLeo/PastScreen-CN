@@ -107,24 +107,35 @@ final class ScreenshotIntentBridge {
 
     private func awaitAutomationResult(requestID: UUID, timeoutSeconds: TimeInterval = 90) async throws -> AutomationResult {
         try await withCheckedThrowingContinuation { continuation in
-            var resolved = false
-            var observer: NSObjectProtocol?
+            // SAFETY: State is a reference wrapper for mutable state shared between
+            // the NotificationCenter observer and the timeout Task. Both run on the
+            // main thread (queue: .main and @MainActor), so no concurrent access occurs.
+            final class State: @unchecked Sendable {
+                var resolved = false
+                var observer: NSObjectProtocol?
+                let continuation: CheckedContinuation<AutomationResult, Error>
 
-            func finish(_ result: Result<AutomationResult, Error>) {
-                guard !resolved else { return }
-                resolved = true
-                if let observer {
-                    NotificationCenter.default.removeObserver(observer)
+                init(continuation: CheckedContinuation<AutomationResult, Error>) {
+                    self.continuation = continuation
                 }
-                switch result {
-                case .success(let value):
-                    continuation.resume(returning: value)
-                case .failure(let error):
-                    continuation.resume(throwing: error)
+
+                func finish(_ result: Result<AutomationResult, Error>) {
+                    guard !resolved else { return }
+                    resolved = true
+                    if let observer {
+                        NotificationCenter.default.removeObserver(observer)
+                    }
+                    switch result {
+                    case .success(let value):
+                        continuation.resume(returning: value)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
+            let state = State(continuation: continuation)
 
-            observer = NotificationCenter.default.addObserver(
+            state.observer = NotificationCenter.default.addObserver(
                 forName: .automationCaptureCompleted,
                 object: nil,
                 queue: .main
@@ -138,12 +149,12 @@ final class ScreenshotIntentBridge {
                 let filePath = userInfo["filePath"] as? String
                 let ocrText = userInfo["ocrText"] as? String
                 let error = userInfo["error"] as? String
-                finish(.success(AutomationResult(filePath: filePath, ocrText: ocrText, error: error)))
+                state.finish(.success(AutomationResult(filePath: filePath, ocrText: ocrText, error: error)))
             }
 
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                finish(.failure(IntentError.timeout))
+                state.finish(.failure(IntentError.timeout))
             }
         }
     }

@@ -10,7 +10,7 @@ import AppKit
 import UserNotifications
 import Combine
 
-enum PermissionType: CaseIterable {
+enum PermissionType: CaseIterable, Sendable {
     case screenRecording
     case accessibility
     case notifications
@@ -35,7 +35,7 @@ enum PermissionType: CaseIterable {
     }
 }
 
-enum PermissionStatus {
+enum PermissionStatus: Sendable {
     case authorized
     case denied
     case notDetermined
@@ -51,6 +51,7 @@ enum PermissionStatus {
     }
 }
 
+@MainActor
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
 
@@ -83,8 +84,9 @@ class PermissionManager: ObservableObject {
 
     func checkNotificationPermission() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                switch settings.authorizationStatus {
+            let status = settings.authorizationStatus
+            Task { @MainActor in
+                switch status {
                 case .authorized, .provisional, .ephemeral:
                     self.notificationStatus = .authorized
                 case .denied:
@@ -100,7 +102,7 @@ class PermissionManager: ObservableObject {
 
     // MARK: - Permission Requests with Retry
 
-    func requestPermission(_ type: PermissionType, completion: @escaping (Bool) -> Void) {
+    func requestPermission(_ type: PermissionType, completion: @escaping @Sendable (Bool) -> Void) {
         let currentRetry = retryCount[type] ?? 0
 
         if currentRetry >= maxRetries {
@@ -121,14 +123,15 @@ class PermissionManager: ObservableObject {
         }
     }
 
-    private func requestScreenRecording(completion: @escaping (Bool) -> Void) {
+    private func requestScreenRecording(completion: @escaping @Sendable (Bool) -> Void) {
         if #available(macOS 10.15, *) {
             let wasAuthorized = CGPreflightScreenCaptureAccess()
             if !wasAuthorized {
                 CGRequestScreenCaptureAccess()
 
                 // Check again after a delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
                     self.checkScreenRecordingPermission()
                     completion(self.screenRecordingStatus == .authorized)
                 }
@@ -138,14 +141,17 @@ class PermissionManager: ObservableObject {
         }
     }
 
-    private func requestAccessibility(completion: @escaping (Bool) -> Void) {
+    private func requestAccessibility(completion: @escaping @Sendable (Bool) -> Void) {
         let wasAuthorized = AXIsProcessTrusted()
         if !wasAuthorized {
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-            let _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
+            // Use string literal instead of kAXTrustedCheckOptionPrompt to avoid
+            // Swift 6 concurrency-safety warning on the global CF constant.
+            let options = ["AXTrustedCheckOptionPrompt" as CFString: true] as CFDictionary
+            let _ = AXIsProcessTrustedWithOptions(options)
 
             // Check again after a delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 self.checkAccessibilityPermission()
                 completion(self.accessibilityStatus == .authorized)
             }
@@ -154,10 +160,10 @@ class PermissionManager: ObservableObject {
         }
     }
 
-    private func requestNotifications(completion: @escaping (Bool) -> Void) {
+    private func requestNotifications(completion: @escaping @Sendable (Bool) -> Void) {
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.checkNotificationPermission()
                 completion(granted)
             }
@@ -238,11 +244,11 @@ class PermissionManager: ObservableObject {
 
     // MARK: - Convenience Methods
 
-    func requestAccessibilityPermission(completion: @escaping (Bool) -> Void) {
+    func requestAccessibilityPermission(completion: @escaping @Sendable (Bool) -> Void) {
         requestPermission(.accessibility, completion: completion)
     }
 
-    func requestScreenRecordingPermission(completion: @escaping (Bool) -> Void) {
+    func requestScreenRecordingPermission(completion: @escaping @Sendable (Bool) -> Void) {
         requestPermission(.screenRecording, completion: completion)
     }
 

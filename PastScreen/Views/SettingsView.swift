@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import AppKit
+@preconcurrency import AppKit  // NSEvent 未标记 Sendable
 import UniformTypeIdentifiers
 import Combine
 #if canImport(TipKit)
@@ -525,7 +525,8 @@ struct StorageSettingsView: View {
                     .onChange(of: settings.saveToFile) { _, newValue in
                         if newValue {
                             if !settings.hasValidBookmark {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 100_000_000)
                                     if let newPath = settings.selectFolder() {
                                         settings.saveFolderPath = newPath
                                     }
@@ -703,7 +704,9 @@ private final class CaptureLibrarySettingsModel: ObservableObject {
 
     @Published private(set) var stats: CaptureLibraryStats = .empty
 
-    private var observer: Any?
+    // nonisolated(unsafe): Accessed in deinit for NotificationCenter cleanup.
+    // Safe because deinit runs after all references are released.
+    private nonisolated(unsafe) var observer: Any?
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file

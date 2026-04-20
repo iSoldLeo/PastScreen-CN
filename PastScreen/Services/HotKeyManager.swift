@@ -8,21 +8,24 @@
 //
 
 import Foundation
-import AppKit
-import Combine
+@preconcurrency import AppKit  // NSEvent 未标记 Sendable，但在 addGlobalMonitorForEvents 回调中需要跨隔离域传递
+@preconcurrency import Combine  // AnyCancellable 未标记 Sendable
 
+@MainActor
 class HotKeyManager {
 
     static let shared = HotKeyManager()
 
-    private var globalEventMonitor: Any?
-    private var localEventMonitor: Any?
+    // nonisolated(unsafe): These properties are accessed in deinit for cleanup.
+    // Safe because deinit runs after all references are released.
+    private nonisolated(unsafe) var globalEventMonitor: Any?
+    private nonisolated(unsafe) var localEventMonitor: Any?
     private let settings = AppSettings.shared
     private let permissionManager = PermissionManager.shared
-    private var settingsObserver: AnyCancellable?
-    private var advancedHotkeyObserver: AnyCancellable?
-    private var ocrHotkeyObserver: AnyCancellable?
-    private var permissionObserver: AnyCancellable?
+    private nonisolated(unsafe) var settingsObserver: AnyCancellable?
+    private nonisolated(unsafe) var advancedHotkeyObserver: AnyCancellable?
+    private nonisolated(unsafe) var ocrHotkeyObserver: AnyCancellable?
+    private nonisolated(unsafe) var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false
 
     private init() {
@@ -30,48 +33,60 @@ class HotKeyManager {
         // This allows enabling/disabling the hotkey from the Settings window
         // without needing to restart the app.
         settingsObserver = settings.$globalHotkeyEnabled.sink { [weak self] enabled in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
                 if enabled {
-                    self?.startMonitoring()
+                    self.startMonitoring()
                 } else {
-                    self?.stopMonitoring()
+                    self.stopMonitoring()
                 }
             }
         }
         
         // Also observe changes to the advanced hotkey enabled setting
         advancedHotkeyObserver = settings.$advancedHotkeyEnabled.sink { [weak self] _ in
-            DispatchQueue.main.async {
-                if self?.settings.globalHotkeyEnabled == true {
-                    self?.startMonitoring()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.settings.globalHotkeyEnabled {
+                    self.startMonitoring()
                 }
             }
         }
 
         // Also observe changes to the OCR hotkey enabled setting
         ocrHotkeyObserver = settings.$ocrHotkeyEnabled.sink { [weak self] _ in
-            DispatchQueue.main.async {
-                if self?.settings.globalHotkeyEnabled == true {
-                    self?.startMonitoring()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.settings.globalHotkeyEnabled {
+                    self.startMonitoring()
                 }
             }
         }
 
         // Restart monitoring automatically once Accessibility permission is granted
         permissionObserver = permissionManager.$accessibilityStatus
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] status in
-                guard let self = self else { return }
-                if status == .authorized {
-                    self.startMonitoring()
-                } else {
-                    self.stopMonitoring()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if status == .authorized {
+                        self.startMonitoring()
+                    } else {
+                        self.stopMonitoring()
+                    }
                 }
             }
     }
 
-    deinit {
-        stopMonitoring()
+    nonisolated deinit {
+        // deinit is nonisolated — only do minimal cleanup here.
+        // NSEvent monitors are removed via removeMonitor which is safe to call from any thread.
+        // We access the stored monitor references directly (nonisolated access to stored properties is allowed in deinit).
+        if let monitor = globalEventMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = localEventMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         settingsObserver?.cancel()
         advancedHotkeyObserver?.cancel()
         ocrHotkeyObserver?.cancel()
@@ -93,19 +108,44 @@ class HotKeyManager {
             return
         }
 
-        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            _ = self.handleHotKeyEvent(event)
-        }
-
-        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return event }
-            if self.handleHotKeyEvent(event) {
-                return nil
+        globalEventMonitor = Self.installGlobalMonitor { [weak self] keyCode, modifierFlags, characters in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
             }
-            return event
         }
 
+        localEventMonitor = Self.installLocalMonitor { [weak self] keyCode, modifierFlags, characters in
+            // SAFETY: addLocalMonitorForEvents always delivers on the main thread.
+            // We use assumeIsolated because the callback is synchronous and must return NSEvent?.
+            return MainActor.assumeIsolated {
+                guard let self = self else { return false }
+                return self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
+            }
+        }
+    }
 
+    // MARK: - nonisolated monitor installation
+    // These are nonisolated to avoid NSEvent (non-Sendable) crossing @MainActor boundary.
+    // NSEvent values are extracted inside the closure and only Sendable values are passed out.
+
+    /// Installs a global key-down monitor. The callback receives extracted Sendable values only.
+    private nonisolated static func installGlobalMonitor(
+        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Void
+    ) -> Any? {
+        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+            handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
+        }
+    }
+
+    /// Installs a local key-down monitor. The callback returns true if the event was handled (should be swallowed).
+    private nonisolated static func installLocalMonitor(
+        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Bool
+    ) -> Any? {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let handled = handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
+            return handled ? nil : event
+        }
     }
 
     /// Stops listening for the global hotkey.
@@ -125,19 +165,19 @@ class HotKeyManager {
     }
 
     @discardableResult
-    private func handleHotKeyEvent(_ event: NSEvent) -> Bool {
+    private func handleHotKeyValues(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, characters: String?) -> Bool {
         guard !isRecordingHotKey else { return false }
 
         // Check for regular screenshot hotkey
         let hotkey = settings.globalHotkey
         let requiredModifiers = hotkey.modifierFlags
-        let eventModifiers = HotKey.normalizedModifiers(event.modifierFlags)
+        let eventModifiers = HotKey.normalizedModifiers(modifierFlags)
 
         let matchesModifiers = eventModifiers == requiredModifiers
-        let matchesKeyCode = event.keyCode == hotkey.keyCode
+        let matchesKeyCode = keyCode == hotkey.keyCode
         let matchesCharacters = {
             guard let expected = hotkey.characters?.lowercased(),
-                  let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                  let actual = characters?.lowercased() else {
                 return false
             }
             return expected == actual
@@ -156,10 +196,10 @@ class HotKeyManager {
             let advancedModifiers = advancedHotkey.modifierFlags
             
             let matchesAdvancedModifiers = eventModifiers == advancedModifiers
-            let matchesAdvancedKeyCode = event.keyCode == advancedHotkey.keyCode
+            let matchesAdvancedKeyCode = keyCode == advancedHotkey.keyCode
             let matchesAdvancedCharacters = {
                 guard let expected = advancedHotkey.characters?.lowercased(),
-                      let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                      let actual = characters?.lowercased() else {
                     return false
                 }
                 return expected == actual
@@ -178,10 +218,10 @@ class HotKeyManager {
             let ocrModifiers = ocrHotkey.modifierFlags
 
             let matchesOCRModifiers = eventModifiers == ocrModifiers
-            let matchesOCRKeyCode = event.keyCode == ocrHotkey.keyCode
+            let matchesOCRKeyCode = keyCode == ocrHotkey.keyCode
             let matchesOCRCharacters = {
                 guard let expected = ocrHotkey.characters?.lowercased(),
-                      let actual = event.charactersIgnoringModifiers?.lowercased() else {
+                      let actual = characters?.lowercased() else {
                     return false
                 }
                 return expected == actual

@@ -13,6 +13,7 @@ final class TutorialWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
+@MainActor
 final class TutorialManager: NSObject, NSWindowDelegate {
     static let shared = TutorialManager()
 
@@ -21,62 +22,55 @@ final class TutorialManager: NSObject, NSWindowDelegate {
     private var captureFlowObserver: Any?
 
     func show() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-
-            if let window = self.window {
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-                return
-            }
-
-            let view = TutorialContentView { [weak self] in
-                self?.dismiss()
-            }
-
-            let host = NSHostingController(rootView: view)
-            self.hostingController = host
-
-            let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
-            let width = min(1100, max(900, screenFrame.width * 0.78))
-            let height = min(900, max(740, screenFrame.height * 0.82))
-            let rect = NSRect(x: 0, y: 0, width: width, height: height)
-
-            let window = TutorialWindow(
-                contentRect: rect,
-                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
-
-            window.title = NSLocalizedString("tutorial.window.title", value: "使用指南", comment: "")
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
-            window.isMovableByWindowBackground = true
-            window.isReleasedWhenClosed = false
-            window.minSize = NSSize(width: 900, height: 720)
-            window.setFrameAutosaveName("TutorialWindow")
-            window.contentViewController = host
-            window.center()
-            window.delegate = self
+        if let window = self.window {
             window.makeKeyAndOrderFront(nil)
-
-            self.window = window
             NSApp.activate(ignoringOtherApps: true)
+            return
         }
+
+        let view = TutorialContentView { [weak self] in
+            self?.dismiss()
+        }
+
+        let host = NSHostingController(rootView: view)
+        self.hostingController = host
+
+        let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
+        let width = min(1100, max(900, screenFrame.width * 0.78))
+        let height = min(900, max(740, screenFrame.height * 0.82))
+        let rect = NSRect(x: 0, y: 0, width: width, height: height)
+
+        let window = TutorialWindow(
+            contentRect: rect,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = NSLocalizedString("tutorial.window.title", value: "使用指南", comment: "")
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 900, height: 720)
+        window.setFrameAutosaveName("TutorialWindow")
+        window.contentViewController = host
+        window.center()
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+
+        self.window = window
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func dismiss() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if let captureFlowObserver {
-                NotificationCenter.default.removeObserver(captureFlowObserver)
-                self.captureFlowObserver = nil
-            }
-            self.window?.close()
-            self.window = nil
-            self.hostingController = nil
+        if let captureFlowObserver {
+            NotificationCenter.default.removeObserver(captureFlowObserver)
+            self.captureFlowObserver = nil
         }
+        self.window?.close()
+        self.window = nil
+        self.hostingController = nil
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -117,13 +111,16 @@ final class TutorialManager: NSObject, NSWindowDelegate {
                     object: nil,
                     queue: .main
                 ) { [weak self] _ in
-                    guard let self else { return }
-                    self.window?.makeKeyAndOrderFront(nil)
-                    NSApp.activate(ignoringOtherApps: true)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.window?.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
                 }
             }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 50_000_000)
                 screenshotService.capturePreviousApp()
                 switch kind {
                 case .quick:
@@ -139,13 +136,16 @@ final class TutorialManager: NSObject, NSWindowDelegate {
             return
         }
 
-        manager.requestPermission(.screenRecording) { granted in
-            DispatchQueue.main.async {
-                if granted {
-                    begin()
-                } else {
-                    manager.showPermissionAlert(for: [.screenRecording])
+        Task { @MainActor [weak self] in
+            let granted = await withCheckedContinuation { continuation in
+                manager.requestPermission(.screenRecording) { granted in
+                    continuation.resume(returning: granted)
                 }
+            }
+            if granted {
+                begin()
+            } else {
+                manager.showPermissionAlert(for: [.screenRecording])
             }
         }
     }
@@ -245,7 +245,9 @@ private struct TutorialContentView: View {
                     onRequest: {
                         PermissionManager.shared.requestPermission(.screenRecording) { granted in
                             if !granted {
-                                openSystemPreferencesPrivacy(pane: "ScreenCapture")
+                                Task { @MainActor in
+                                    openSystemPreferencesPrivacy(pane: "ScreenCapture")
+                                }
                             }
                         }
                     },
@@ -261,7 +263,9 @@ private struct TutorialContentView: View {
                     onRequest: {
                         PermissionManager.shared.requestPermission(.accessibility) { granted in
                             if !granted {
-                                openSystemPreferencesPrivacy(pane: "Accessibility")
+                                Task { @MainActor in
+                                    openSystemPreferencesPrivacy(pane: "Accessibility")
+                                }
                             }
                         }
                     },

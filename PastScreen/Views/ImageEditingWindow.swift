@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import AppKit
+@preconcurrency import AppKit  // NSEvent 未标记 Sendable
 import CoreImage
 import CoreImage.CIFilterBuiltins
 
@@ -159,7 +159,7 @@ struct ImageEditingView: View {
         image: NSImage,
         onCompletion: @escaping (NSImage) -> Void,
         onCancel: @escaping () -> Void,
-        radialTools: [DrawingTool] = AppSettings.shared.radialDrawingTools
+        radialTools: [DrawingTool]
     ) {
         self.image = image
         self.onCompletion = onCompletion
@@ -168,7 +168,7 @@ struct ImageEditingView: View {
         self._editedImage = State(initialValue: image)
     }
     
-    private static func defaultTool() -> DrawingTool {
+    @MainActor private static func defaultTool() -> DrawingTool {
         let settings = AppSettings.shared
         if let firstEnabled = settings.orderedEnabledEditingTools.first {
             return firstEnabled
@@ -1390,7 +1390,7 @@ enum EditAction {
     case removeMosaic(MosaicRegion, index: Int)
 }
 
-enum DrawingTool: String, CaseIterable, Codable {
+enum DrawingTool: String, CaseIterable, Codable, Sendable {
     case pen
     case line
     case rectangle

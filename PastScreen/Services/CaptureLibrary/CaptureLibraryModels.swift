@@ -6,28 +6,42 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - Sendable Wrappers
+
+/// CGImage 的 Sendable 包装。
+/// SAFETY: CGImage is an immutable, reference-counted Core Foundation type.
+/// Once created, its pixel data cannot be mutated, making concurrent reads safe.
+/// Apple has not marked it Sendable, but Core Foundation documentation confirms its thread safety.
+struct SendableCGImage: @unchecked Sendable {
+    let image: CGImage
+
+    init(_ image: CGImage) {
+        self.image = image
+    }
+}
+
 // MARK: - Public Models
 
-enum CaptureItemCaptureType: Int, Codable, CaseIterable {
+enum CaptureItemCaptureType: Int, Codable, CaseIterable, Sendable {
     case area = 0
     case window = 1
     case fullscreen = 2
 }
 
-enum CaptureItemCaptureMode: Int, Codable, CaseIterable {
+enum CaptureItemCaptureMode: Int, Codable, CaseIterable, Sendable {
     case quick = 0
     case advanced = 1
     case ocr = 2
 }
 
-enum CaptureItemTrigger: Int, Codable, CaseIterable {
+enum CaptureItemTrigger: Int, Codable, CaseIterable, Sendable {
     case menuBar = 0
     case hotkey = 1
     case appIntent = 2
     case automation = 3
 }
 
-struct CaptureItem: Identifiable, Hashable {
+struct CaptureItem: Identifiable, Hashable, Sendable {
     var id: UUID
     var createdAt: Date
     var updatedAt: Date
@@ -82,25 +96,25 @@ extension CaptureItem {
     }
 }
 
-struct CaptureLibraryAppGroup: Identifiable, Hashable {
+struct CaptureLibraryAppGroup: Identifiable, Hashable, Sendable {
     var id: String { bundleID ?? "__unknown__" }
     var bundleID: String?
     var appName: String
     var itemCount: Int
 }
 
-struct CaptureLibraryTagGroup: Identifiable, Hashable {
+struct CaptureLibraryTagGroup: Identifiable, Hashable, Sendable {
     var id: String { name }
     var name: String
     var itemCount: Int
 }
 
-enum CaptureLibrarySort: Int, CaseIterable, Hashable {
+enum CaptureLibrarySort: Int, CaseIterable, Hashable, Sendable {
     case timeDesc = 0
     case relevance = 1
 }
 
-struct CaptureLibraryQuery: Hashable {
+struct CaptureLibraryQuery: Hashable, Sendable {
     var appBundleID: String?
     var pinnedOnly: Bool
     var captureType: CaptureItemCaptureType?
@@ -137,7 +151,7 @@ struct CaptureLibraryQuery: Hashable {
     }
 }
 
-struct CaptureLibraryStats: Hashable {
+struct CaptureLibraryStats: Hashable, Sendable {
     var itemCount: Int
     var pinnedCount: Int
     var bytesThumb: Int
@@ -149,19 +163,19 @@ struct CaptureLibraryStats: Hashable {
     nonisolated static let empty = CaptureLibraryStats(itemCount: 0, pinnedCount: 0, bytesThumb: 0, bytesPreview: 0, bytesOriginal: 0)
 }
 
-struct CaptureLibraryCleanupPolicy: Hashable {
+struct CaptureLibraryCleanupPolicy: Hashable, Sendable {
     var retentionDays: Int
     var maxItems: Int
     var maxBytes: Int
 }
 
-struct CaptureLibraryPreviewCandidate: Hashable {
+struct CaptureLibraryPreviewCandidate: Hashable, Sendable {
     var id: UUID
     var previewPath: String
     var bytesPreview: Int
 }
 
-struct CaptureLibraryOCRReindexCandidate: Hashable {
+struct CaptureLibraryOCRReindexCandidate: Hashable, Sendable {
     var id: UUID
     var createdAtMillis: Int64
     var internalThumbPath: String

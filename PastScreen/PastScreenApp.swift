@@ -42,13 +42,14 @@ struct PastScreenApp: App {
     }
 }
 
-enum CaptureTrigger: String {
+enum CaptureTrigger: String, Sendable {
     case menuBar
     case hotkey
     case appIntent
     case automation
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
     var screenshotService: ScreenshotService?
     private var hasPromptedAccessibility = false
@@ -162,7 +163,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Show onboarding if first launch
         NSLog("🚀 [APP] About to show onboarding...")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard self != nil else { return }
             NSLog("🚀 [APP] Calling OnboardingManager.showIfNeeded()")
             OnboardingManager.shared.showIfNeeded()
@@ -171,9 +173,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @objc func handleScreenshotCaptured(_ notification: Notification) {
         if let path = notification.userInfo?["filePath"] as? String {
-            DispatchQueue.main.async { [weak self] in
-                self?.lastScreenshotPath = path
-            }
+            lastScreenshotPath = path
         }
     }
 
@@ -299,9 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Fix: Force activation policy back to accessory if Dock icon shouldn't be shown
         // Clicking a notification might activate the app, making the Dock icon appear.
         if !AppSettings.shared.showInDock {
-            DispatchQueue.main.async {
-                NSApp.setActivationPolicy(.accessory)
-            }
+            NSApp.setActivationPolicy(.accessory)
         }
 
         completionHandler()
@@ -345,7 +343,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         permissionManager.requestPermission(.accessibility) { _ in }
 
         // Check if any permissions are missing after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self = self else { return }
             let missing = self.permissionManager.getMissingPermissions()
             if !missing.isEmpty {
@@ -364,13 +363,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return
         }
 
-        permissionManager.requestPermission(.screenRecording) { granted in
-            DispatchQueue.main.async {
-                if granted {
-                    onGranted()
-                } else {
-                    self.permissionManager.showPermissionAlert(for: [.screenRecording])
+        // Use async wrapper to avoid capturing non-@Sendable onGranted in @Sendable completion.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let granted = await withCheckedContinuation { continuation in
+                self.permissionManager.requestPermission(.screenRecording) { granted in
+                    continuation.resume(returning: granted)
                 }
+            }
+            if granted {
+                onGranted()
+            } else {
+                self.permissionManager.showPermissionAlert(for: [.screenRecording])
             }
         }
     }
@@ -378,7 +382,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func performAreaCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureScreenshot(trigger: source)
         }
     }
@@ -390,7 +395,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureScreenshot(trigger: .appIntent)
         }
     }
@@ -398,7 +404,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func performAdvancedAreaCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureAdvancedScreenshot(trigger: source)
         }
     }
@@ -410,7 +417,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureAdvancedScreenshot(trigger: .appIntent)
         }
     }
@@ -418,7 +426,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func performOCRCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureOCRScreenshot(trigger: source)
         }
     }
@@ -430,7 +439,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureOCRScreenshot(trigger: .appIntent)
         }
     }
@@ -458,7 +468,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let screenshotService = screenshotService else { return }
         screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
         screenshotService.capturePreviousApp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak screenshotService] in
+        Task { @MainActor [weak screenshotService] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
             screenshotService?.captureWindowUnderMouse(trigger: .appIntent, mode: .quick)
         }
     }

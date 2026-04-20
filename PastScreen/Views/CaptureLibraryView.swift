@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import AppKit
+@preconcurrency import AppKit  // NSImage 未标记 Sendable，Task.detached 返回 NSImage 需要抑制
 import Combine
 import QuickLookUI
 
@@ -15,6 +15,7 @@ final class CaptureLibraryWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
+@MainActor
 final class CaptureLibraryManager: NSObject, NSWindowDelegate {
     static let shared = CaptureLibraryManager()
 
@@ -22,60 +23,53 @@ final class CaptureLibraryManager: NSObject, NSWindowDelegate {
     private var hostingController: NSHostingController<CaptureLibraryRootView>?
 
     func show() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+        CaptureLibrary.shared.bootstrapIfNeeded()
 
-            CaptureLibrary.shared.bootstrapIfNeeded()
-
-            if let window = self.window {
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-                return
-            }
-
-            let view = CaptureLibraryRootView { [weak self] in
-                self?.dismiss()
-            }
-
-            let host = NSHostingController(rootView: view)
-            self.hostingController = host
-
-            let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
-                ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
-            let width = min(1320, max(980, screenFrame.width * 0.82))
-            let height = min(920, max(740, screenFrame.height * 0.82))
-
-            let window = CaptureLibraryWindow(
-                contentRect: NSRect(x: 0, y: 0, width: width, height: height),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
-
-            window.title = NSLocalizedString("library.window.title", value: "素材库", comment: "")
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
-            window.isMovableByWindowBackground = true
-            window.isReleasedWhenClosed = false
-            window.minSize = NSSize(width: 980, height: 720)
-            window.setFrameAutosaveName("CaptureLibraryWindow")
-            window.contentViewController = host
-            window.center()
-            window.delegate = self
+        if let window = self.window {
             window.makeKeyAndOrderFront(nil)
-
-            self.window = window
             NSApp.activate(ignoringOtherApps: true)
+            return
         }
+
+        let view = CaptureLibraryRootView { [weak self] in
+            self?.dismiss()
+        }
+
+        let host = NSHostingController(rootView: view)
+        self.hostingController = host
+
+        let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
+        let width = min(1320, max(980, screenFrame.width * 0.82))
+        let height = min(920, max(740, screenFrame.height * 0.82))
+
+        let window = CaptureLibraryWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.title = NSLocalizedString("library.window.title", value: "素材库", comment: "")
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 980, height: 720)
+        window.setFrameAutosaveName("CaptureLibraryWindow")
+        window.contentViewController = host
+        window.center()
+        window.delegate = self
+        window.makeKeyAndOrderFront(nil)
+
+        self.window = window
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func dismiss() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.window?.close()
-            self.window = nil
-            self.hostingController = nil
-        }
+        self.window?.close()
+        self.window = nil
+        self.hostingController = nil
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -144,8 +138,10 @@ final class CaptureLibraryViewModel: ObservableObject {
     private var cachedBrowseSelectedItemID: UUID?
 
     private let pageSize = 240
-    private var changeObserver: Any?
-    private var reloadTask: Task<Void, Never>?
+    // nonisolated(unsafe): Accessed in deinit for cleanup.
+    // Safe because deinit runs after all references are released.
+    private nonisolated(unsafe) var changeObserver: Any?
+    private nonisolated(unsafe) var reloadTask: Task<Void, Never>?
     private var lastOCRRequestAt: [UUID: Date] = [:]
     private let ocrRequestCooldown: TimeInterval = 45
     private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()

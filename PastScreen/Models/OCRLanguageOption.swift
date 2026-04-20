@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct OCRLanguageOption: Identifiable, Hashable {
+struct OCRLanguageOption: Identifiable, Hashable, Sendable {
     let code: String
 
     var id: String { code }

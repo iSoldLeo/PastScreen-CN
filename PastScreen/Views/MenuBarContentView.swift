@@ -112,7 +112,9 @@ private extension View {
 private final class CaptureLibraryMenuModel: ObservableObject {
     @Published var items: [CaptureItem] = []
 
-    private var observer: Any?
+    // nonisolated(unsafe): Accessed in deinit for NotificationCenter cleanup.
+    // Safe because deinit runs after all references are released — no concurrent access possible.
+    private nonisolated(unsafe) var observer: Any?
     private let rootURL: URL? = try? CaptureLibraryFileStore.defaultRootURL()
 
     deinit {

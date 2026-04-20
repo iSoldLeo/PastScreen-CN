@@ -8,9 +8,11 @@
 import AppKit
 import Foundation
 import ImageIO
-import Vision
+// @preconcurrency: VNRecognizeTextRequest, VNImageRequestHandler are not marked
+// Sendable by Apple. Suppresses warnings for framework types only.
+@preconcurrency import Vision
 
-enum OCRServiceError: LocalizedError {
+enum OCRServiceError: LocalizedError, Sendable {
     case invalidImageData
     case failedToCreateCGImage
 
@@ -24,7 +26,9 @@ enum OCRServiceError: LocalizedError {
     }
 }
 
-struct OCRService {
+// OCRService is entirely nonisolated — all methods are pure functions
+// that run on background threads via DispatchQueue.global.
+nonisolated struct OCRService {
     static func recognizeText(
         in image: NSImage,
         region: CGRect? = nil,

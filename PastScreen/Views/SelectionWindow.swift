@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import AppKit
+@preconcurrency import AppKit  // NSEvent 未标记 Sendable，addGlobalMonitorForEvents 回调需要抑制
 
 // Protocol simple pour communiquer avec le service
 protocol SelectionWindowDelegate: AnyObject {
@@ -136,7 +136,7 @@ class SelectionWindow: NSWindow {
         if escapeKeyMonitor == nil {
             escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard event.keyCode == 53 else { return } // ESC
-                DispatchQueue.main.async { [weak self] in
+                Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.selectionDelegate?.selectionWindowDidCancel(self)
                 }
@@ -310,7 +310,7 @@ class SelectionOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard isDragging, let start = startPoint, let end = endPoint else {
             // Defer callback to avoid crash during event handling
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.onCancel?()
             }
             return
@@ -324,7 +324,7 @@ class SelectionOverlayView: NSView {
 
         if !hasDragged, let windowHit = pendingWindowHit {
             // Treat as window-click capture
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.onWindowSelect?(windowHit)
             }
             pendingWindowHit = nil
@@ -343,11 +343,11 @@ class SelectionOverlayView: NSView {
 
         // Defer callbacks to avoid crash when window is hidden/deallocated during event handling
         if rect.width > configuration.minSelectionSize && rect.height > configuration.minSelectionSize {
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.emitSelection(rect: rect)
             }
         } else {
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.onCancel?()
             }
         }
@@ -366,7 +366,7 @@ class SelectionOverlayView: NSView {
         highlightRect = nil
         needsDisplay = true
 
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.onCancel?()
         }
     }

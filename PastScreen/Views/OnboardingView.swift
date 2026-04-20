@@ -7,7 +7,9 @@
 
 import SwiftUI
 import AppKit
-import ScreenCaptureKit
+// @preconcurrency: SCShareableContent is not marked Sendable by Apple.
+// Suppresses warnings for framework types only.
+@preconcurrency import ScreenCaptureKit
 
 // MARK: - OnboardingWindow (Custom NSWindow that can become key)
 
@@ -18,6 +20,7 @@ class OnboardingWindow: NSWindow {
 
 // MARK: - OnboardingManager
 
+@MainActor
 class OnboardingManager {
     static let shared = OnboardingManager()
 
@@ -49,24 +52,20 @@ class OnboardingManager {
 
     func show() {
         NSLog("📢 [ONBOARDING] show() method called!")
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else {
-                NSLog("⚠️ [ONBOARDING] self is nil in show()")
-                return
-            }
 
-            NSLog("✨ [ONBOARDING] Showing welcome screen")
+        NSLog("✨ [ONBOARDING] Showing welcome screen")
 
-            // Dismiss if already showing
-            if self.onboardingWindow != nil {
-                NSLog("🗑️ [ONBOARDING] Existing window found, dismissing first")
-                self.dismiss()
-                // Wait for dismissal to complete before showing new window
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    self.show()
-                }
-                return
+        // Dismiss if already showing
+        if self.onboardingWindow != nil {
+            NSLog("🗑️ [ONBOARDING] Existing window found, dismissing first")
+            self.dismiss()
+            // Wait for dismissal to complete before showing new window
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                self?.show()
             }
+            return
+        }
 
             // Create onboarding view
             NSLog("🏗️ [ONBOARDING] Creating onboarding view...")
@@ -144,38 +143,36 @@ class OnboardingManager {
             }, completionHandler: {
                 NSLog("✅ [ONBOARDING] Window displayed and animation complete!")
             })
-        }
     }
 
     func dismiss() {
         NSLog("🗑️ [ONBOARDING] Dismiss called")
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let window = self.onboardingWindow else {
-                NSLog("⚠️ [ONBOARDING] No window to dismiss")
-                return
-            }
-
-            NSLog("🗑️ [ONBOARDING] Closing window...")
-
-            // Fade out animation
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.3
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                window.animator().alphaValue = 0.0
-            }, completionHandler: {
-                // Delayed cleanup to avoid release issues
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                    window.orderOut(nil)
-
-                    // Clear references
-                    self?.hostingController = nil
-                    self?.onboardingWindow = nil
-
-                    NSLog("✅ [ONBOARDING] Window dismissed successfully")
-                }
-            })
+        guard let window = self.onboardingWindow else {
+            NSLog("⚠️ [ONBOARDING] No window to dismiss")
+            return
         }
+
+        NSLog("🗑️ [ONBOARDING] Closing window...")
+
+        // Fade out animation
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().alphaValue = 0.0
+        }, completionHandler: {
+            // Delayed cleanup to avoid release issues
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                window.orderOut(nil)
+
+                // Clear references
+                self?.hostingController = nil
+                self?.onboardingWindow = nil
+
+                NSLog("✅ [ONBOARDING] Window dismissed successfully")
+            }
+        })
     }
 }
 
@@ -577,32 +574,31 @@ struct OnboardingContentView: View {
         PermissionManager.shared.requestPermission(.screenRecording) { granted in
             if !granted {
                 // Fallback: open system settings if popup doesn't appear or user denied
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self.openSystemPreferences(pane: "ScreenCapture")
                 }
             }
         }
 
-        // Start polling to check if permission was granted
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
-            if #available(macOS 14.0, *) {
-                Task { @MainActor in
+        // Poll for screen recording permission using structured concurrency
+        Task { @MainActor in
+            while !self.screenRecordingGranted {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if #available(macOS 14.0, *) {
                     do {
                         let content = try await SCShareableContent.current
                         if !content.displays.isEmpty {
                             self.screenRecordingGranted = true
                             PermissionManager.shared.checkScreenRecordingPermission()
-                            timer.invalidate()
                         }
                     } catch {
                         // Still waiting for permission
                     }
-                }
-            } else {
-                if CGPreflightScreenCaptureAccess() {
-                    self.screenRecordingGranted = true
-                    PermissionManager.shared.checkScreenRecordingPermission()
-                    timer.invalidate()
+                } else {
+                    if CGPreflightScreenCaptureAccess() {
+                        self.screenRecordingGranted = true
+                        PermissionManager.shared.checkScreenRecordingPermission()
+                    }
                 }
             }
         }
@@ -613,18 +609,21 @@ struct OnboardingContentView: View {
         PermissionManager.shared.requestPermission(.accessibility) { granted in
             if !granted {
                 // Fallback: open system settings if popup doesn't appear or user denied
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self.openSystemPreferences(pane: "Accessibility")
                 }
             }
         }
 
         // Start polling to check if permission was granted
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
-            if AXIsProcessTrusted() {
-                self.accessibilityGranted = true
-                PermissionManager.shared.checkAccessibilityPermission()
-                timer.invalidate()
+        // Poll for accessibility permission using structured concurrency
+        Task { @MainActor in
+            while !self.accessibilityGranted {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if AXIsProcessTrusted() {
+                    self.accessibilityGranted = true
+                    PermissionManager.shared.checkAccessibilityPermission()
+                }
             }
         }
     }

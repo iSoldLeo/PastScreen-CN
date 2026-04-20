@@ -40,13 +40,15 @@ final class CaptureLibraryOCRReindexService {
         let settings = AppSettings.shared
 
         enabledObserver = settings.$captureLibraryEnabled
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] enabled in
-                guard let self else { return }
-                if enabled {
-                    self.scheduleStartupIfNeeded()
-                } else {
-                    self.cancel(reason: "disabled")
+                // Jump to @MainActor since Combine sink closures don't inherit actor isolation
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if enabled {
+                        self.scheduleStartupIfNeeded()
+                    } else {
+                        self.cancel(reason: "disabled")
+                    }
                 }
             }
 
@@ -58,12 +60,15 @@ final class CaptureLibraryOCRReindexService {
             .debounce(for: .milliseconds(650), scheduler: DispatchQueue.main)
             .removeDuplicates(by: { $0.key == $1.key })
             .sink { [weak self] input in
-                self?.scheduleReindex(
-                    targetKey: input.key,
-                    preferredLanguages: input.preferredLanguages,
-                    resetCursor: true,
-                    reason: "languages_changed"
-                )
+                // Jump to @MainActor since Combine sink closures don't inherit actor isolation
+                Task { @MainActor [weak self] in
+                    self?.scheduleReindex(
+                        targetKey: input.key,
+                        preferredLanguages: input.preferredLanguages,
+                        resetCursor: true,
+                        reason: "languages_changed"
+                    )
+                }
             }
 
         scheduleStartupIfNeeded()
@@ -158,7 +163,8 @@ final class CaptureLibraryOCRReindexService {
                 defaults.removeObject(forKey: DefaultsKeys.cursorID)
                 defaults.set(NSNumber(value: Int64(Date().timeIntervalSince1970 * 1000)), forKey: DefaultsKeys.lastRunAtMillis)
 
-                DispatchQueue.main.async {
+                // Fire-and-forget: notify UI that reindex completed
+                Task { @MainActor in
                     NotificationCenter.default.post(name: .captureLibraryChanged, object: nil)
                 }
 

@@ -10,7 +10,7 @@ import SwiftUI
 import Combine
 import AppKit
 
-struct HotKey: Codable, Equatable {
+struct HotKey: Codable, Equatable, Sendable {
     var keyCode: UInt16
     var modifiers: UInt
     var characters: String?
@@ -121,7 +121,7 @@ struct HotKey: Codable, Equatable {
     ]
 }
 
-enum ClipboardFormat: String, Codable, CaseIterable, Identifiable {
+enum ClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     case auto = "Auto"
     case image = "Image"
     case path = "Path (Text)"
@@ -129,7 +129,7 @@ enum ClipboardFormat: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable {
+enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     case image = "image"
     case path = "path"
     case markdownImage = "markdownImage"
@@ -137,21 +137,21 @@ enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum OCRClipboardFormat: String, Codable, CaseIterable, Identifiable {
+enum OCRClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     case text = "text"
     case markdownCodeBlock = "markdownCodeBlock"
 
     var id: String { rawValue }
 }
 
-struct AppOverride: Codable, Identifiable, Equatable {
+struct AppOverride: Codable, Identifiable, Equatable, Sendable {
     var id: String { bundleIdentifier }
     let bundleIdentifier: String
     var appName: String
     var format: ClipboardFormat
 }
 
-struct RGBAColor: Codable, Equatable {
+struct RGBAColor: Codable, Equatable, Sendable {
     var r: Double
     var g: Double
     var b: Double
@@ -188,7 +188,7 @@ struct RGBAColor: Codable, Equatable {
     }
 }
 
-enum AppLanguage: String, CaseIterable, Identifiable {
+enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     case system = "system"
     case simplifiedChinese = "zh-Hans"
     case traditionalChinese = "zh-Hant"
@@ -243,6 +243,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
 class AppSettings: ObservableObject {
     static let shared = AppSettings()
     // Defaults for window border (off-white with a hint of gray)

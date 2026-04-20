@@ -11,6 +11,7 @@ import AppKit
 
 // MARK: - CustomNotificationManager
 
+@MainActor
 class CustomNotificationManager {
     static let shared = CustomNotificationManager()
 
@@ -19,11 +20,8 @@ class CustomNotificationManager {
     private let notificationDuration: TimeInterval = 4.0
 
     func show(title: String, message: String, filePath: String? = nil) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            // Dismiss any existing notification
-            self.dismiss()
+        // Dismiss any existing notification
+        self.dismiss()
 
             // Create notification content
             let notificationView = CustomNotificationContentView(
@@ -78,9 +76,10 @@ class CustomNotificationManager {
 
             // Auto-dismiss after duration
             self.dismissTimer = Timer.scheduledTimer(withTimeInterval: self.notificationDuration, repeats: false) { [weak self] _ in
-                self?.dismiss()
+                Task { @MainActor [weak self] in
+                    self?.dismiss()
+                }
             }
-        }
     }
 
     func dismiss() {

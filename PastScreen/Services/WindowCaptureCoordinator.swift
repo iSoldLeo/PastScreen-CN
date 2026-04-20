@@ -9,9 +9,11 @@ import Foundation
 import AppKit
 import CoreGraphics
 import QuartzCore
-import ScreenCaptureKit
+// @preconcurrency: SCWindow, SCContentFilter, SCStreamConfiguration, SCShareableContent, etc.
+// are not marked Sendable by Apple. Suppresses warnings for framework types only.
+@preconcurrency import ScreenCaptureKit
 
-struct WindowHitTestResult {
+struct WindowHitTestResult: Sendable {
     let windowID: CGWindowID
     let bounds: CGRect
     let ownerPID: pid_t
@@ -19,14 +21,40 @@ struct WindowHitTestResult {
     let layer: Int
 }
 
-struct WindowCaptureResult {
-    let image: CGImage
-    let window: SCWindow
-    let application: SCRunningApplication?
-    let paddingPoints: NSEdgeInsets
+/// NSEdgeInsets 的 Sendable 替代，用于跨隔离域传递边距值。
+struct EdgeInsetValues: Sendable {
+    let top: CGFloat
+    let left: CGFloat
+    let bottom: CGFloat
+    let right: CGFloat
+
+    static let zero = EdgeInsetValues(top: 0, left: 0, bottom: 0, right: 0)
+
+    init(top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat) {
+        self.top = top
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+    }
+
+    init(_ insets: NSEdgeInsets) {
+        self.top = insets.top
+        self.left = insets.left
+        self.bottom = insets.bottom
+        self.right = insets.right
+    }
 }
 
-enum WindowCaptureError: LocalizedError {
+/// 替代 WindowCaptureResult 的 Sendable DTO，将 SCWindow/SCRunningApplication 扁平化为纯值字段。
+struct WindowCaptureInfo: Sendable {
+    let image: SendableCGImage
+    let windowFrame: CGRect
+    let appBundleID: String?
+    let appName: String?
+    let paddingPoints: EdgeInsetValues
+}
+
+enum WindowCaptureError: LocalizedError, Sendable {
     case mouseLocationUnavailable
     case noWindowAtPoint
     case shareableWindowNotFound(CGWindowID)
@@ -59,6 +87,7 @@ enum WindowCaptureError: LocalizedError {
     }
 }
 
+@MainActor
 final class WindowCaptureCoordinator {
     static let shared = WindowCaptureCoordinator()
     private let selfPID: pid_t = getpid()
@@ -224,7 +253,7 @@ final class WindowCaptureCoordinator {
 
     /// Resolve ScreenCaptureKit metadata and screenshot for a CGWindowID.
     /// Uses SCShareableContent.excludingDesktopWindows(_, onScreenWindowsOnly: true) for a visible-only set.
-    func captureWindow(with windowID: CGWindowID, applyBorder: Bool = true) async throws -> WindowCaptureResult {
+    func captureWindow(with windowID: CGWindowID, applyBorder: Bool = true) async throws -> WindowCaptureInfo {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
             throw WindowCaptureError.shareableWindowNotFound(windowID)
@@ -276,11 +305,12 @@ final class WindowCaptureCoordinator {
                 finalImage = image
             }
 
-            return WindowCaptureResult(
-                image: finalImage,
-                window: scWindow,
-                application: scWindow.owningApplication,
-                paddingPoints: paddingPoints
+            return WindowCaptureInfo(
+                image: SendableCGImage(finalImage),
+                windowFrame: scWindow.frame,
+                appBundleID: scWindow.owningApplication?.bundleIdentifier,
+                appName: scWindow.owningApplication?.applicationName,
+                paddingPoints: EdgeInsetValues(paddingPoints)
             )
         } catch let streamError as SCStreamError {
             throw WindowCaptureError.streamError(streamError)
@@ -289,7 +319,7 @@ final class WindowCaptureCoordinator {
         }
     }
 
-    func captureWindow(using hitResult: WindowHitTestResult, applyBorder: Bool = true) async throws -> WindowCaptureResult {
+    func captureWindow(using hitResult: WindowHitTestResult, applyBorder: Bool = true) async throws -> WindowCaptureInfo {
         try await captureWindow(with: hitResult.windowID, applyBorder: applyBorder)
     }
 

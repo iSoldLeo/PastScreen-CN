@@ -8,7 +8,7 @@ import Foundation
 
 // MARK: - File Store
 
-struct CaptureLibraryFileStore {
+struct CaptureLibraryFileStore: Sendable {
     nonisolated static let folderName = "CaptureLibrary"
 
     let rootURL: URL

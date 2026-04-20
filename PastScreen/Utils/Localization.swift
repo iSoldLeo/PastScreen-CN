@@ -8,14 +8,23 @@
 import Foundation
 
 // Keep a reference to the currently selected bundle.
-private var activeLanguageBundle: Bundle?
+// nonisolated(unsafe): This variable is set once during app initialization via setAppLanguage()
+// and then only read by localizedString(). The write-once-then-read pattern is safe.
+nonisolated(unsafe) private var activeLanguageBundle: Bundle?
 
 private let _bundleSwizzleOnce: Void = {
     object_setClass(Bundle.main, SwizzledBundle.self)
 }()
 
+// SAFETY: SwizzledBundle inherits from Bundle (an immutable, thread-safe Foundation class).
+// The only override reads `activeLanguageBundle` which is set once during initialization.
+// Bundle's own methods are documented as thread-safe.
 private class SwizzledBundle: Bundle, @unchecked Sendable {
-    override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
+    nonisolated override init?(path: String) {
+        super.init(path: path)
+    }
+
+    nonisolated override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
         if let bundle = activeLanguageBundle {
             return bundle.localizedString(forKey: key, value: value, table: tableName)
         }

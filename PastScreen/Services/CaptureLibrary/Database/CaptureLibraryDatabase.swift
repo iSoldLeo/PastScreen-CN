@@ -11,7 +11,10 @@ import SQLite3
 
 actor CaptureLibraryDatabase {
     private let dbURL: URL
-    private var db: OpaquePointer?
+    // nonisolated(unsafe): Accessed in deinit to call sqlite3_close.
+    // Safe because deinit runs after all actor-isolated access has completed —
+    // no concurrent access is possible at deinitialization time.
+    private nonisolated(unsafe) var db: OpaquePointer?
 
     init(databaseURL: URL) throws {
         self.dbURL = databaseURL

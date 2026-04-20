@@ -6,36 +6,40 @@
 //
 
 import Foundation
-import AppKit
+@preconcurrency import AppKit  // NSBitmapImageRep, NSImage 等未标记 Sendable
 import CoreGraphics
 import SwiftUI
 import UserNotifications
-import ScreenCaptureKit
+// @preconcurrency: SCDisplay, SCWindow, SCContentFilter, SCStreamConfiguration, etc.
+// are not marked Sendable by Apple. Suppresses warnings for framework types only.
+@preconcurrency import ScreenCaptureKit
 import Vision
 import QuartzCore
 
 // MARK: - App Category Detection
 
-enum AppCategory {
+enum AppCategory: Sendable {
     case codeEditor
     case webBrowser
     case designTool
     case unknown
 }
 
+@MainActor
 class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var previousApp: NSRunningApplication? // Store app that was active before capture
     private var selectionWindow: SelectionWindow? // Custom selection window
-    private var frozenDisplaySnapshots: [CGDirectDisplayID: CGImage] = [:] // Per-display snapshots captured via ScreenCaptureKit
+    private var frozenDisplaySnapshots: [CGDirectDisplayID: SendableCGImage] = [:] // Per-display snapshots captured via ScreenCaptureKit
     private var frozenWindowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:] // Per-window snapshots captured via ScreenCaptureKit
     private var isShowingEditor = false
-    private struct FrozenWindowSnapshot {
-        let image: CGImage
-        let padding: NSEdgeInsets
+    private struct FrozenWindowSnapshot: Sendable {
+        let image: SendableCGImage
+        let padding: EdgeInsetValues
         let pointSize: CGSize
         let borderApplied: Bool
         let scale: CGFloat
-        let application: SCRunningApplication?
+        let appBundleID: String?
+        let appName: String?
     }
 
     private enum CaptureMode {
@@ -46,7 +50,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
     private var captureMode: CaptureMode = .quick
     private var captureTrigger: CaptureTrigger = .menuBar
-    private struct AutomationRequest {
+    private struct AutomationRequest: Sendable {
         let id: UUID
         let returnType: ScreenshotIntentBridge.AutomationReturnType
     }
@@ -54,7 +58,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var selectionSessionID: UUID?
     private var windowSnapshotTask: Task<Void, Never>?
     private let appBundleID = Bundle.main.bundleIdentifier
-    private let saveQueue = DispatchQueue(label: "com.pastscreencn.screenshot.save", qos: .utility)
     private var maxFrozenWindowSnapshotsPerDisplay: Int {
         max(AppSettings.shared.frozenWindowLimitPerDisplay, 5)
     }
@@ -183,7 +186,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         // CRITICAL: Wait for windows to be visually hidden before capturing
         // ScreenCaptureKit captures everything on screen, including overlays
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
             guard let self = self else { return }
 
             if let frozen = self.frozenCapture(for: rect) {
@@ -229,23 +233,25 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             restorePreviousAppFocus()
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
             guard let self = self else { return }
 
             if var frozenWindow = self.frozenWindowSnapshots[windowResult.windowID] {
                 if !frozenWindow.borderApplied {
-                    let (bordered, padding) = self.applyFrozenBorderIfNeeded(to: frozenWindow.image, scale: frozenWindow.scale)
+                    let (bordered, padding) = self.applyFrozenBorderIfNeeded(to: frozenWindow.image.image, scale: frozenWindow.scale)
                     let selectionSize = CGSize(
                         width: frozenWindow.pointSize.width + padding.left + padding.right,
                         height: frozenWindow.pointSize.height + padding.top + padding.bottom
                     )
                     frozenWindow = FrozenWindowSnapshot(
-                        image: bordered,
-                        padding: padding,
+                        image: SendableCGImage(bordered),
+                        padding: EdgeInsetValues(padding),
                         pointSize: selectionSize,
                         borderApplied: true,
                         scale: frozenWindow.scale,
-                        application: frozenWindow.application
+                        appBundleID: frozenWindow.appBundleID,
+                        appName: frozenWindow.appName
                     )
                     self.frozenWindowSnapshots[windowResult.windowID] = frozenWindow
                 }
@@ -253,27 +259,30 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 switch self.captureMode {
                 case .advanced:
                     self.handleAdvancedCapture(
-                        cgImage: frozenWindow.image,
+                        cgImage: frozenWindow.image.image,
                         selectionRect: selectionRect,
                         captureType: .window,
                         trigger: trigger,
-                        capturedApp: frozenWindow.application
+                        appBundleID: frozenWindow.appBundleID,
+                        appName: frozenWindow.appName
                     )
                 case .ocr:
                     self.performOCRFrozenCapture(
-                        cgImage: frozenWindow.image,
+                        cgImage: frozenWindow.image.image,
                         selectionRect: selectionRect,
                         captureType: .window,
                         trigger: trigger,
-                        capturedApp: frozenWindow.application
+                        appBundleID: frozenWindow.appBundleID,
+                        appName: frozenWindow.appName
                     )
                 case .quick:
                     self.handleSuccessfulCapture(
-                        cgImage: frozenWindow.image,
+                        cgImage: frozenWindow.image.image,
                         selectionRect: selectionRect,
                         captureType: .window,
                         trigger: trigger,
-                        capturedApp: frozenWindow.application
+                        appBundleID: frozenWindow.appBundleID,
+                        appName: frozenWindow.appName
                     )
                 }
                 self.frozenDisplaySnapshots.removeAll()
@@ -316,7 +325,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     }
 
     private func scheduleSelectionCleanup(postCaptureFlowEnded: Bool = true) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard let self else { return }
             self.endSelectionSession()
             self.selectionWindow = nil
@@ -393,23 +403,27 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         cgImage: CGImage,
         pointSize: CGSize
     ) {
-        saveQueue.async { [weak self] in
+        // Pre-fetch @MainActor settings before hopping to background
+        let imageFormat = AppSettings.shared.imageFormat
+        let sendableImage = SendableCGImage(cgImage)
+        // Detached to cut @MainActor inheritance — background I/O
+        Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
-            let path = self.writeAutomationFile(cgImage: cgImage, pointSize: pointSize, requestID: requestID)
-            DispatchQueue.main.async {
+            let path = self.writeAutomationFile(cgImage: sendableImage.image, pointSize: pointSize, requestID: requestID, imageFormat: imageFormat)
+            await MainActor.run {
                 self.postAutomationResult(requestID: requestID, filePath: path, ocrText: nil, error: path == nil ? NSLocalizedString("intent.error.no_file", value: "生成文件失败", comment: "") : nil)
             }
         }
     }
 
-    private func writeAutomationFile(cgImage: CGImage, pointSize: CGSize, requestID: UUID) -> String? {
+    private nonisolated func writeAutomationFile(cgImage: CGImage, pointSize: CGSize, requestID: UUID, imageFormat: String) -> String? {
         let bitmapImage = NSBitmapImageRep(cgImage: cgImage)
         bitmapImage.size = pointSize
 
         let fileType: NSBitmapImageRep.FileType
         let fileExtension: String
 
-        switch AppSettings.shared.imageFormat {
+        switch imageFormat {
         case "jpeg":
             fileType = .jpeg
             fileExtension = "jpg"
@@ -472,8 +486,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     self.frozenDisplaySnapshots = displaySnapshots
                     self.frozenWindowSnapshots.removeAll()
 
+                    // Convert SendableCGImage → CGImage for SelectionWindow (UI layer)
+                    let rawSnapshots = displaySnapshots.mapValues { $0.image }
                     let window = SelectionWindow(
-                        frozenScreenshots: displaySnapshots,
+                        frozenScreenshots: rawSnapshots,
                         overlayConfiguration: overlayConfiguration
                     )
                     window.selectionDelegate = self
@@ -536,10 +552,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func prepareFrozenDisplaySnapshotsWithScreenCaptureKit() async throws -> [CGDirectDisplayID: CGImage] {
+    private func prepareFrozenDisplaySnapshotsWithScreenCaptureKit() async throws -> [CGDirectDisplayID: SendableCGImage] {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
 
-        var displaySnapshots: [CGDirectDisplayID: CGImage] = [:]
+        var displaySnapshots: [CGDirectDisplayID: SendableCGImage] = [:]
         for screen in NSScreen.screens {
             guard
                 let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
@@ -551,7 +567,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 scDisplay: scDisplay,
                 excludedWindows: []
             ) {
-                displaySnapshots[displayID] = image
+                displaySnapshots[displayID] = SendableCGImage(image)
             }
         }
 
@@ -699,6 +715,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             configuration: config
         )
 
+        // Extract app info at capture point — SCRunningApplication is not Sendable
+        let appBundleID = window.owningApplication?.bundleIdentifier
+        let appName = window.owningApplication?.applicationName
+
         if applyBorder {
             let (bordered, padding) = applyFrozenBorderIfNeeded(to: image, scale: scaleCGFloat)
             let pointSize = CGSize(
@@ -706,23 +726,24 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 height: rect.height + padding.top + padding.bottom
             )
             return FrozenWindowSnapshot(
-                image: bordered,
-                padding: padding,
+                image: SendableCGImage(bordered),
+                padding: EdgeInsetValues(padding),
                 pointSize: pointSize,
                 borderApplied: true,
                 scale: scaleCGFloat,
-                application: window.owningApplication
+                appBundleID: appBundleID,
+                appName: appName
             )
         } else {
-            let padding = NSEdgeInsets()
             let pointSize = CGSize(width: rect.width, height: rect.height)
             return FrozenWindowSnapshot(
-                image: image,
-                padding: padding,
+                image: SendableCGImage(image),
+                padding: .zero,
                 pointSize: pointSize,
                 borderApplied: false,
                 scale: scaleCGFloat,
-                application: window.owningApplication
+                appBundleID: appBundleID,
+                appName: appName
             )
         }
     }
@@ -731,7 +752,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         guard rect.width > 0, rect.height > 0 else { return nil }
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) else { return nil }
         guard let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return nil }
-        guard let snapshot = frozenDisplaySnapshots[displayID] else { return nil }
+        guard let snapshot = frozenDisplaySnapshots[displayID]?.image else { return nil }
 
         let frame = screen.frame
         // Use the captured image dimensions to derive scale (handles Retina)
@@ -762,7 +783,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
         trigger: CaptureTrigger,
-        capturedApp: SCRunningApplication? = nil
+        appBundleID: String? = nil,
+        appName: String? = nil
     ) {
         captureMode = .quick
 
@@ -787,7 +809,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 var recognized: String?
                 defer {
-                    let appInfo = resolvedAppInfo(capturedApp: capturedApp)
+                    let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
                     _ = CaptureLibrary.shared.addCapture(
                         cgImage: cgImage,
                         pointSize: selectionRect.size,
@@ -927,11 +949,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         trigger: CaptureTrigger,
         excludeWindowIDs: [CGWindowID] = []
     ) {
-        // Vérifier que le rectangle est valide
         guard rect.width > 0 && rect.height > 0 else {
-            DispatchQueue.main.async { [weak self] in
-                self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
-            }
+            showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
             return
         }
 
@@ -939,14 +958,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             guard let self = self else { return }
 
             do {
-                // Essayer d'abord avec ScreenCaptureKit (moderne)
                 let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
                 await MainActor.run {
                     self.handleSuccessfulCapture(cgImage: cgImage, selectionRect: rect, captureType: captureType, trigger: trigger)
                 }
 
             } catch {
-                DispatchQueue.main.async { [weak self] in
+                await MainActor.run { [weak self] in
                     self?.showErrorNotification(error: error)
                     self?.completeAutomationIfNeeded(error: error.localizedDescription)
                 }
@@ -962,13 +980,10 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     ) {
         captureMode = .quick
 
-        // Vérifier que le rectangle est valide
         guard rect.width > 0 && rect.height > 0 else {
-            DispatchQueue.main.async { [weak self] in
-                self?.showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
-                self?.completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
-                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
-            }
+            showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
+            completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
+            NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             return
         }
 
@@ -1010,17 +1025,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let sizeRect = CGRect(
                     origin: .zero,
                     size: CGSize(
-                        width: captureResult.window.frame.size.width + padding.left + padding.right,
-                        height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                        width: captureResult.windowFrame.size.width + padding.left + padding.right,
+                        height: captureResult.windowFrame.size.height + padding.top + padding.bottom
                     )
                 )
                 await MainActor.run {
                     self.handleSuccessfulCapture(
-                        cgImage: captureResult.image,
+                        cgImage: captureResult.image.image,
                         selectionRect: sizeRect,
                         captureType: captureType,
                         trigger: trigger,
-                        capturedApp: captureResult.application
+                        appBundleID: captureResult.appBundleID,
+                        appName: captureResult.appName
                     )
                 }
             } catch {
@@ -1049,17 +1065,18 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let sizeRect = CGRect(
                     origin: .zero,
                     size: CGSize(
-                        width: captureResult.window.frame.size.width + padding.left + padding.right,
-                        height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                        width: captureResult.windowFrame.size.width + padding.left + padding.right,
+                        height: captureResult.windowFrame.size.height + padding.top + padding.bottom
                     )
                 )
                 await MainActor.run {
                     self.handleAdvancedCapture(
-                        cgImage: captureResult.image,
+                        cgImage: captureResult.image.image,
                         selectionRect: sizeRect,
                         captureType: captureType,
                         trigger: trigger,
-                        capturedApp: captureResult.application
+                        appBundleID: captureResult.appBundleID,
+                        appName: captureResult.appName
                     )
                 }
             } catch {
@@ -1085,7 +1102,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
         trigger: CaptureTrigger,
-        capturedApp: SCRunningApplication? = nil
+        appBundleID: String? = nil,
+        appName: String? = nil
     ) {
         captureMode = .quick
         isShowingEditor = true
@@ -1104,7 +1122,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                     selectionRect: selectionRect,
                     captureType: captureType,
                     trigger: trigger,
-                    capturedApp: capturedApp
+                    appBundleID: appBundleID,
+                    appName: appName
                 )
                 self?.isShowingEditor = false
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
@@ -1230,26 +1249,27 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
                 let padding = captureResult.paddingPoints
                 let pointSize = CGSize(
-                    width: captureResult.window.frame.size.width + padding.left + padding.right,
-                    height: captureResult.window.frame.size.height + padding.top + padding.bottom
+                    width: captureResult.windowFrame.size.width + padding.left + padding.right,
+                    height: captureResult.windowFrame.size.height + padding.top + padding.bottom
                 )
+                let cgImage = captureResult.image.image
 
                 if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
                     self.automationRequest = nil
-                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: captureResult.image, pointSize: pointSize)
+                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: pointSize)
                 }
 
                 var recognized: String?
                 defer {
-                    let appInfo = resolvedAppInfo(capturedApp: captureResult.application)
+                    let appInfo = resolvedAppInfo()
                     _ = CaptureLibrary.shared.addCapture(
-                        cgImage: captureResult.image,
+                        cgImage: cgImage,
                         pointSize: pointSize,
                         captureType: captureType,
                         captureMode: .ocr,
                         trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: appInfo.bundleID,
-                        appName: appInfo.appName,
+                        appBundleID: captureResult.appBundleID ?? appInfo.bundleID,
+                        appName: captureResult.appName ?? appInfo.appName,
                         appPID: appInfo.pid,
                         externalFilePath: nil,
                         ocrText: recognized,
@@ -1258,7 +1278,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 }
 
                 let text = try await OCRService.recognizeText(
-                    in: captureResult.image,
+                    in: cgImage,
                     imageSize: pointSize,
                     region: nil,
                     preferredLanguages: settings.ocrRecognitionLanguages
@@ -1338,7 +1358,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
         trigger: CaptureTrigger,
-        capturedApp: SCRunningApplication? = nil
+        appBundleID: String? = nil,
+        appName: String? = nil
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
@@ -1378,7 +1399,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
-        let appInfo = resolvedAppInfo(capturedApp: capturedApp)
+        let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
         let libraryID = CaptureLibrary.shared.addCapture(
             cgImage: cgImage,
             pointSize: selectionRect.size,
@@ -1409,8 +1430,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             return
         }
 
-        saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size) { [weak self] savedPath in
+        Task { @MainActor [weak self] in
             guard let self else { return }
+            let savedPath = await self.saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size)
             if let filePath = savedPath {
                 NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
                 settings.addToHistory(filePath)
@@ -1435,7 +1457,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         selectionRect: CGRect,
         captureType: CaptureItemCaptureType,
         trigger: CaptureTrigger,
-        capturedApp: SCRunningApplication? = nil
+        appBundleID: String? = nil,
+        appName: String? = nil
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
@@ -1466,7 +1489,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             allowSaving: allowSaving
         )
 
-        let appInfo = resolvedAppInfo(capturedApp: capturedApp)
+        let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
         let libraryID = CaptureLibrary.shared.addCapture(
             cgImage: cgImage,
             pointSize: selectionRect.size,
@@ -1497,8 +1520,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             return
         }
 
-        saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size) { [weak self] savedPath in
+        Task { @MainActor [weak self] in
             guard let self else { return }
+            let savedPath = await self.saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size)
             if let filePath = savedPath {
                 NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
                 settings.addToHistory(filePath)
@@ -1666,12 +1690,11 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
-    private func resolvedAppInfo(capturedApp: SCRunningApplication?) -> (bundleID: String?, appName: String?, pid: Int?) {
-        if let capturedApp {
-            let bundleID = sanitizedAppString(capturedApp.bundleIdentifier) ?? sanitizedAppString(previousApp?.bundleIdentifier)
-            let appName = sanitizedAppString(capturedApp.applicationName) ?? sanitizedAppString(previousApp?.localizedName)
-            let pid = Int(capturedApp.processID)
-            return (bundleID, appName, pid)
+    private func resolvedAppInfo(appBundleID: String? = nil, appName: String? = nil) -> (bundleID: String?, appName: String?, pid: Int?) {
+        if appBundleID != nil || appName != nil {
+            let bundleID = sanitizedAppString(appBundleID) ?? sanitizedAppString(previousApp?.bundleIdentifier)
+            let name = sanitizedAppString(appName) ?? sanitizedAppString(previousApp?.localizedName)
+            return (bundleID, name, previousApp.map { Int($0.processIdentifier) })
         }
 
         return (
@@ -1772,30 +1795,41 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         return "![\(alt)](\(ref))"
     }
 
-    /// Save to disk on a background queue, then hop back to main for UI/notifications.
+    /// Save to disk on a background task, then return the path on MainActor.
     private func saveToDiskAsync(
         cgImage: CGImage,
-        pointSize: CGSize,
-        completion: @escaping (String?) -> Void
-    ) {
-        saveQueue.async { [weak self] in
-            guard let self else {
-                DispatchQueue.main.async {
-                    completion(nil)
-                }
-                return
-            }
-            let savedPath = self.saveToFileAndGetPath(cgImage: cgImage, pointSize: pointSize)
-            DispatchQueue.main.async {
-                completion(savedPath)
-            }
-        }
+        pointSize: CGSize
+    ) async -> String? {
+        // Gather @MainActor settings before hopping to background
+        let imageFormat = AppSettings.shared.imageFormat
+        var seq = AppSettings.shared.screenshotSequence
+        AppSettings.shared.ensureFolderExists()
+        let folderPath = AppSettings.shared.saveFolderPath
+        let sendableImage = SendableCGImage(cgImage)
+
+        // Detached to cut @MainActor inheritance — background I/O
+        let (savedPath, finalSeq) = await Task.detached(priority: .utility) {
+            let savedPath = ScreenshotService.saveToFile(
+                cgImage: sendableImage.image,
+                pointSize: pointSize,
+                imageFormat: imageFormat,
+                sequence: &seq,
+                folderPath: folderPath
+            )
+            return (savedPath, seq)
+        }.value
+
+        AppSettings.shared.screenshotSequence = finalSeq
+        return savedPath
     }
 
-    /// Save image to file (with DPI metadata) and return the path
-    private func saveToFileAndGetPath(
+    /// Pure file-save logic — no @MainActor dependencies. Called from background context.
+    private nonisolated static func saveToFile(
         cgImage: CGImage,
-        pointSize: CGSize
+        pointSize: CGSize,
+        imageFormat: String,
+        sequence: inout Int,
+        folderPath: String
     ) -> String? {
         let bitmapImage = NSBitmapImageRep(cgImage: cgImage)
         bitmapImage.size = pointSize
@@ -1803,7 +1837,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let fileType: NSBitmapImageRep.FileType
         let fileExtension: String
 
-        switch AppSettings.shared.imageFormat {
+        switch imageFormat {
         case "jpeg":
             fileType = .jpeg
             fileExtension = "jpg"
@@ -1816,15 +1850,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             return nil
         }
 
-        // Incremental naming logic: Screen-1.png, Screen-2.png...
-        var seq = AppSettings.shared.screenshotSequence
+        var seq = sequence
         var filename = "Screen-\(seq).\(fileExtension)"
 
-        // Ensure folder exists
-        AppSettings.shared.ensureFolderExists()
-        let folderPath = AppSettings.shared.saveFolderPath
-
-        // Ensure uniqueness
         let fileManager = FileManager.default
         var savePath = folderPath + filename
 
@@ -1834,20 +1862,12 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             savePath = folderPath + filename
         }
 
-        // Save next sequence number
-        if Thread.isMainThread {
-            AppSettings.shared.screenshotSequence = seq + 1
-        } else {
-            DispatchQueue.main.sync {
-                AppSettings.shared.screenshotSequence = seq + 1
-            }
-        }
+        sequence = seq + 1
 
         do {
             try data.write(to: URL(fileURLWithPath: savePath))
             return savePath
         } catch {
-            // Fallback to Temporary Directory if main save fails (Sandbox/Permission issues)
             let tempFolder = NSTemporaryDirectory()
             let tempPath = (tempFolder as NSString).appendingPathComponent(filename)
 
@@ -1860,16 +1880,32 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         }
     }
 
+    /// Synchronous save — called from @MainActor context (e.g. copyToClipboard).
+    /// Reads settings directly, performs I/O on current thread.
+    private func saveToFileAndGetPath(cgImage: CGImage, pointSize: CGSize) -> String? {
+        let imageFormat = AppSettings.shared.imageFormat
+        var seq = AppSettings.shared.screenshotSequence
+        AppSettings.shared.ensureFolderExists()
+        let folderPath = AppSettings.shared.saveFolderPath
+
+        let result = ScreenshotService.saveToFile(
+            cgImage: cgImage,
+            pointSize: pointSize,
+            imageFormat: imageFormat,
+            sequence: &seq,
+            folderPath: folderPath
+        )
+        AppSettings.shared.screenshotSequence = seq
+        return result
+    }
+
     private func showErrorNotification(error: Error) {
-        // For errors, show a proper alert dialog
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "截图错误"
-            alert.informativeText = error.localizedDescription
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "确定")
-            alert.runModal()
-        }
+        let alert = NSAlert()
+        alert.messageText = "截图错误"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "确定")
+        alert.runModal()
     }
 
     deinit {

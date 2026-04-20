@@ -10,14 +10,13 @@ import Foundation
 
 // MARK: - Library Service (async + non-blocking)
 
+@MainActor
 final class CaptureLibrary {
     static let shared = CaptureLibrary()
 
     private let worker = CaptureLibraryWorker()
-    private let pendingLock = NSLock()
     private var pendingJobs: Int = 0
     private let maxPendingJobs: Int = 8
-    private let indexingLock = NSLock()
     private var pendingIndexJobs: Int = 0
     private let maxPendingIndexJobs: Int = 2
 
@@ -65,7 +64,7 @@ final class CaptureLibrary {
             appPID: appPID,
             selectionSize: pointSize,
             externalFilePath: externalFilePath,
-            cgImage: cgImage,
+            cgImage: SendableCGImage(cgImage),
             storePreview: storePreviews,
             ocrText: ocrText,
             ocrLangs: ocrLangs,
@@ -261,7 +260,7 @@ final class CaptureLibrary {
     @discardableResult
     private func enqueue(
         priority: TaskPriority,
-        operation: @escaping (CaptureLibraryWorker) async throws -> Void
+        operation: @Sendable @escaping (CaptureLibraryWorker) async throws -> Void
     ) -> Bool {
         guard acquireJobSlot() else {
             logWarning("CaptureLibrary backlog full; drop job.", category: "LIB")
@@ -287,7 +286,7 @@ final class CaptureLibrary {
     @discardableResult
     private func enqueueIndexing(
         priority: TaskPriority,
-        operation: @escaping (CaptureLibraryWorker) async throws -> Void
+        operation: @Sendable @escaping (CaptureLibraryWorker) async throws -> Void
     ) -> Bool {
         guard acquireIndexSlot() else {
             logWarning("CaptureLibrary indexing backlog full; drop job.", category: "LIB")
@@ -311,35 +310,27 @@ final class CaptureLibrary {
     }
 
     private func acquireJobSlot() -> Bool {
-        pendingLock.lock()
-        defer { pendingLock.unlock() }
         if pendingJobs >= maxPendingJobs { return false }
         pendingJobs += 1
         return true
     }
 
     private func releaseJobSlot() {
-        pendingLock.lock()
         pendingJobs = max(0, pendingJobs - 1)
-        pendingLock.unlock()
     }
 
     private func acquireIndexSlot() -> Bool {
-        indexingLock.lock()
-        defer { indexingLock.unlock() }
         if pendingIndexJobs >= maxPendingIndexJobs { return false }
         pendingIndexJobs += 1
         return true
     }
 
     private func releaseIndexSlot() {
-        indexingLock.lock()
         pendingIndexJobs = max(0, pendingIndexJobs - 1)
-        indexingLock.unlock()
     }
 }
 
-fileprivate struct CaptureLibraryAddJob {
+fileprivate struct CaptureLibraryAddJob: Sendable {
     let id: UUID
     let createdAt: Date
 
@@ -354,7 +345,7 @@ fileprivate struct CaptureLibraryAddJob {
 
     let externalFilePath: String?
 
-    let cgImage: CGImage
+    let cgImage: SendableCGImage
     let storePreview: Bool
 
     let ocrText: String?
@@ -370,8 +361,12 @@ actor CaptureLibraryWorker {
     private var fileStore: CaptureLibraryFileStore?
     private var database: CaptureLibraryDatabase?
 
+    /// Fire-and-forget notification: all callers are in Task.detached contexts
+    /// with no awaiting consumer, so ordering guarantees are not needed.
+    /// If a future call site requires the notification to complete before continuing,
+    /// use `await MainActor.run { NotificationCenter.default.post(...) }` instead.
     private func notifyChanged() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             NotificationCenter.default.post(name: .captureLibraryChanged, object: nil)
         }
     }
@@ -395,10 +390,10 @@ actor CaptureLibraryWorker {
 
         let now = Date()
 
-        let thumb = try fileStore.writeThumbnail(id: job.id, from: job.cgImage)
+        let thumb = try fileStore.writeThumbnail(id: job.id, from: job.cgImage.image)
         let preview: (relativePath: String, pixelSize: CGSize, byteCount: Int)?
         if job.storePreview {
-            preview = try fileStore.writePreview(id: job.id, from: job.cgImage)
+            preview = try fileStore.writePreview(id: job.id, from: job.cgImage.image)
         } else {
             preview = nil
         }
@@ -454,7 +449,7 @@ actor CaptureLibraryWorker {
             if existingOCR.isEmpty {
                 do {
                     let text = try await OCRService.recognizeText(
-                        in: job.cgImage,
+                        in: job.cgImage.image,
                         imageSize: job.selectionSize,
                         region: nil,
                         preferredLanguages: job.autoOCRPreferredLanguages.isEmpty ? nil : job.autoOCRPreferredLanguages,
