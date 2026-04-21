@@ -16,12 +16,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'com.iSoldLeo.PastScreen-CN' }}
-    strategy:
-      matrix:
-        arch: [arm64, x86_64]
 
     steps:
       - name: Checkout
@@ -29,7 +26,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Build ${{ matrix.arch }}
+      - name: Build arm64
         shell: bash
         run: |
           EXTRA_ARGS=()
@@ -42,27 +39,27 @@ jobs:
             -scheme PastScreen-CN \
             -configuration Release \
             -derivedDataPath build \
-            ARCHS=${{ matrix.arch }} \
+            ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
-            CONFIGURATION_BUILD_DIR=build/Release-${{ matrix.arch }} \
+            CONFIGURATION_BUILD_DIR=build/Release-arm64 \
             CODE_SIGNING_ALLOWED=NO \
             "${EXTRA_ARGS[@]}"
 
-      - name: Package ${{ matrix.arch }} zip
+      - name: Package zip
         shell: bash
         run: |
-          APP_PATH="build/Release-${{ matrix.arch }}/PastScreen-CN.app"
+          APP_PATH="build/Release-arm64/PastScreen-CN.app"
           VERSION="${GITHUB_SHA::7}"
-          ZIP_NAME="PastScreen-CN-beta-${VERSION}-macOS-${{ matrix.arch }}.zip"
+          ZIP_NAME="PastScreen-CN-beta-${VERSION}-macOS-arm64.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
           shasum -a 256 "$ZIP_NAME" > "${ZIP_NAME}.sha256"
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
 
-      - name: Upload artifact ${{ matrix.arch }}
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PastScreen-CN-beta-${{ matrix.arch }}
+          name: PastScreen-CN-beta-arm64
           path: |
-            PastScreen-CN-beta-*-macOS-${{ matrix.arch }}.zip
-            PastScreen-CN-beta-*-macOS-${{ matrix.arch }}.zip.sha256
+            PastScreen-CN-beta-*-macOS-arm64.zip
+            PastScreen-CN-beta-*-macOS-arm64.zip.sha256
           if-no-files-found: error
