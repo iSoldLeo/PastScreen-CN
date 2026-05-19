@@ -2,7 +2,6 @@
 "menu.tooltip" = "PastScreen-CN - 疾取圖";
 "menu.capture_area" = "疾取";
 "menu.capture_fullscreen" = "全屏取圖";
-"menu.capture_advanced" = "精取";
 "menu.show_last" = "示近取";
 "menu.history" = "紀錄";
 "menu.history.empty" = "未有取圖";
@@ -18,7 +17,6 @@
 /* Settings - Tabs */
 "settings.tab.general" = "通用";
 "settings.tab.capture" = "截取";
-"settings.tab.editor" = "編輯";
 "settings.tab.storage" = "存儲";
 "settings.tab.apps" = "應用";
 
@@ -75,8 +73,6 @@
 "settings.capture.open_menu" = "開單";
 "settings.capture.hotkey_disabled_help" = "啟捷鍵，以便隨時截取";
 "settings.capture.quick_screenshot" = "疾取";
-"settings.capture.advanced_screenshot" = "精取";
-"settings.capture.ocr_capture" = "文辨";
 "settings.capture.window_border" = "窗框";
 "settings.capture.window_border.enable" = "啟窗框";
 "settings.capture.window_border.width" = "框寬";
@@ -84,19 +80,6 @@
 "settings.capture.window_border.color" = "框色";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "編輯工具列";
-"settings.editor.toolbar.description" = "選何工具於精取後示之。";
-"settings.editor.toolbar.reorder_hint" = "拖移上下可定其序。";
-"settings.editor.toolbar.note" = "至少留一工具。";
-"settings.editor.radial.title" = "速輪";
-"settings.editor.radial.description" = "右擊之速輪，可選一至四工具。";
-"settings.editor.radial.enabled" = "用速輪";
-"settings.editor.radial.add" = "添工具";
-"settings.editor.radial.note" = "須存一工具。於編輯器右擊即開。";
-"settings.editor.ocr.title" = "文辨";
-"settings.editor.ocr.description" = "選可識之語，於所選之語中自辨。";
-"settings.editor.ocr.reset" = "重置";
-"settings.editor.ocr.note" = "若未選，則用系統默認/自辨。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存處";
@@ -111,69 +94,16 @@
 "settings.select_folder.message" = "擇一夾以存截圖";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "預設：圖複至剪貼";
-"settings.apps.instructions" = "下添諸應用。若需路徑（如終端），請選「路徑」。";
-"settings.apps.rules" = "規則";
-"settings.apps.empty_title" = "未有應用規則";
-"settings.apps.empty_description" = "添應用以改剪貼行為。\n終端若須路徑，請選「路徑」。";
-"settings.apps.clipboard.image" = "圖像";
-"settings.apps.clipboard.path" = "路徑";
-"settings.apps.add_rule" = "添應用規則";
-"settings.apps.select_app_message" = "選應用";
 
 /* Tutorial */
-"tutorial.title" = "PastScreen-CN 使用指南";
-"tutorial.subtitle" = "疾取圖，自入剪貼。";
-"tutorial.open_settings" = "開偏好";
-"tutorial.close" = "閉";
 
-"tutorial.section.getting_started" = "始用";
-"tutorial.getting_started.body" = "PastScreen-CN 乃上欄取圖器：畫區畢，自複於剪貼；亦可隨需存檔。";
-"tutorial.getting_started.steps" = "1. 初用先許「螢幕錄製」「輔助使用」。\n2. 按捷鍵以取區。\n3. 欲注記，則用「精取」。\n4. 欲存檔，往 設定 > 存儲 擇目錄而啟存。";
 
-"tutorial.section.permissions" = "權限（必需）";
-"tutorial.permission.request" = "請授權";
-"tutorial.permissions.footer" = "徑：系統設定 → 隱私與安全性 → 螢幕錄製 / 輔助使用。";
 
-"tutorial.section.shortcuts" = "捷鍵";
-"tutorial.shortcut.quick" = "區域疾取";
-"tutorial.shortcut.advanced" = "精取（注記）";
-"tutorial.shortcut.ocr" = "文辨取圖";
-"tutorial.shortcuts.footer" = "可於 設定 > 截取 重錄捷鍵。";
 
-"tutorial.section.capture" = "取法";
-"tutorial.capture.tips" = "• 按捷鍵，拖拽擇區；釋之即成。\n• 擇區中右擊可止。\n• 既成，自複於剪貼；上欄亦可覽/複其紀。";
 
-"tutorial.section.storage" = "存檔（可選）";
-"tutorial.storage.body" = "常則複於剪貼。若欲自動存檔：於 設定 > 存儲 啟存，並擇一存檔夾。";
-"tutorial.storage.switch" = "自動存";
-"tutorial.storage.folder" = "存檔夾";
 
-"tutorial.section.troubleshooting" = "常見疑";
-"tutorial.troubleshooting.body" = "• 捷鍵不行：檢「輔助使用」已許 PastScreen-CN 否。\n• 不能取圖：檢「螢幕錄製」權；既許或須重啟。\n• 無檔：若未啟存，取圖唯在剪貼。";
 
 /* Onboarding */
-"onboarding.title" = "歡迎 PastScreen-CN 📸";
-"onboarding.subtitle" = "為開發者而疾速之截圖";
-"onboarding.why_title" = "何以 PastScreen-CN";
-"onboarding.ultrafast" = "⚡ 疾速";
-"onboarding.ultrafast.desc" = "數息之間，截取貼於 IDE。";
-"onboarding.ultrafast.note" = "無須理檔，唯求其速。";
-"onboarding.autoclean" = "🧹 自掃";
-"onboarding.autoclean.desc" = "重啟即自清截圖夾。";
-"onboarding.autoclean.note" = "無勞，無亂。";
-"onboarding.smart_notifications" = "🔔 靜通知";
-"onboarding.smart_notifications.desc" = "輕而不擾之提醒。";
-"onboarding.smart_notifications.note" = "事畢輕告。";
-"onboarding.workflow" = "🎯 工程為先";
-"onboarding.workflow.desc" = "為常居編輯者之開發人所築。";
-"onboarding.workflow.note" = "截取 → 貼上 → 繼續編寫。";
-"onboarding.customizable" = "⚙️ 可裁";
-"onboarding.customizable.desc" = "捷鍵、格式、存處，皆可定。";
-"onboarding.vs_native" = "勝系統截圖：無預覽之遲，直入剪貼。";
-"onboarding.vs_other" = "勝他工具：無繁步，無理檔。";
-"onboarding.dont_show" = "毋復示";
-"onboarding.got_it" = "知之，始行！";
 
 /* Errors */
 "error.permissions_required.title" = "需屏錄之權";
@@ -192,45 +122,18 @@
 "error.capture_interrupted" = "截取被阻";
 
 /* Notifications */
-"notification.screenshot_ready" = "截圖已成";
-"notification.click_to_reveal" = "於檔覽中示之";
 "notification.screenshot_saved" = "截圖已存剪貼";
-"notification.reveal_in_finder" = "於檔覽中示之";
-"notification.dismiss" = "關閉";
 
 /* Onboarding */
-"onboarding.button.previous" = "上一步";
-"onboarding.button.next" = "下一步";
-"onboarding.button.start" = "開始";
 
-"onboarding.page1.title" = "速";
-"onboarding.page1.description" = "瞬息截圖貼上。\n熱鍵 → 截取 → ⌘V 貼之";
 
-"onboarding.page2.title" = "存處";
-"onboarding.page2.description" = "自選 PastScreen-CN 所存之處。";
 
-"onboarding.storage.default.title" = "圖片夾（預設）";
-"onboarding.storage.default.desc" = "存於圖片夾。\n（需權限）";
 
-"onboarding.storage.temp.title" = "臨時（自清）";
-"onboarding.storage.temp.desc" = "便於速複。\n重啟即除。";
 
-"onboarding.page3.title" = "以剪貼為先";
-"onboarding.page3.description" = "自動複至剪貼。\n宜於 Cursor、VSCode、Zed。";
 
-"onboarding.page4.title" = "可裁";
-"onboarding.page4.description" = "捷鍵、格式、檔夾...\n悉可於上欄調之。";
 
-"onboarding.page_apps.title" = "應用規則";
-"onboarding.page_apps.description" = "依應用定其行為。\n智機取「圖」，編輯/終端取「路徑」。";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "螢幕錄製";
-"onboarding.permissions.screen_recording.description" = "截取所必。\n點下以許。";
-"onboarding.permissions.accessibility.title" = "輔助使用";
-"onboarding.permissions.accessibility.description" = "全域捷鍵所需。\n點下以許。";
-"onboarding.permissions.grant" = "允許";
-"onboarding.permissions.granted" = "已允";
 
 /* Permission Alerts */
 "permission.request.header" = "PastScreen-CN 欲全功，須此諸權:";
@@ -256,26 +159,10 @@
 "hotkey.prompt.press" = "請按捷鍵...";
 
 /* Tips */
-"tip.quick_capture.title" = "PastScreen-CN 提示";
-"tip.quick_capture.message" = "以熱鍵或蘋家捷徑，倏忽成圖。";
 
 /* OCR Hotkey */
-"toast.ocr.success" = "文辨已複";
-"toast.ocr.failure" = "文辨未成";
-"toast.ocr.no_text" = "未得文字";
 
 /* App Intents */
-"intent.capture_area.title" = "選區截取";
-"intent.capture_area.description" = "以 PastScreen-CN 截取自定區域並複其圖。";
-"intent.capture_area.phrase1" = "以 \\(.applicationName) 截選區";
-"intent.capture_area.phrase2" = "用 \\(.applicationName) 截選區";
-"intent.capture_area.short_title" = "選區截取";
-"intent.capture_full.title" = "全屏截取";
-"intent.capture_full.description" = "以 PastScreen-CN 取全屏並複其果。";
-"intent.capture_full.phrase1" = "以 \\(.applicationName) 全屏截取";
-"intent.capture_full.phrase2" = "用 \\(.applicationName) 全屏截取";
-"intent.capture_full.short_title" = "全屏";
-"intent.error.app_unavailable" = "此舉須 PastScreen-CN 運行。";
 
 /* Common Actions */
 "common.cancel" = "取消";
@@ -292,27 +179,5 @@
 "permission.type.notifications" = "通知";
 
 /* Editor */
-"editor.window.title" = "編輯截圖";
-"editor.text.size" = "尺寸";
-"editor.mosaic.size" = "馬賽克度";
-"editor.stroke.width" = "線寬";
-"editor.text.title" = "入文";
-"editor.text.placeholder" = "請入文字";
-"editor.ocr.title" = "文辨";
-"editor.ocr.hint" = "拖曳選其文辨之域";
-"editor.ocr.full_image" = "全圖文辨";
-"editor.ocr.copy" = "複製";
-"editor.ocr.empty" = "未識得文字";
-"editor.ocr.processing" = "識別中…";
-"editor.ocr.error.invalid_image" = "圖據不可讀";
-"editor.ocr.error.cgimage" = "難成識別之圖";
 
 /* Tools */
-"tool.pen" = "筆";
-"tool.line" = "線";
-"tool.rectangle" = "矩形";
-"tool.circle" = "圓";
-"tool.arrow" = "箭";
-"tool.mosaic" = "馬賽克";
-"tool.text" = "文字";
-"tool.ocr" = "文辨";

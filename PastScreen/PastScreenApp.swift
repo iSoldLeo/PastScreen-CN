@@ -9,20 +9,13 @@ import SwiftUI
 import AppKit
 import UserNotifications
 import Combine
-#if canImport(TipKit)
-import TipKit
-#endif
 
 // Notification names
 extension Notification.Name {
     static let screenshotCaptured = Notification.Name("screenshotCaptured")
-    static let automationCaptureCompleted = Notification.Name("automationCaptureCompleted")
     static let showInDockChanged = Notification.Name("showInDockChanged")
     static let hotKeyPressed = Notification.Name("hotKeyPressed")
-    static let advancedHotKeyPressed = Notification.Name("advancedHotKeyPressed")
-    static let ocrHotKeyPressed = Notification.Name("ocrHotKeyPressed")
     static let captureFlowEnded = Notification.Name("captureFlowEnded")
-    static let captureLibraryChanged = Notification.Name("captureLibraryChanged")
 }
 
 @main
@@ -45,8 +38,6 @@ struct PastScreenApp: App {
 enum CaptureTrigger: String, Sendable {
     case menuBar
     case hotkey
-    case appIntent
-    case automation
 }
 
 @MainActor
@@ -80,13 +71,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Setup notification center delegate
         UNUserNotificationCenter.current().delegate = self
 
-#if canImport(TipKit)
-        if #available(macOS 14.0, *) {
-            try? Tips.configure()
-        }
-#endif
-        ScreenshotIntentBridge.shared.appDelegate = self
-
         // IMPORTANT: Don't check permissions at startup to avoid system pop-ups
         // Permissions will be requested through the onboarding flow
         // permissionManager.checkAllPermissions()
@@ -102,9 +86,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Initialize services
         screenshotService = ScreenshotService()
-        CaptureLibrary.shared.bootstrapIfNeeded()
-        CaptureLibraryCleanupService.shared.start()
-        CaptureLibraryOCRReindexService.shared.start()
 
         // NOTE: Permissions are now requested via Onboarding only
         // No auto-prompting at launch to avoid popup chaos
@@ -142,33 +123,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             name: .showInDockChanged,
             object: nil
         )
-        
-        // Observer for advanced hotkey
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAdvancedHotKeyPressed),
-            name: .advancedHotKeyPressed,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleOCRHotKeyPressed),
-            name: .ocrHotKeyPressed,
-            object: nil
-        )
 
         // Configurer le mode initial (Dock ou menu bar seulement)
         updateActivationPolicy()
 
-        // Show onboarding if first launch
-        NSLog("🚀 [APP] About to show onboarding...")
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard self != nil else { return }
-            NSLog("🚀 [APP] Calling OnboardingManager.showIfNeeded()")
-            OnboardingManager.shared.showIfNeeded()
-        }
     }
 
     @objc func handleScreenshotCaptured(_ notification: Notification) {
@@ -192,24 +150,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @objc func handleHotKeyPressed() {
         requestScreenRecordingIfNeeded { [weak self] in
             self?.performAreaCapture(source: .hotkey)
-        }
-    }
-    
-    @objc func handleAdvancedHotKeyPressed() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performAdvancedAreaCapture(source: .hotkey)
-        }
-    }
-
-    @objc func handleOCRHotKeyPressed() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performOCRCapture(source: .hotkey)
-        }
-    }
-    
-    @objc func captureAdvanced() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performAdvancedAreaCapture(source: .menuBar)
         }
     }
 
@@ -388,90 +328,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    func performAreaCaptureForAutomation(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureScreenshot(trigger: .appIntent)
-        }
-    }
-
-    func performAdvancedAreaCapture(source: CaptureTrigger = .menuBar) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureAdvancedScreenshot(trigger: source)
-        }
-    }
-
-    func performAdvancedAreaCaptureForAutomation(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureAdvancedScreenshot(trigger: .appIntent)
-        }
-    }
-
-    func performOCRCapture(source: CaptureTrigger = .menuBar) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureOCRScreenshot(trigger: source)
-        }
-    }
-
-    func performOCRCaptureForAutomation(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureOCRScreenshot(trigger: .appIntent)
-        }
-    }
-
     func performFullScreenCapture(source: CaptureTrigger = .menuBar) {
         guard let screenshotService = screenshotService else { return }
         screenshotService.capturePreviousApp()
         screenshotService.captureFullScreen(trigger: source)
-    }
-
-    func performFullScreenCaptureForAutomation(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
-        screenshotService.capturePreviousApp()
-        screenshotService.captureFullScreen(trigger: .appIntent)
-    }
-
-    func performWindowCaptureForAutomation(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.beginAutomationRequest(requestID: requestID, returnType: returnType)
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureWindowUnderMouse(trigger: .appIntent, mode: .quick)
-        }
     }
 
     // MARK: - Raccourci clavier global

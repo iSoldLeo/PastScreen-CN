@@ -23,8 +23,6 @@ class HotKeyManager {
     private let settings = AppSettings.shared
     private let permissionManager = PermissionManager.shared
     private nonisolated(unsafe) var settingsObserver: AnyCancellable?
-    private nonisolated(unsafe) var advancedHotkeyObserver: AnyCancellable?
-    private nonisolated(unsafe) var ocrHotkeyObserver: AnyCancellable?
     private nonisolated(unsafe) var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false
 
@@ -39,26 +37,6 @@ class HotKeyManager {
                     self.startMonitoring()
                 } else {
                     self.stopMonitoring()
-                }
-            }
-        }
-        
-        // Also observe changes to the advanced hotkey enabled setting
-        advancedHotkeyObserver = settings.$advancedHotkeyEnabled.sink { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if self.settings.globalHotkeyEnabled {
-                    self.startMonitoring()
-                }
-            }
-        }
-
-        // Also observe changes to the OCR hotkey enabled setting
-        ocrHotkeyObserver = settings.$ocrHotkeyEnabled.sink { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if self.settings.globalHotkeyEnabled {
-                    self.startMonitoring()
                 }
             }
         }
@@ -88,8 +66,6 @@ class HotKeyManager {
             NSEvent.removeMonitor(monitor)
         }
         settingsObserver?.cancel()
-        advancedHotkeyObserver?.cancel()
-        ocrHotkeyObserver?.cancel()
         permissionObserver?.cancel()
     }
 
@@ -188,49 +164,6 @@ class HotKeyManager {
             // The AppDelegate will listen for this notification to trigger a screenshot.
             NotificationCenter.default.post(name: .hotKeyPressed, object: nil)
             return true
-        }
-        
-        // Check for advanced screenshot hotkey
-        if settings.advancedHotkeyEnabled {
-            let advancedHotkey = settings.advancedHotkey
-            let advancedModifiers = advancedHotkey.modifierFlags
-            
-            let matchesAdvancedModifiers = eventModifiers == advancedModifiers
-            let matchesAdvancedKeyCode = keyCode == advancedHotkey.keyCode
-            let matchesAdvancedCharacters = {
-                guard let expected = advancedHotkey.characters?.lowercased(),
-                      let actual = characters?.lowercased() else {
-                    return false
-                }
-                return expected == actual
-            }()
-            
-            if matchesAdvancedModifiers && (matchesAdvancedKeyCode || matchesAdvancedCharacters) {
-                // Post notification for advanced screenshot
-                NotificationCenter.default.post(name: .advancedHotKeyPressed, object: nil)
-                return true
-            }
-        }
-
-        // Check for OCR hotkey
-        if settings.ocrHotkeyEnabled {
-            let ocrHotkey = settings.ocrHotkey
-            let ocrModifiers = ocrHotkey.modifierFlags
-
-            let matchesOCRModifiers = eventModifiers == ocrModifiers
-            let matchesOCRKeyCode = keyCode == ocrHotkey.keyCode
-            let matchesOCRCharacters = {
-                guard let expected = ocrHotkey.characters?.lowercased(),
-                      let actual = characters?.lowercased() else {
-                    return false
-                }
-                return expected == actual
-            }()
-
-            if matchesOCRModifiers && (matchesOCRKeyCode || matchesOCRCharacters) {
-                NotificationCenter.default.post(name: .ocrHotKeyPressed, object: nil)
-                return true
-            }
         }
 
         return false

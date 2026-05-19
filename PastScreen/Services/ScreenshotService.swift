@@ -13,10 +13,19 @@ import UserNotifications
 // @preconcurrency: SCDisplay, SCWindow, SCContentFilter, SCStreamConfiguration, etc.
 // are not marked Sendable by Apple. Suppresses warnings for framework types only.
 @preconcurrency import ScreenCaptureKit
-import Vision
 import QuartzCore
 
 // MARK: - App Category Detection
+
+/// CGImage 的 Sendable 包装。CGImage 是不可变的 Core Foundation 引用类型，
+/// 创建后像素数据不可修改，因此跨并发域读取是安全的。
+struct SendableCGImage: @unchecked Sendable {
+    let image: CGImage
+
+    init(_ image: CGImage) {
+        self.image = image
+    }
+}
 
 enum AppCategory: Sendable {
     case codeEditor
@@ -25,13 +34,23 @@ enum AppCategory: Sendable {
     case unknown
 }
 
+enum CaptureMode {
+    case quick
+    case advanced
+}
+
+enum CaptureItemCaptureType: Int, Codable, CaseIterable, Sendable {
+    case area = 0
+    case window = 1
+    case fullscreen = 2
+}
+
 @MainActor
 class ScreenshotService: NSObject, SelectionWindowDelegate {
     private var previousApp: NSRunningApplication? // Store app that was active before capture
     private var selectionWindow: SelectionWindow? // Custom selection window
     private var frozenDisplaySnapshots: [CGDirectDisplayID: SendableCGImage] = [:] // Per-display snapshots captured via ScreenCaptureKit
     private var frozenWindowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:] // Per-window snapshots captured via ScreenCaptureKit
-    private var isShowingEditor = false
     private struct FrozenWindowSnapshot: Sendable {
         let image: SendableCGImage
         let padding: EdgeInsetValues
@@ -42,19 +61,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         let appName: String?
     }
 
-    private enum CaptureMode {
-        case quick
-        case advanced
-        case ocr
-    }
-
     private var captureMode: CaptureMode = .quick
     private var captureTrigger: CaptureTrigger = .menuBar
-    private struct AutomationRequest: Sendable {
-        let id: UUID
-        let returnType: ScreenshotIntentBridge.AutomationReturnType
-    }
-    private var automationRequest: AutomationRequest?
     private var selectionSessionID: UUID?
     private var windowSnapshotTask: Task<Void, Never>?
     private let appBundleID = Bundle.main.bundleIdentifier
@@ -133,31 +141,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         captureTrigger = trigger
         startSelectionFlow(overlayConfiguration: .screenshot)
     }
-    
-    func captureAdvancedScreenshot(trigger: CaptureTrigger = .menuBar) {
-        // CRITICAL: Force cleanup of any existing selection window before creating new one
-        if let existingWindow = selectionWindow {
-            existingWindow.hide()
-            endSelectionSession()
-            selectionWindow = nil
-        }
-
-        captureMode = .advanced
-        captureTrigger = trigger
-        startSelectionFlow(overlayConfiguration: .screenshot)
-    }
-
-    func captureOCRScreenshot(trigger: CaptureTrigger = .menuBar) {
-        if let existingWindow = selectionWindow {
-            existingWindow.hide()
-            endSelectionSession()
-            selectionWindow = nil
-        }
-
-        captureMode = .ocr
-        captureTrigger = trigger
-        startSelectionFlow(overlayConfiguration: .ocr)
-    }
 
     // NEW: Full screen capture using ScreenCaptureKit
     func captureFullScreen(trigger: CaptureTrigger = .menuBar) {
@@ -193,9 +176,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             if let frozen = self.frozenCapture(for: rect) {
                 switch self.captureMode {
                 case .advanced:
-                    self.handleAdvancedCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
-                case .ocr:
-                    self.performOCRFrozenCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
+                    logError("Advanced capture mode is not implemented; falling back to quick capture", category: "SCREENSHOT")
+                    fallthrough
                 case .quick:
                     self.handleSuccessfulCapture(cgImage: frozen, selectionRect: rect, captureType: .area, trigger: trigger)
                 }
@@ -208,9 +190,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             // Now perform capture with overlay windows excluded
             switch self.captureMode {
             case .advanced:
-                self.performAdvancedCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
-            case .ocr:
-                self.performOCRCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
+                logError("Advanced capture mode is not implemented; falling back to quick capture", category: "SCREENSHOT")
+                fallthrough
             case .quick:
                 self.performCapture(rect: rect, captureType: .area, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             }
@@ -258,23 +239,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 let selectionRect = CGRect(origin: .zero, size: frozenWindow.pointSize)
                 switch self.captureMode {
                 case .advanced:
-                    self.handleAdvancedCapture(
-                        cgImage: frozenWindow.image.image,
-                        selectionRect: selectionRect,
-                        captureType: .window,
-                        trigger: trigger,
-                        appBundleID: frozenWindow.appBundleID,
-                        appName: frozenWindow.appName
-                    )
-                case .ocr:
-                    self.performOCRFrozenCapture(
-                        cgImage: frozenWindow.image.image,
-                        selectionRect: selectionRect,
-                        captureType: .window,
-                        trigger: trigger,
-                        appBundleID: frozenWindow.appBundleID,
-                        appName: frozenWindow.appName
-                    )
+                    logError("Advanced capture mode is not implemented; falling back to quick capture", category: "SCREENSHOT")
+                    fallthrough
                 case .quick:
                     self.handleSuccessfulCapture(
                         cgImage: frozenWindow.image.image,
@@ -293,9 +259,8 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
             switch self.captureMode {
             case .advanced:
-                self.performAdvancedWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
-            case .ocr:
-                self.performOCRWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
+                logError("Advanced capture mode is not implemented; falling back to quick capture", category: "SCREENSHOT")
+                fallthrough
             case .quick:
                 self.performWindowCapture(hitResult: windowResult, captureType: .window, trigger: trigger, excludeWindowIDs: overlayWindowIDs)
             }
@@ -312,8 +277,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         captureMode = .quick
         restorePreviousAppFocus()
-
-        completeAutomationIfNeeded(error: NSLocalizedString("intent.error.canceled", value: "用户已取消", comment: ""))
         scheduleSelectionCleanup()
     }
     private func showErrorAlert(_ message: String) {
@@ -332,28 +295,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             self.selectionWindow = nil
             self.frozenDisplaySnapshots.removeAll()
             self.frozenWindowSnapshots.removeAll()
-            if postCaptureFlowEnded && !self.isShowingEditor {
+            if postCaptureFlowEnded {
                 NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
             }
         }
     }
 
-    func beginAutomationRequest(
-        requestID: UUID,
-        returnType: ScreenshotIntentBridge.AutomationReturnType
-    ) {
-        if let existing = automationRequest {
-            postAutomationResult(
-                requestID: existing.id,
-                filePath: nil,
-                ocrText: nil,
-                error: NSLocalizedString("intent.error.busy", value: "已有截图任务进行中", comment: "")
-            )
-        }
-        automationRequest = AutomationRequest(id: requestID, returnType: returnType)
-    }
-
-    func captureWindowUnderMouse(trigger: CaptureTrigger = .menuBar, mode: CaptureItemCaptureMode = .quick) {
+    func captureWindowUnderMouse(trigger: CaptureTrigger = .menuBar, mode: CaptureMode = .quick) {
         captureTrigger = trigger
 
         let excludingWindowIDs: Set<CGWindowID> = []
@@ -367,85 +315,13 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             )
             switch mode {
             case .advanced:
-                performAdvancedWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
-            case .ocr:
-                performOCRWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
+                logError("Advanced capture mode is not implemented; falling back to quick capture", category: "SCREENSHOT")
+                fallthrough
             case .quick:
                 performWindowCapture(hitResult: hit, captureType: .window, trigger: trigger, excludeWindowIDs: [])
             }
         } catch {
             showErrorNotification(error: error)
-            completeAutomationIfNeeded(error: error.localizedDescription)
-        }
-    }
-
-    private func postAutomationResult(
-        requestID: UUID,
-        filePath: String?,
-        ocrText: String?,
-        error: String?
-    ) {
-        var info: [AnyHashable: Any] = ["requestID": requestID.uuidString]
-        if let filePath { info["filePath"] = filePath }
-        if let ocrText { info["ocrText"] = ocrText }
-        if let error { info["error"] = error }
-        NotificationCenter.default.post(name: .automationCaptureCompleted, object: nil, userInfo: info)
-    }
-
-    private func completeAutomationIfNeeded(filePath: String? = nil, ocrText: String? = nil, error: String? = nil) {
-        guard let request = automationRequest else { return }
-        automationRequest = nil
-        postAutomationResult(requestID: request.id, filePath: filePath, ocrText: ocrText, error: error)
-    }
-
-    private func writeAutomationFileAndPost(
-        requestID: UUID,
-        cgImage: CGImage,
-        pointSize: CGSize
-    ) {
-        // Pre-fetch @MainActor settings before hopping to background
-        let imageFormat = AppSettings.shared.imageFormat
-        let sendableImage = SendableCGImage(cgImage)
-        // Detached to cut @MainActor inheritance — background I/O
-        Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
-            let path = self.writeAutomationFile(cgImage: sendableImage.image, pointSize: pointSize, requestID: requestID, imageFormat: imageFormat)
-            await MainActor.run {
-                self.postAutomationResult(requestID: requestID, filePath: path, ocrText: nil, error: path == nil ? NSLocalizedString("intent.error.no_file", value: "生成文件失败", comment: "") : nil)
-            }
-        }
-    }
-
-    private nonisolated func writeAutomationFile(cgImage: CGImage, pointSize: CGSize, requestID: UUID, imageFormat: String) -> String? {
-        let bitmapImage = NSBitmapImageRep(cgImage: cgImage)
-        bitmapImage.size = pointSize
-
-        let fileType: NSBitmapImageRep.FileType
-        let fileExtension: String
-
-        switch imageFormat {
-        case "jpeg":
-            fileType = .jpeg
-            fileExtension = "jpg"
-        default:
-            fileType = .png
-            fileExtension = "png"
-        }
-
-        guard let data = bitmapImage.representation(using: fileType, properties: [:]) else {
-            return nil
-        }
-
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PastScreenAutomation", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let filename = "PastScreen-\(requestID.uuidString).\(fileExtension)"
-        let url = folder.appendingPathComponent(filename, isDirectory: false)
-
-        do {
-            try data.write(to: url, options: .atomic)
-            return url.path
-        } catch {
-            return nil
         }
     }
 
@@ -778,81 +654,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         return snapshot.cropping(to: boundedCrop)
     }
 
-    private func performOCRFrozenCapture(
-        cgImage: CGImage,
-        selectionRect: CGRect,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        appBundleID: String? = nil,
-        appName: String? = nil
-    ) {
-        captureMode = .quick
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            do {
-                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
-                    self.automationRequest = nil
-                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: selectionRect.size)
-                }
-
-                let settings = AppSettings.shared
-                if settings.playSoundOnCapture {
-                    let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-                    if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                        sound.play()
-                    } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                        fallback.play()
-                    }
-                }
-
-                var recognized: String?
-                defer {
-                    let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
-                    _ = CaptureLibrary.shared.addCapture(
-                        cgImage: cgImage,
-                        pointSize: selectionRect.size,
-                        captureType: captureType,
-                        captureMode: .ocr,
-                        trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: appInfo.bundleID,
-                        appName: appInfo.appName,
-                        appPID: appInfo.pid,
-                        externalFilePath: nil,
-                        ocrText: recognized,
-                        ocrLangs: settings.ocrRecognitionLanguages
-                    )
-                }
-
-                let text = try await OCRService.recognizeText(
-                    in: cgImage,
-                    imageSize: selectionRect.size,
-                    region: nil,
-                    preferredLanguages: settings.ocrRecognitionLanguages
-                )
-
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                recognized = trimmed.isEmpty ? nil : trimmed
-
-                await MainActor.run {
-                    self.handleOCRResult(trimmed)
-                    if self.automationRequest?.returnType == .text {
-                        if !trimmed.isEmpty {
-                            self.completeAutomationIfNeeded(ocrText: trimmed)
-                        } else {
-                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    self.completeAutomationIfNeeded(error: error.localizedDescription)
-                }
-            }
-        }
-    }
 
     private func applyFrozenBorderIfNeeded(to image: CGImage, scale: CGFloat) -> (CGImage, NSEdgeInsets) {
         let settings = AppSettings.shared
@@ -966,44 +767,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } catch {
                 await MainActor.run { [weak self] in
                     self?.showErrorNotification(error: error)
-                    self?.completeAutomationIfNeeded(error: error.localizedDescription)
-                }
-            }
-        }
-    }
-    
-    private func performAdvancedCapture(
-        rect: CGRect,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        excludeWindowIDs: [CGWindowID] = []
-    ) {
-        captureMode = .quick
-
-        guard rect.width > 0 && rect.height > 0 else {
-            showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "选区无效"]))
-            completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
-            NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
-            return
-        }
-
-        Task { [weak self] in
-            guard let self = self else { return }
-
-            do {
-                // Capture screenshot with ScreenCaptureKit
-                let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
-                await MainActor.run {
-                    self.handleAdvancedCapture(cgImage: cgImage, selectionRect: rect, captureType: captureType, trigger: trigger)
-                }
-
-            } catch {
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    self.isShowingEditor = false
-                    self.showErrorNotification(error: error)
-                    self.completeAutomationIfNeeded(error: error.localizedDescription)
-                    NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
         }
@@ -1042,50 +805,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             } catch {
                 await MainActor.run { [weak self] in
                     self?.showErrorNotification(error: error)
-                    self?.completeAutomationIfNeeded(error: error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    private func performAdvancedWindowCapture(
-        hitResult: WindowHitTestResult,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        excludeWindowIDs: [CGWindowID]
-    ) {
-        _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
-        captureMode = .quick
-        Task { [weak self] in
-            guard let self = self else { return }
-
-            do {
-                let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(using: hitResult)
-                let padding = captureResult.paddingPoints
-                let sizeRect = CGRect(
-                    origin: .zero,
-                    size: CGSize(
-                        width: captureResult.windowFrame.size.width + padding.left + padding.right,
-                        height: captureResult.windowFrame.size.height + padding.top + padding.bottom
-                    )
-                )
-                await MainActor.run {
-                    self.handleAdvancedCapture(
-                        cgImage: captureResult.image.image,
-                        selectionRect: sizeRect,
-                        captureType: captureType,
-                        trigger: trigger,
-                        appBundleID: captureResult.appBundleID,
-                        appName: captureResult.appName
-                    )
-                }
-            } catch {
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    self.isShowingEditor = false
-                    self.showErrorNotification(error: error)
-                    self.completeAutomationIfNeeded(error: error.localizedDescription)
-                    NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
                 }
             }
         }
@@ -1094,361 +813,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     // Nouvelle méthode avec ScreenCaptureKit
     private func captureWithScreenCaptureKit(rect: CGRect, excludeWindowIDs: [CGWindowID]) async throws -> CGImage {
         return try await captureScreenRegion(rect: rect, excludeWindowIDs: excludeWindowIDs)
-    }
-
-    // Handle successful advanced capture - show editing window
-    private func handleAdvancedCapture(
-        cgImage: CGImage,
-        selectionRect: CGRect,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        appBundleID: String? = nil,
-        appName: String? = nil
-    ) {
-        captureMode = .quick
-        isShowingEditor = true
-        // Create NSImage from CGImage
-        let rep = NSBitmapImageRep(cgImage: cgImage)
-        rep.size = selectionRect.size
-        let nsImage = NSImage(size: selectionRect.size)
-        nsImage.addRepresentation(rep)
-
-        // Show editing window
-        let editingWindow = ImageEditingWindow(
-            image: nsImage,
-            onCompletion: { [weak self] editedImage in
-                self?.handleEditedImage(
-                    editedImage: editedImage,
-                    selectionRect: selectionRect,
-                    captureType: captureType,
-                    trigger: trigger,
-                    appBundleID: appBundleID,
-                    appName: appName
-                )
-                self?.isShowingEditor = false
-                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
-            },
-            onCancel: { [weak self] in
-                self?.isShowingEditor = false
-                self?.completeAutomationIfNeeded(error: NSLocalizedString("intent.error.canceled", value: "用户已取消", comment: ""))
-                NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
-            }
-        )
-        
-        editingWindow.show()
-    }
-
-    private func performOCRCapture(
-        rect: CGRect,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        excludeWindowIDs: [CGWindowID] = []
-    ) {
-        captureMode = .quick
-
-        guard rect.width > 0, rect.height > 0 else {
-            showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-            completeAutomationIfNeeded(error: NSLocalizedString("intent.error.invalid_rect", value: "选区无效", comment: ""))
-            return
-        }
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            do {
-                let cgImage = try await self.captureWithScreenCaptureKit(rect: rect, excludeWindowIDs: excludeWindowIDs)
-
-                let settings = AppSettings.shared
-                if settings.playSoundOnCapture {
-                    let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-                    if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                        sound.play()
-                    } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                        fallback.play()
-                    }
-                }
-
-                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
-                    self.automationRequest = nil
-                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: rect.size)
-                }
-
-                var recognized: String?
-                defer {
-                    _ = CaptureLibrary.shared.addCapture(
-                        cgImage: cgImage,
-                        pointSize: rect.size,
-                        captureType: captureType,
-                        captureMode: .ocr,
-                        trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: self.previousApp?.bundleIdentifier,
-                        appName: self.previousApp?.localizedName,
-                        appPID: self.previousApp.map { Int($0.processIdentifier) },
-                        externalFilePath: nil,
-                        ocrText: recognized,
-                        ocrLangs: settings.ocrRecognitionLanguages
-                    )
-                }
-
-                let text = try await OCRService.recognizeText(
-                    in: cgImage,
-                    imageSize: rect.size,
-                    region: nil,
-                    preferredLanguages: settings.ocrRecognitionLanguages
-                )
-
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                recognized = trimmed.isEmpty ? nil : trimmed
-
-                await MainActor.run {
-                    self.handleOCRResult(trimmed)
-                    if self.automationRequest?.returnType == .text {
-                        if !trimmed.isEmpty {
-                            self.completeAutomationIfNeeded(ocrText: trimmed)
-                        } else {
-                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    self.completeAutomationIfNeeded(error: error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    private func performOCRWindowCapture(
-        hitResult: WindowHitTestResult,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        excludeWindowIDs: [CGWindowID]
-    ) {
-        _ = excludeWindowIDs // 已通过命中窗口过滤，本次捕获不需要排除其它窗口
-        captureMode = .quick
-
-        Task { [weak self] in
-            guard let self else { return }
-
-            do {
-                let captureResult = try await WindowCaptureCoordinator.shared.captureWindow(
-                    using: hitResult,
-                    applyBorder: false
-                )
-
-                let settings = AppSettings.shared
-                if settings.playSoundOnCapture {
-                    let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-                    if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                        sound.play()
-                    } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                        fallback.play()
-                    }
-                }
-
-                let padding = captureResult.paddingPoints
-                let pointSize = CGSize(
-                    width: captureResult.windowFrame.size.width + padding.left + padding.right,
-                    height: captureResult.windowFrame.size.height + padding.top + padding.bottom
-                )
-                let cgImage = captureResult.image.image
-
-                if self.automationRequest?.returnType == .filePath, let request = self.automationRequest {
-                    self.automationRequest = nil
-                    self.writeAutomationFileAndPost(requestID: request.id, cgImage: cgImage, pointSize: pointSize)
-                }
-
-                var recognized: String?
-                defer {
-                    let appInfo = resolvedAppInfo()
-                    _ = CaptureLibrary.shared.addCapture(
-                        cgImage: cgImage,
-                        pointSize: pointSize,
-                        captureType: captureType,
-                        captureMode: .ocr,
-                        trigger: self.libraryTrigger(from: trigger),
-                        appBundleID: captureResult.appBundleID ?? appInfo.bundleID,
-                        appName: captureResult.appName ?? appInfo.appName,
-                        appPID: appInfo.pid,
-                        externalFilePath: nil,
-                        ocrText: recognized,
-                        ocrLangs: settings.ocrRecognitionLanguages
-                    )
-                }
-
-                let text = try await OCRService.recognizeText(
-                    in: cgImage,
-                    imageSize: pointSize,
-                    region: nil,
-                    preferredLanguages: settings.ocrRecognitionLanguages
-                )
-
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                recognized = trimmed.isEmpty ? nil : trimmed
-
-                await MainActor.run {
-                    self.handleOCRResult(trimmed)
-                    if self.automationRequest?.returnType == .text {
-                        if !trimmed.isEmpty {
-                            self.completeAutomationIfNeeded(ocrText: trimmed)
-                        } else {
-                            self.completeAutomationIfNeeded(error: NSLocalizedString("toast.ocr.no_text", value: "未识别到文字", comment: ""))
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    self.showOCRFeedback(style: .failure, key: "toast.ocr.failure", fallback: "OCR 失败")
-                    self.completeAutomationIfNeeded(error: error.localizedDescription)
-                }
-            }
-        }
-    }
-
-    private func handleOCRResult(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            showOCRFeedback(style: .failure, key: "toast.ocr.no_text", fallback: "未识别到文字")
-            return
-        }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        switch AppSettings.shared.ocrClipboardFormat {
-        case .text:
-            pasteboard.setString(trimmed, forType: .string)
-        case .markdownCodeBlock:
-            pasteboard.setString(makeMarkdownCodeBlock(text: trimmed), forType: .string)
-        }
-
-        showOCRFeedback(style: .success, key: "toast.ocr.success", fallback: "OCR 已复制")
-    }
-
-    private func makeMarkdownCodeBlock(text: String) -> String {
-        let fence = String(repeating: "`", count: max(3, longestBacktickRun(in: text) + 1))
-        return "\(fence)text\n\(text)\n\(fence)"
-    }
-
-    private func longestBacktickRun(in text: String) -> Int {
-        var longest = 0
-        var current = 0
-        for scalar in text.unicodeScalars {
-            if scalar == "`" {
-                current += 1
-                if current > longest { longest = current }
-            } else {
-                current = 0
-            }
-        }
-        return longest
-    }
-
-    private func showOCRFeedback(style: DynamicIslandManager.Style, key: String, fallback: String) {
-        DynamicIslandManager.shared.show(
-            message: NSLocalizedString(key, value: fallback, comment: ""),
-            duration: 2.0,
-            style: style
-        )
-    }
-    
-    // Handle the edited image from the editing window
-    private func handleEditedImage(
-        editedImage: NSImage,
-        selectionRect: CGRect,
-        captureType: CaptureItemCaptureType,
-        trigger: CaptureTrigger,
-        appBundleID: String? = nil,
-        appName: String? = nil
-    ) {
-        let settings = AppSettings.shared
-        let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
-        let pendingAutomation = automationRequest
-        if pendingAutomation != nil {
-            automationRequest = nil
-        }
-
-        // Play capture sound if enabled
-        if settings.playSoundOnCapture {
-            let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-            if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                sound.play()
-            } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                fallback.play()
-            }
-        }
-
-        // Convert NSImage back to CGImage for clipboard operations
-        guard let cgImage = editedImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            showErrorNotification(error: NSError(domain: "ScreenshotService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法处理编辑后的图片"]))
-            if let pendingAutomation {
-                postAutomationResult(
-                    requestID: pendingAutomation.id,
-                    filePath: nil,
-                    ocrText: nil,
-                    error: NSLocalizedString("intent.error.no_file", value: "没有可返回的文件路径", comment: "")
-                )
-            }
-            return
-        }
-
-        let clipboardFilePath = self.copyToClipboard(
-            image: editedImage,
-            cgImage: cgImage,
-            pointSize: selectionRect.size,
-            allowSaving: allowSaving
-        )
-
-        let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
-        let libraryID = CaptureLibrary.shared.addCapture(
-            cgImage: cgImage,
-            pointSize: selectionRect.size,
-            captureType: captureType,
-            captureMode: .advanced,
-            trigger: libraryTrigger(from: trigger),
-            appBundleID: appInfo.bundleID,
-            appName: appInfo.appName,
-            appPID: appInfo.pid,
-            externalFilePath: clipboardFilePath
-        )
-
-        guard allowSaving else {
-            self.showSuccessNotification(filePath: nil)
-            if let pendingAutomation {
-                writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
-            }
-            return
-        }
-
-        if let filePath = clipboardFilePath {
-            NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
-            settings.addToHistory(filePath)
-            self.showSuccessNotification(filePath: filePath)
-            if let pendingAutomation {
-                postAutomationResult(requestID: pendingAutomation.id, filePath: filePath, ocrText: nil, error: nil)
-            }
-            return
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let savedPath = await self.saveToDiskAsync(cgImage: cgImage, pointSize: selectionRect.size)
-            if let filePath = savedPath {
-                NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
-                settings.addToHistory(filePath)
-            }
-            if let libraryID {
-                CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
-            }
-            self.showSuccessNotification(filePath: savedPath)
-            if let pendingAutomation {
-                if let savedPath {
-                    self.postAutomationResult(requestID: pendingAutomation.id, filePath: savedPath, ocrText: nil, error: nil)
-                } else {
-                    self.writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
-                }
-            }
-        }
     }
 
     // Gestion commune du succès
@@ -1462,10 +826,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
     ) {
         let settings = AppSettings.shared
         let allowSaving = settings.saveToFile && settings.hasValidSaveFolder
-        let pendingAutomation = automationRequest
-        if pendingAutomation != nil {
-            automationRequest = nil
-        }
 
         // Play capture sound if enabled
         if settings.playSoundOnCapture {
@@ -1490,23 +850,9 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         )
 
         let appInfo = resolvedAppInfo(appBundleID: appBundleID, appName: appName)
-        let libraryID = CaptureLibrary.shared.addCapture(
-            cgImage: cgImage,
-            pointSize: selectionRect.size,
-            captureType: captureType,
-            captureMode: .quick,
-            trigger: libraryTrigger(from: trigger),
-            appBundleID: appInfo.bundleID,
-            appName: appInfo.appName,
-            appPID: appInfo.pid,
-            externalFilePath: clipboardFilePath
-        )
 
         guard allowSaving else {
             self.showSuccessNotification(filePath: nil)
-            if let pendingAutomation {
-                writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
-            }
             return
         }
 
@@ -1514,9 +860,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
             NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
             settings.addToHistory(filePath)
             self.showSuccessNotification(filePath: filePath)
-            if let pendingAutomation {
-                postAutomationResult(requestID: pendingAutomation.id, filePath: filePath, ocrText: nil, error: nil)
-            }
             return
         }
 
@@ -1527,17 +870,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
                 NotificationCenter.default.post(name: .screenshotCaptured, object: nil, userInfo: ["filePath": filePath])
                 settings.addToHistory(filePath)
             }
-            if let libraryID {
-                CaptureLibrary.shared.updateExternalFilePath(for: libraryID, path: savedPath)
-            }
             self.showSuccessNotification(filePath: savedPath)
-            if let pendingAutomation {
-                if let savedPath {
-                    self.postAutomationResult(requestID: pendingAutomation.id, filePath: savedPath, ocrText: nil, error: nil)
-                } else {
-                    self.writeAutomationFileAndPost(requestID: pendingAutomation.id, cgImage: cgImage, pointSize: selectionRect.size)
-                }
-            }
         }
     }
 
@@ -1677,19 +1010,6 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
         return appCategoryMap[bundleID] ?? .unknown
     }
 
-    private func libraryTrigger(from trigger: CaptureTrigger) -> CaptureItemTrigger {
-        switch trigger {
-        case .menuBar:
-            return .menuBar
-        case .hotkey:
-            return .hotkey
-        case .appIntent:
-            return .appIntent
-        case .automation:
-            return .automation
-        }
-    }
-
     private func resolvedAppInfo(appBundleID: String? = nil, appName: String? = nil) -> (bundleID: String?, appName: String?, pid: Int?) {
         if appBundleID != nil || appName != nil {
             let bundleID = sanitizedAppString(appBundleID) ?? sanitizedAppString(previousApp?.bundleIdentifier)
@@ -1726,14 +1046,7 @@ class ScreenshotService: NSObject, SelectionWindowDelegate {
 
         let settings = AppSettings.shared
 
-        let effectiveFormat: CaptureClipboardFormat = {
-            if let bundleID = previousApp?.bundleIdentifier,
-               let override = settings.getOverride(for: bundleID),
-               override == .path {
-                return .path
-            }
-            return settings.captureClipboardFormat
-        }()
+        let effectiveFormat = settings.captureClipboardFormat
 
         let filePath: String? = {
             switch effectiveFormat {

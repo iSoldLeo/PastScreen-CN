@@ -2,7 +2,6 @@
 "menu.tooltip" = "PastScreen-CN - 빠른 캡처";
 "menu.capture_area" = "빠른 캡처";
 "menu.capture_fullscreen" = "전체 화면 캡처";
-"menu.capture_advanced" = "고급 캡처";
 "menu.show_last" = "최근 캡처 보기";
 "menu.history" = "기록";
 "menu.history.empty" = "캡처 없음";
@@ -18,7 +17,6 @@
 /* Settings - Tabs */
 "settings.tab.general" = "일반";
 "settings.tab.capture" = "캡처";
-"settings.tab.editor" = "편집";
 "settings.tab.storage" = "저장";
 "settings.tab.apps" = "앱";
 
@@ -75,8 +73,6 @@
 "settings.capture.open_menu" = "메뉴 열기";
 "settings.capture.hotkey_disabled_help" = "언제든지 캡처할 수 있도록 단축키를 활성화";
 "settings.capture.quick_screenshot" = "빠른 캡처";
-"settings.capture.advanced_screenshot" = "고급 캡처";
-"settings.capture.ocr_capture" = "OCR";
 "settings.capture.window_border" = "창 테두리";
 "settings.capture.window_border.enable" = "창 테두리 사용";
 "settings.capture.window_border.width" = "테두리 두께";
@@ -84,19 +80,6 @@
 "settings.capture.window_border.color" = "테두리 색";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "편집 도구 모음";
-"settings.editor.toolbar.description" = "고급 캡처 후 표시할 도구를 선택합니다.";
-"settings.editor.toolbar.reorder_hint" = "끌어서 도구 모음 순서를 바꿉니다.";
-"settings.editor.toolbar.note" = "최소 한 개의 도구는 활성화해야 합니다.";
-"settings.editor.radial.title" = "퀵 휠";
-"settings.editor.radial.description" = "우클릭 퀵 휠에 1-4개의 도구를 설정합니다.";
-"settings.editor.radial.enabled" = "퀵 휠 사용";
-"settings.editor.radial.add" = "도구 추가";
-"settings.editor.radial.note" = "적어도 하나의 도구를 유지하세요. 편집기에서 우클릭하면 휠이 열립니다.";
-"settings.editor.ocr.title" = "OCR";
-"settings.editor.ocr.description" = "인식에 사용할 언어를 선택합니다. 선택한 언어 내에서 자동 감지됩니다.";
-"settings.editor.ocr.reset" = "초기화";
-"settings.editor.ocr.note" = "선택하지 않으면 시스템 기본/자동 감지를 사용합니다.";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "저장 위치";
@@ -111,69 +94,16 @@
 "settings.select_folder.message" = "캡처를 저장할 폴더를 선택";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "기본: 이미지를 클립보드로 복사";
-"settings.apps.instructions" = "아래에 앱을 추가하세요. 파일 경로가 필요하면 \"Path\"로 설정하세요(예: 터미널).";
-"settings.apps.rules" = "규칙";
-"settings.apps.empty_title" = "앱 규칙 없음";
-"settings.apps.empty_description" = "앱을 추가해 클립보드 동작을 변경하세요.\n파일 경로가 필요한 터미널에는 \"Path\"를 사용하세요.";
-"settings.apps.clipboard.image" = "이미지";
-"settings.apps.clipboard.path" = "Path";
-"settings.apps.add_rule" = "앱 규칙 추가";
-"settings.apps.select_app_message" = "앱 선택";
 
 /* Tutorial */
-"tutorial.title" = "PastScreen-CN 사용 안내";
-"tutorial.subtitle" = "빠르게 캡처하고 클립보드로 자동 복사.";
-"tutorial.open_settings" = "설정 열기";
-"tutorial.close" = "닫기";
 
-"tutorial.section.getting_started" = "시작하기";
-"tutorial.getting_started.body" = "PastScreen-CN은 메뉴 막대 스크린샷 도구입니다. 영역을 선택하면 자동으로 클립보드에 복사되며, 필요하면 파일로 저장할 수도 있습니다.";
-"tutorial.getting_started.steps" = "1. 처음 사용 시 \"화면 기록\"과 \"손쉬운 사용\" 권한을 허용하세요.\n2. 단축키로 영역 캡처를 시작하세요.\n3. 주석이 필요하면 \"고급 캡처\"를 사용하세요.\n4. 파일로 저장하려면 설정 > 저장소에서 저장을 켜고 폴더를 선택하세요.";
 
-"tutorial.section.permissions" = "권한(필수)";
-"tutorial.permission.request" = "권한 요청";
-"tutorial.permissions.footer" = "경로: 시스템 설정 → 개인 정보 보호 및 보안 → 화면 기록 / 손쉬운 사용.";
 
-"tutorial.section.shortcuts" = "단축키";
-"tutorial.shortcut.quick" = "영역 캡처";
-"tutorial.shortcut.advanced" = "고급 캡처(주석)";
-"tutorial.shortcut.ocr" = "OCR 캡처";
-"tutorial.shortcuts.footer" = "단축키는 설정 > 캡처에서 다시 지정할 수 있습니다.";
 
-"tutorial.section.capture" = "캡처 방법";
-"tutorial.capture.tips" = "• 단축키를 누른 뒤 드래그로 영역을 선택하고, 놓으면 완료됩니다.\n• 선택 중 우클릭하면 취소할 수 있습니다.\n• 완료 후 자동으로 클립보드에 복사되며, 메뉴 막대에서 기록을 보고/복사할 수도 있습니다.";
 
-"tutorial.section.storage" = "파일로 저장(선택)";
-"tutorial.storage.body" = "기본적으로 클립보드에 복사됩니다. 자동으로 파일로 저장하려면 설정 > 저장소에서 저장을 켜고 저장 폴더를 선택하세요.";
-"tutorial.storage.switch" = "자동 저장";
-"tutorial.storage.folder" = "저장 폴더";
 
-"tutorial.section.troubleshooting" = "문제 해결";
-"tutorial.troubleshooting.body" = "• 단축키가 동작하지 않음: 손쉬운 사용에서 PastScreen-CN이 허용되어 있는지 확인하세요.\n• 캡처할 수 없음: 화면 기록 권한을 확인하세요. 권한 부여 후 앱을 재시작해야 할 수 있습니다.\n• 파일을 찾을 수 없음: 저장이 꺼져 있으면 캡처는 클립보드에만 있습니다.";
 
 /* Onboarding */
-"onboarding.title" = "PastScreen-CN에 오신 것을 환영합니다 📸";
-"onboarding.subtitle" = "개발자를 위한 초고속 스크린샷";
-"onboarding.why_title" = "왜 PastScreen-CN인가?";
-"onboarding.ultrafast" = "⚡ 초고속";
-"onboarding.ultrafast.desc" = "몇 초 만에 캡처하고 IDE에 붙여넣기.";
-"onboarding.ultrafast.note" = "파일 관리 없이 속도만.";
-"onboarding.autoclean" = "🧹 자동 정리";
-"onboarding.autoclean.desc" = "재시작 시 스크린샷 폴더 자동 정리.";
-"onboarding.autoclean.note" = "관리 제로, 어지러움 제로.";
-"onboarding.smart_notifications" = "🔔 스마트 알림";
-"onboarding.smart_notifications.desc" = "가볍고 방해하지 않는 알림.";
-"onboarding.smart_notifications.note" = "완료 시 조용히 알려줍니다.";
-"onboarding.workflow" = "🎯 워크플로우 우선";
-"onboarding.workflow.desc" = "에디터에 몰입한 개발자를 위해 설계.";
-"onboarding.workflow.note" = "캡처 → 붙여넣기 → 계속 코딩.";
-"onboarding.customizable" = "⚙️ 맞춤 설정";
-"onboarding.customizable.desc" = "단축키, 형식, 저장 위치를 설정 가능합니다.";
-"onboarding.vs_native" = "시스템 캡처보다: 미리보기 대기 없음, 바로 클립보드.";
-"onboarding.vs_other" = "다른 도구보다: 복잡한 단계 없음, 파일 관리 불필요.";
-"onboarding.dont_show" = "다시 보지 않기";
-"onboarding.got_it" = "알겠어요, 시작!";
 
 /* Errors */
 "error.permissions_required.title" = "화면 녹화 권한 필요";
@@ -192,45 +122,18 @@
 "error.capture_interrupted" = "캡처가 중단되었습니다";
 
 /* Notifications */
-"notification.screenshot_ready" = "캡처 완료";
-"notification.click_to_reveal" = "Finder에서 보기";
 "notification.screenshot_saved" = "캡처 이미지가 클립보드에 저장됨";
-"notification.reveal_in_finder" = "Finder에서 보기";
-"notification.dismiss" = "닫기";
 
 /* Onboarding */
-"onboarding.button.previous" = "이전";
-"onboarding.button.next" = "다음";
-"onboarding.button.start" = "시작";
 
-"onboarding.page1.title" = "속도";
-"onboarding.page1.description" = "몇 초 만에 캡처하고 붙여넣기.\n단축키 → 캡처 → ⌘V 붙여넣기";
 
-"onboarding.page2.title" = "저장 위치";
-"onboarding.page2.description" = "PastScreen-CN의 저장 위치를 선택하세요.";
 
-"onboarding.storage.default.title" = "사진 폴더(기본)";
-"onboarding.storage.default.desc" = "사진 폴더에 저장.\n(권한 필요)";
 
-"onboarding.storage.temp.title" = "임시(자동 정리)";
-"onboarding.storage.temp.desc" = "빠른 복사/붙여넣기에 적합.\n재시작 후 삭제.";
 
-"onboarding.page3.title" = "클립보드 우선";
-"onboarding.page3.description" = "자동으로 클립보드에 복사.\nCursor, VSCode, Zed와 잘 어울립니다.";
 
-"onboarding.page4.title" = "맞춤 설정";
-"onboarding.page4.description" = "단축키, 형식, 폴더...\n모두 메뉴 막대에서.";
 
-"onboarding.page_apps.title" = "앱 규칙";
-"onboarding.page_apps.description" = "앱별 동작을 설정합니다.\nAI 도구에는 \"Image\", 에디터/터미널에는 \"Path\".";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "화면 녹화";
-"onboarding.permissions.screen_recording.description" = "캡처에 필수.\n아래를 클릭해 허용.";
-"onboarding.permissions.accessibility.title" = "손쉬운 사용";
-"onboarding.permissions.accessibility.description" = "글로벌 단축키에 필요.\n아래를 클릭해 허용.";
-"onboarding.permissions.grant" = "허용";
-"onboarding.permissions.granted" = "허용됨";
 
 /* Permission Alerts */
 "permission.request.header" = "PastScreen-CN이 제대로 동작하려면 다음 권한이 필요합니다:";
@@ -256,26 +159,10 @@
 "hotkey.prompt.press" = "단축키를 누르세요...";
 
 /* Tips */
-"tip.quick_capture.title" = "PastScreen-CN 팁";
-"tip.quick_capture.message" = "단축키나 Apple 단축어로 빠르게 캡처하세요.";
 
 /* OCR Hotkey */
-"toast.ocr.success" = "OCR 복사 완료";
-"toast.ocr.failure" = "OCR 실패";
-"toast.ocr.no_text" = "텍스트를 찾을 수 없습니다";
 
 /* App Intents */
-"intent.capture_area.title" = "영역 캡처";
-"intent.capture_area.description" = "PastScreen-CN으로 원하는 영역을 캡처하고 이미지를 복사합니다.";
-"intent.capture_area.phrase1" = "\\(.applicationName)으로 영역 캡처";
-"intent.capture_area.phrase2" = "\\(.applicationName)을 사용해 영역 캡처";
-"intent.capture_area.short_title" = "영역 캡처";
-"intent.capture_full.title" = "전체 화면 캡처";
-"intent.capture_full.description" = "PastScreen-CN으로 전체 화면을 캡처하고 결과를 복사합니다.";
-"intent.capture_full.phrase1" = "\\(.applicationName)으로 전체 화면 캡처";
-"intent.capture_full.phrase2" = "\\(.applicationName)으로 전체 화면을 캡처";
-"intent.capture_full.short_title" = "전체 화면";
-"intent.error.app_unavailable" = "이 작업을 하려면 PastScreen-CN이 실행 중이어야 합니다.";
 
 /* Common Actions */
 "common.cancel" = "취소";
@@ -292,27 +179,5 @@
 "permission.type.notifications" = "알림";
 
 /* Editor */
-"editor.window.title" = "스크린샷 편집";
-"editor.text.size" = "크기";
-"editor.mosaic.size" = "모자이크 크기";
-"editor.stroke.width" = "선 두께";
-"editor.text.title" = "텍스트 입력";
-"editor.text.placeholder" = "텍스트를 입력하세요";
-"editor.ocr.title" = "OCR";
-"editor.ocr.hint" = "OCR할 영역을 드래그하여 선택";
-"editor.ocr.full_image" = "전체 이미지 OCR";
-"editor.ocr.copy" = "복사";
-"editor.ocr.empty" = "인식된 텍스트 없음";
-"editor.ocr.processing" = "인식 중…";
-"editor.ocr.error.invalid_image" = "이미지 데이터를 읽을 수 없습니다";
-"editor.ocr.error.cgimage" = "인식용 이미지를 생성할 수 없습니다";
 
 /* Tools */
-"tool.pen" = "펜";
-"tool.line" = "선";
-"tool.rectangle" = "사각형";
-"tool.circle" = "원";
-"tool.arrow" = "화살표";
-"tool.mosaic" = "모자이크";
-"tool.text" = "텍스트";
-"tool.ocr" = "OCR";

@@ -2,7 +2,6 @@
 "menu.tooltip" = "咕咕嘎嘎";
 "menu.capture_area" = "咕咕嘎嘎";
 "menu.capture_fullscreen" = "咕咕嘎嘎";
-"menu.capture_advanced" = "咕咕嘎嘎";
 "menu.show_last" = "咕咕嘎嘎";
 "menu.history" = "咕咕嘎嘎";
 "menu.history.empty" = "咕咕嘎嘎";
@@ -18,7 +17,6 @@
 /* Settings - Tabs */
 "settings.tab.general" = "咕咕嘎嘎";
 "settings.tab.capture" = "咕咕嘎嘎";
-"settings.tab.editor" = "咕咕嘎嘎";
 "settings.tab.storage" = "咕咕嘎嘎";
 "settings.tab.apps" = "咕咕嘎嘎";
 
@@ -75,8 +73,6 @@
 "settings.capture.open_menu" = "咕咕嘎嘎";
 "settings.capture.hotkey_disabled_help" = "咕咕嘎嘎";
 "settings.capture.quick_screenshot" = "咕咕嘎嘎";
-"settings.capture.advanced_screenshot" = "咕咕嘎嘎";
-"settings.capture.ocr_capture" = "咕咕嘎嘎";
 "settings.capture.window_border" = "咕咕嘎嘎";
 "settings.capture.window_border.enable" = "咕咕嘎嘎";
 "settings.capture.window_border.width" = "咕咕嘎嘎";
@@ -84,19 +80,6 @@
 "settings.capture.window_border.color" = "咕咕嘎嘎";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "咕咕嘎嘎";
-"settings.editor.toolbar.description" = "咕咕嘎嘎";
-"settings.editor.toolbar.reorder_hint" = "咕咕嘎嘎";
-"settings.editor.toolbar.note" = "咕咕嘎嘎";
-"settings.editor.radial.title" = "咕咕嘎嘎";
-"settings.editor.radial.description" = "咕咕嘎嘎";
-"settings.editor.radial.enabled" = "咕咕嘎嘎";
-"settings.editor.radial.add" = "咕咕嘎嘎";
-"settings.editor.radial.note" = "咕咕嘎嘎";
-"settings.editor.ocr.title" = "咕咕嘎嘎";
-"settings.editor.ocr.description" = "咕咕嘎嘎";
-"settings.editor.ocr.reset" = "咕咕嘎嘎";
-"settings.editor.ocr.note" = "咕咕嘎嘎";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "咕咕嘎嘎";
@@ -111,69 +94,16 @@
 "settings.select_folder.message" = "咕咕嘎嘎";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "咕咕嘎嘎";
-"settings.apps.instructions" = "咕咕嘎嘎";
-"settings.apps.rules" = "咕咕嘎嘎";
-"settings.apps.empty_title" = "咕咕嘎嘎";
-"settings.apps.empty_description" = "咕咕嘎嘎";
-"settings.apps.clipboard.image" = "咕咕嘎嘎";
-"settings.apps.clipboard.path" = "咕咕嘎嘎";
-"settings.apps.add_rule" = "咕咕嘎嘎";
-"settings.apps.select_app_message" = "咕咕嘎嘎";
 
 /* Tutorial */
-"tutorial.title" = "咕咕嘎嘎";
-"tutorial.subtitle" = "咕咕嘎嘎";
-"tutorial.open_settings" = "咕咕嘎嘎";
-"tutorial.close" = "咕咕嘎嘎";
 
-"tutorial.section.getting_started" = "咕咕嘎嘎";
-"tutorial.getting_started.body" = "咕咕嘎嘎";
-"tutorial.getting_started.steps" = "咕咕嘎嘎";
 
-"tutorial.section.permissions" = "咕咕嘎嘎";
-"tutorial.permission.request" = "咕咕嘎嘎";
-"tutorial.permissions.footer" = "咕咕嘎嘎";
 
-"tutorial.section.shortcuts" = "咕咕嘎嘎";
-"tutorial.shortcut.quick" = "咕咕嘎嘎";
-"tutorial.shortcut.advanced" = "咕咕嘎嘎";
-"tutorial.shortcut.ocr" = "咕咕嘎嘎";
-"tutorial.shortcuts.footer" = "咕咕嘎嘎";
 
-"tutorial.section.capture" = "咕咕嘎嘎";
-"tutorial.capture.tips" = "咕咕嘎嘎";
 
-"tutorial.section.storage" = "咕咕嘎嘎";
-"tutorial.storage.body" = "咕咕嘎嘎";
-"tutorial.storage.switch" = "咕咕嘎嘎";
-"tutorial.storage.folder" = "咕咕嘎嘎";
 
-"tutorial.section.troubleshooting" = "咕咕嘎嘎";
-"tutorial.troubleshooting.body" = "咕咕嘎嘎";
 
 /* Onboarding */
-"onboarding.title" = "咕咕嘎嘎";
-"onboarding.subtitle" = "咕咕嘎嘎";
-"onboarding.why_title" = "咕咕嘎嘎";
-"onboarding.ultrafast" = "咕咕嘎嘎";
-"onboarding.ultrafast.desc" = "咕咕嘎嘎";
-"onboarding.ultrafast.note" = "咕咕嘎嘎";
-"onboarding.autoclean" = "咕咕嘎嘎";
-"onboarding.autoclean.desc" = "咕咕嘎嘎";
-"onboarding.autoclean.note" = "咕咕嘎嘎";
-"onboarding.smart_notifications" = "咕咕嘎嘎";
-"onboarding.smart_notifications.desc" = "咕咕嘎嘎";
-"onboarding.smart_notifications.note" = "咕咕嘎嘎";
-"onboarding.workflow" = "咕咕嘎嘎";
-"onboarding.workflow.desc" = "咕咕嘎嘎";
-"onboarding.workflow.note" = "咕咕嘎嘎";
-"onboarding.customizable" = "咕咕嘎嘎";
-"onboarding.customizable.desc" = "咕咕嘎嘎";
-"onboarding.vs_native" = "咕咕嘎嘎";
-"onboarding.vs_other" = "咕咕嘎嘎";
-"onboarding.dont_show" = "咕咕嘎嘎";
-"onboarding.got_it" = "咕咕嘎嘎";
 
 /* Errors */
 "error.permissions_required.title" = "咕咕嘎嘎";
@@ -192,45 +122,18 @@
 "error.capture_interrupted" = "咕咕嘎嘎";
 
 /* Notifications */
-"notification.screenshot_ready" = "咕咕嘎嘎";
-"notification.click_to_reveal" = "咕咕嘎嘎";
 "notification.screenshot_saved" = "咕咕嘎嘎";
-"notification.reveal_in_finder" = "咕咕嘎嘎";
-"notification.dismiss" = "咕咕嘎嘎";
 
 /* Onboarding */
-"onboarding.button.previous" = "咕咕嘎嘎";
-"onboarding.button.next" = "咕咕嘎嘎";
-"onboarding.button.start" = "咕咕嘎嘎";
 
-"onboarding.page1.title" = "咕咕嘎嘎";
-"onboarding.page1.description" = "咕咕嘎嘎";
 
-"onboarding.page2.title" = "咕咕嘎嘎";
-"onboarding.page2.description" = "咕咕嘎嘎";
 
-"onboarding.storage.default.title" = "咕咕嘎嘎";
-"onboarding.storage.default.desc" = "咕咕嘎嘎";
 
-"onboarding.storage.temp.title" = "咕咕嘎嘎";
-"onboarding.storage.temp.desc" = "咕咕嘎嘎";
 
-"onboarding.page3.title" = "咕咕嘎嘎";
-"onboarding.page3.description" = "咕咕嘎嘎";
 
-"onboarding.page4.title" = "咕咕嘎嘎";
-"onboarding.page4.description" = "咕咕嘎嘎";
 
-"onboarding.page_apps.title" = "咕咕嘎嘎";
-"onboarding.page_apps.description" = "咕咕嘎嘎";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "咕咕嘎嘎";
-"onboarding.permissions.screen_recording.description" = "咕咕嘎嘎";
-"onboarding.permissions.accessibility.title" = "咕咕嘎嘎";
-"onboarding.permissions.accessibility.description" = "咕咕嘎嘎";
-"onboarding.permissions.grant" = "咕咕嘎嘎";
-"onboarding.permissions.granted" = "咕咕嘎嘎";
 
 /* Permission Alerts */
 "permission.request.header" = "咕咕嘎嘎";
@@ -256,26 +159,10 @@
 "hotkey.prompt.press" = "咕咕嘎嘎";
 
 /* Tips */
-"tip.quick_capture.title" = "咕咕嘎嘎";
-"tip.quick_capture.message" = "咕咕嘎嘎";
 
 /* OCR Hotkey */
-"toast.ocr.success" = "咕咕嘎嘎";
-"toast.ocr.failure" = "咕咕嘎嘎";
-"toast.ocr.no_text" = "咕咕嘎嘎";
 
 /* App Intents */
-"intent.capture_area.title" = "咕咕嘎嘎";
-"intent.capture_area.description" = "咕咕嘎嘎";
-"intent.capture_area.phrase1" = "咕咕嘎嘎";
-"intent.capture_area.phrase2" = "咕咕嘎嘎";
-"intent.capture_area.short_title" = "咕咕嘎嘎";
-"intent.capture_full.title" = "咕咕嘎嘎";
-"intent.capture_full.description" = "咕咕嘎嘎";
-"intent.capture_full.phrase1" = "咕咕嘎嘎";
-"intent.capture_full.phrase2" = "咕咕嘎嘎";
-"intent.capture_full.short_title" = "咕咕嘎嘎";
-"intent.error.app_unavailable" = "咕咕嘎嘎";
 
 /* Common Actions */
 "common.cancel" = "咕咕嘎嘎";
@@ -292,27 +179,5 @@
 "permission.type.notifications" = "咕咕嘎嘎";
 
 /* Editor */
-"editor.window.title" = "咕咕嘎嘎";
-"editor.text.size" = "咕咕嘎嘎";
-"editor.mosaic.size" = "咕咕嘎嘎";
-"editor.stroke.width" = "咕咕嘎嘎";
-"editor.text.title" = "咕咕嘎嘎";
-"editor.text.placeholder" = "咕咕嘎嘎";
-"editor.ocr.title" = "咕咕嘎嘎";
-"editor.ocr.hint" = "咕咕嘎嘎";
-"editor.ocr.full_image" = "咕咕嘎嘎";
-"editor.ocr.copy" = "咕咕嘎嘎";
-"editor.ocr.empty" = "咕咕嘎嘎";
-"editor.ocr.processing" = "咕咕嘎嘎";
-"editor.ocr.error.invalid_image" = "咕咕嘎嘎";
-"editor.ocr.error.cgimage" = "咕咕嘎嘎";
 
 /* Tools */
-"tool.pen" = "咕咕嘎嘎";
-"tool.line" = "咕咕嘎嘎";
-"tool.rectangle" = "咕咕嘎嘎";
-"tool.circle" = "咕咕嘎嘎";
-"tool.arrow" = "咕咕嘎嘎";
-"tool.mosaic" = "咕咕嘎嘎";
-"tool.text" = "咕咕嘎嘎";
-"tool.ocr" = "咕咕嘎嘎";

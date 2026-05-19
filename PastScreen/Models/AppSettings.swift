@@ -21,18 +21,6 @@ struct HotKey: Codable, Equatable, Sendable {
         modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
         characters: "s"
     )
-    
-    static let defaultAdvancedCapture = HotKey(
-        keyCode: 1,
-        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
-        characters: "s"
-    )
-
-    static let defaultOCRCapture = HotKey(
-        keyCode: 31,
-        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
-        characters: "o"
-    )
 
     var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
@@ -121,34 +109,12 @@ struct HotKey: Codable, Equatable, Sendable {
     ]
 }
 
-enum ClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
-    case auto = "Auto"
-    case image = "Image"
-    case path = "Path (Text)"
-
-    var id: String { rawValue }
-}
-
 enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
     case image = "image"
     case path = "path"
     case markdownImage = "markdownImage"
 
     var id: String { rawValue }
-}
-
-enum OCRClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendable {
-    case text = "text"
-    case markdownCodeBlock = "markdownCodeBlock"
-
-    var id: String { rawValue }
-}
-
-struct AppOverride: Codable, Identifiable, Equatable, Sendable {
-    var id: String { bundleIdentifier }
-    let bundleIdentifier: String
-    var appName: String
-    var format: ClipboardFormat
 }
 
 struct RGBAColor: Codable, Equatable, Sendable {
@@ -250,38 +216,7 @@ class AppSettings: ObservableObject {
     private let defaultBorderColor = RGBAColor(r: 0.97, g: 0.97, b: 0.97, a: 1.0)
     private let defaultBorderWidth: Double = 10
     private let defaultBorderCornerRadius: Double = 22
-    private let defaultEditingTools: Set<DrawingTool> = Set(DrawingTool.allCases)
-    private let defaultEditingToolOrder: [DrawingTool] = DrawingTool.allCases
-    private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
     private var isInitialized = false
-
-    nonisolated static func normalizeOCRRecognitionLanguages(_ raw: [String]) -> [String] {
-        let separators = CharacterSet.whitespacesAndNewlines
-            .union(CharacterSet(charactersIn: ",，;；"))
-
-        let parts = raw
-            .flatMap { $0.components(separatedBy: separators) }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var unique: [String] = []
-        var seen = Set<String>()
-
-        for part in parts {
-            let canonical: String
-            if #available(macOS 13.0, *) {
-                canonical = Locale.identifier(.bcp47, from: part)
-            } else {
-                canonical = Locale.canonicalIdentifier(from: part)
-            }
-            let normalized = canonical.replacingOccurrences(of: "_", with: "-")
-            guard !normalized.isEmpty else { continue }
-            guard seen.insert(normalized).inserted else { continue }
-            unique.append(normalized)
-        }
-
-        return unique
-    }
 
     @Published var saveToFile: Bool {
         didSet {
@@ -351,12 +286,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    @Published var ocrClipboardFormat: OCRClipboardFormat {
-        didSet {
-            UserDefaults.standard.set(ocrClipboardFormat.rawValue, forKey: "ocrClipboardFormat")
-        }
-    }
-
     @Published var globalHotkeyEnabled: Bool {
         didSet {
             UserDefaults.standard.set(globalHotkeyEnabled, forKey: "globalHotkeyEnabled")
@@ -367,60 +296,6 @@ class AppSettings: ObservableObject {
         didSet {
             if let encoded = try? JSONEncoder().encode(globalHotkey) {
                 UserDefaults.standard.set(encoded, forKey: "globalHotkey")
-            }
-        }
-    }
-    
-    @Published var advancedHotkey: HotKey {
-        didSet {
-            if let encoded = try? JSONEncoder().encode(advancedHotkey) {
-                UserDefaults.standard.set(encoded, forKey: "advancedHotkey")
-            }
-        }
-    }
-    
-    @Published var advancedHotkeyEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(advancedHotkeyEnabled, forKey: "advancedHotkeyEnabled")
-        }
-    }
-
-    @Published var ocrHotkey: HotKey {
-        didSet {
-            if let encoded = try? JSONEncoder().encode(ocrHotkey) {
-                UserDefaults.standard.set(encoded, forKey: "ocrHotkey")
-            }
-        }
-    }
-
-    @Published var ocrHotkeyEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(ocrHotkeyEnabled, forKey: "ocrHotkeyEnabled")
-        }
-    }
-    
-    @Published var editingToolOrder: [DrawingTool] {
-        didSet {
-            let normalized = AppSettings.normalizeToolOrder(editingToolOrder, fallback: defaultEditingToolOrder)
-            if normalized != editingToolOrder {
-                editingToolOrder = normalized
-                return
-            }
-            
-            let rawValues = editingToolOrder.map { $0.rawValue }
-            UserDefaults.standard.set(rawValues, forKey: "editingToolOrder")
-        }
-    }
-    
-    @Published var enabledEditingTools: Set<DrawingTool> {
-        didSet {
-            let rawValues = enabledEditingTools.map { $0.rawValue }
-            UserDefaults.standard.set(rawValues, forKey: "enabledEditingTools")
-            if isInitialized {
-                radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
-                    radialToolIdentifiers,
-                    allowed: radialAvailableTools
-                )
             }
         }
     }
@@ -452,88 +327,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    @Published var captureLibraryEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(captureLibraryEnabled, forKey: "captureLibraryEnabled")
-        }
-    }
-
-    @Published var captureLibraryStorePreviews: Bool {
-        didSet {
-            UserDefaults.standard.set(captureLibraryStorePreviews, forKey: "captureLibraryStorePreviews")
-        }
-    }
-
-    @Published var captureLibraryAutoOCR: Bool {
-        didSet {
-            UserDefaults.standard.set(captureLibraryAutoOCR, forKey: "captureLibraryAutoOCR")
-        }
-    }
-
-    @Published var captureLibrarySemanticSearchEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(captureLibrarySemanticSearchEnabled, forKey: "captureLibrarySemanticSearchEnabled")
-        }
-    }
-
-    @Published var captureLibraryDebugMode: Bool {
-        didSet {
-            UserDefaults.standard.set(captureLibraryDebugMode, forKey: "captureLibraryDebugMode")
-        }
-    }
-
-    @Published var captureLibraryRetentionDays: Int {
-        didSet {
-            let clamped = min(max(captureLibraryRetentionDays, 1), 365)
-            if clamped != captureLibraryRetentionDays {
-                captureLibraryRetentionDays = clamped
-                return
-            }
-            UserDefaults.standard.set(clamped, forKey: "captureLibraryRetentionDays")
-        }
-    }
-
-    @Published var captureLibraryMaxItems: Int {
-        didSet {
-            let clamped = min(max(captureLibraryMaxItems, 50), 10_000)
-            if clamped != captureLibraryMaxItems {
-                captureLibraryMaxItems = clamped
-                return
-            }
-            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxItems")
-        }
-    }
-
-    @Published var captureLibraryMaxBytes: Int {
-        didSet {
-            let clamped = min(max(captureLibraryMaxBytes, 50 * 1024 * 1024), 50 * 1024 * 1024 * 1024)
-            if clamped != captureLibraryMaxBytes {
-                captureLibraryMaxBytes = clamped
-                return
-            }
-            UserDefaults.standard.set(clamped, forKey: "captureLibraryMaxBytes")
-        }
-    }
-
-    @Published var captureLibraryLastCleanupAt: Date? {
-        didSet {
-            if let captureLibraryLastCleanupAt {
-                UserDefaults.standard.set(captureLibraryLastCleanupAt.timeIntervalSince1970, forKey: "captureLibraryLastCleanupAt")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "captureLibraryLastCleanupAt")
-            }
-        }
-    }
-
-    // Security Scoped Bookmark for Sandbox access
-    @Published var appOverrides: [AppOverride] {
-        didSet {
-            if let encoded = try? JSONEncoder().encode(appOverrides) {
-                UserDefaults.standard.set(encoded, forKey: "appOverrides")
-            }
-        }
-    }
-
     @Published var appLanguage: AppLanguage {
         didSet {
             let previous = oldValue
@@ -547,36 +340,6 @@ class AppSettings: ObservableObject {
         }
     }
     
-    @Published var radialToolIdentifiers: [String] {
-        didSet {
-            let normalized = AppSettings.normalizeRadialIdentifiers(
-                radialToolIdentifiers,
-                allowed: radialAvailableTools
-            )
-            if normalized != radialToolIdentifiers {
-                radialToolIdentifiers = normalized
-                return
-            }
-            UserDefaults.standard.set(radialToolIdentifiers, forKey: "radialToolIdentifiers")
-        }
-    }
-    
-    @Published var radialWheelEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(radialWheelEnabled, forKey: "radialWheelEnabled")
-        }
-    }
-
-    @Published var ocrRecognitionLanguages: [String] {
-        didSet {
-            let normalized = Self.normalizeOCRRecognitionLanguages(ocrRecognitionLanguages)
-            if normalized != ocrRecognitionLanguages {
-                ocrRecognitionLanguages = normalized
-                return
-            }
-            UserDefaults.standard.set(normalized, forKey: "ocrRecognitionLanguages")
-        }
-    }
 
     // Security Scoped Bookmark for Sandbox access
     private var saveFolderBookmark: Data? {
@@ -628,13 +391,6 @@ class AppSettings: ObservableObject {
             self.captureClipboardFormat = .image
         }
 
-        if let raw = UserDefaults.standard.string(forKey: "ocrClipboardFormat"),
-           let format = OCRClipboardFormat(rawValue: raw) {
-            self.ocrClipboardFormat = format
-        } else {
-            self.ocrClipboardFormat = .text
-        }
-
         self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: "globalHotkeyEnabled") as? Bool ?? true
 
         if let data = UserDefaults.standard.data(forKey: "globalHotkey"),
@@ -643,34 +399,7 @@ class AppSettings: ObservableObject {
         } else {
             self.globalHotkey = .defaultCapture
         }
-        
-        if let data = UserDefaults.standard.data(forKey: "advancedHotkey"),
-           let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
-            self.advancedHotkey = decoded
-        } else {
-            self.advancedHotkey = .defaultAdvancedCapture
-        }
-        
-        self.advancedHotkeyEnabled = UserDefaults.standard.object(forKey: "advancedHotkeyEnabled") as? Bool ?? true
 
-        if let data = UserDefaults.standard.data(forKey: "ocrHotkey"),
-           let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
-            self.ocrHotkey = decoded
-        } else {
-            self.ocrHotkey = .defaultOCRCapture
-        }
-
-        self.ocrHotkeyEnabled = UserDefaults.standard.object(forKey: "ocrHotkeyEnabled") as? Bool ?? true
-
-        let resolvedEditingOrder: [DrawingTool]
-        if let storedOrder = UserDefaults.standard.array(forKey: "editingToolOrder") as? [String] {
-            let order = storedOrder.compactMap(DrawingTool.init(rawValue:))
-            resolvedEditingOrder = AppSettings.normalizeToolOrder(order, fallback: defaultEditingToolOrder)
-        } else {
-            resolvedEditingOrder = defaultEditingToolOrder
-        }
-        self.editingToolOrder = resolvedEditingOrder
-        
         self.showInDock = UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? false
         self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? false  // Default: disabled
 
@@ -679,80 +408,17 @@ class AppSettings: ObservableObject {
         let seq = UserDefaults.standard.integer(forKey: "screenshotSequence")
         self.screenshotSequence = seq > 0 ? seq : 1
 
-        self.captureLibraryEnabled = UserDefaults.standard.object(forKey: "captureLibraryEnabled") as? Bool ?? true
-        self.captureLibraryStorePreviews = UserDefaults.standard.object(forKey: "captureLibraryStorePreviews") as? Bool ?? false
-        self.captureLibraryAutoOCR = UserDefaults.standard.object(forKey: "captureLibraryAutoOCR") as? Bool ?? false
-        self.captureLibrarySemanticSearchEnabled = UserDefaults.standard.object(forKey: "captureLibrarySemanticSearchEnabled") as? Bool ?? false
-        self.captureLibraryDebugMode = UserDefaults.standard.object(forKey: "captureLibraryDebugMode") as? Bool ?? false
-
-        let retention = UserDefaults.standard.integer(forKey: "captureLibraryRetentionDays")
-        self.captureLibraryRetentionDays = retention > 0 ? retention : 30
-
-        let maxItems = UserDefaults.standard.integer(forKey: "captureLibraryMaxItems")
-        self.captureLibraryMaxItems = maxItems > 0 ? maxItems : 500
-
-        let maxBytes = UserDefaults.standard.object(forKey: "captureLibraryMaxBytes") as? Int ?? (1 * 1024 * 1024 * 1024)
-        self.captureLibraryMaxBytes = maxBytes > 0 ? maxBytes : (1 * 1024 * 1024 * 1024)
-
-        let lastCleanupTs = UserDefaults.standard.double(forKey: "captureLibraryLastCleanupAt")
-        self.captureLibraryLastCleanupAt = lastCleanupTs > 0 ? Date(timeIntervalSince1970: lastCleanupTs) : nil
-
-        if let data = UserDefaults.standard.data(forKey: "appOverrides"),
-           let decoded = try? JSONDecoder().decode([AppOverride].self, from: data) {
-            self.appOverrides = decoded
-        } else {
-            self.appOverrides = []
-        }
-
         if let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage"),
            let language = AppLanguage(rawValue: savedLanguage) {
             self.appLanguage = language
         } else {
             self.appLanguage = .system
         }
-        
-        let resolvedEnabledTools: Set<DrawingTool>
-        if let storedTools = UserDefaults.standard.array(forKey: "enabledEditingTools") as? [String] {
-            let tools = storedTools.compactMap(DrawingTool.init(rawValue:))
-            let toolSet = Set(tools)
-            resolvedEnabledTools = toolSet.isEmpty ? defaultEditingTools : toolSet
-        } else {
-            resolvedEnabledTools = defaultEditingTools
-        }
-        self.enabledEditingTools = resolvedEnabledTools
-        self.radialWheelEnabled = UserDefaults.standard.object(forKey: "radialWheelEnabled") as? Bool ?? true
-        self.ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(
-            UserDefaults.standard.stringArray(forKey: "ocrRecognitionLanguages") ?? Self.defaultOCRRecognitionLanguages
-        )
-
-        let defaultRadials = DrawingTool.defaultRadialIdentifiers
-        let storedRadials = UserDefaults.standard.stringArray(forKey: "radialToolIdentifiers") ?? defaultRadials
-        let initialOrder = resolvedEditingOrder
-        let initialEnabled = resolvedEnabledTools
-        let initialRadialAllowed = initialOrder.filter { initialEnabled.contains($0) }
-        self.radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
-            storedRadials,
-            allowed: initialRadialAllowed
-        )
 
         self.isInitialized = true
         applyAppLanguage()
         restoreFolderAccess()
         ensureFolderExists()
-    }
-
-    func setOCRLanguageEnabled(_ code: String, enabled: Bool) {
-        var updated = ocrRecognitionLanguages
-        if enabled {
-            if !updated.contains(code) { updated.append(code) }
-        } else {
-            updated.removeAll { $0 == code }
-        }
-        ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(updated)
-    }
-
-    func resetOCRLanguagesToDefault() {
-        ocrRecognitionLanguages = Self.normalizeOCRRecognitionLanguages(Self.defaultOCRRecognitionLanguages)
     }
 
     func ensureFolderExists() {
@@ -848,89 +514,6 @@ class AppSettings: ObservableObject {
         captureHistory.removeAll()
     }
 
-    func addAppOverride(_ override: AppOverride) {
-        if let index = appOverrides.firstIndex(where: { $0.bundleIdentifier == override.bundleIdentifier }) {
-            appOverrides[index] = override
-        } else {
-            appOverrides.append(override)
-        }
-    }
-
-    func removeAppOverride(id: String) {
-        appOverrides.removeAll { $0.id == id }
-    }
-
-    func getOverride(for bundleIdentifier: String) -> ClipboardFormat? {
-        return appOverrides.first(where: { $0.bundleIdentifier == bundleIdentifier })?.format
-    }
-    
-    func updateEditingTool(_ tool: DrawingTool, enabled: Bool) {
-        var current = enabledEditingTools
-        if enabled {
-            current.insert(tool)
-        } else if current.count > 1 {
-            current.remove(tool)
-        }
-        enabledEditingTools = current.isEmpty ? defaultEditingTools : current
-        radialToolIdentifiers = AppSettings.normalizeRadialIdentifiers(
-            radialToolIdentifiers,
-            allowed: radialAvailableTools
-        )
-    }
-    
-    var orderedEditingTools: [DrawingTool] {
-        AppSettings.normalizeToolOrder(editingToolOrder, fallback: defaultEditingToolOrder)
-    }
-    
-    var orderedEnabledEditingTools: [DrawingTool] {
-        let enabled = enabledEditingTools
-        let ordered = orderedEditingTools.filter { enabled.contains($0) }
-        return ordered.isEmpty ? orderedEditingTools : ordered
-    }
-    
-    var radialDrawingTools: [DrawingTool] {
-        DrawingTool.tools(fromIdentifiers: radialToolIdentifiers, allowed: radialAvailableTools)
-    }
-    
-    var radialAvailableTools: [DrawingTool] {
-        orderedEnabledEditingTools
-    }
-    
-    @discardableResult
-    func updateRadialTools(_ tools: [DrawingTool]) -> [DrawingTool] {
-        let normalized = DrawingTool.tools(
-            fromIdentifiers: tools.map { $0.identifier },
-            allowed: radialAvailableTools
-        )
-        radialToolIdentifiers = normalized.map { $0.identifier }
-        return normalized
-    }
-    
-    func updateEditingToolOrder(_ newOrder: [DrawingTool]) {
-        editingToolOrder = AppSettings.normalizeToolOrder(newOrder, fallback: defaultEditingToolOrder)
-    }
-    
-    private static func normalizeToolOrder(_ order: [DrawingTool], fallback: [DrawingTool]) -> [DrawingTool] {
-        var seen = Set<DrawingTool>()
-        var normalized: [DrawingTool] = []
-        
-        for tool in order where !seen.contains(tool) {
-            normalized.append(tool)
-            seen.insert(tool)
-        }
-        
-        for tool in fallback where !seen.contains(tool) {
-            normalized.append(tool)
-            seen.insert(tool)
-        }
-        
-        return normalized
-    }
-    
-    private static func normalizeRadialIdentifiers(_ identifiers: [String], allowed: [DrawingTool]) -> [String] {
-        DrawingTool.tools(fromIdentifiers: identifiers, allowed: allowed).map { $0.identifier }
-    }
-    
     private func applyAppLanguage() {
         switch appLanguage {
         case .system:

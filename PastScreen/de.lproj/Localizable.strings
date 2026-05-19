@@ -2,7 +2,6 @@
 "menu.tooltip" = "PastScreen-CN - Schnellaufnahme";
 "menu.capture_area" = "Schnellaufnahme";
 "menu.capture_fullscreen" = "Ganzen Bildschirm aufnehmen";
-"menu.capture_advanced" = "Erweiterte Aufnahme";
 "menu.show_last" = "Letzte Aufnahme anzeigen";
 "menu.history" = "Verlauf";
 "menu.history.empty" = "Keine Aufnahmen";
@@ -18,7 +17,6 @@
 /* Settings - Tabs */
 "settings.tab.general" = "Allgemein";
 "settings.tab.capture" = "Aufnahme";
-"settings.tab.editor" = "Editor";
 "settings.tab.storage" = "Speicher";
 "settings.tab.apps" = "Apps";
 
@@ -75,8 +73,6 @@
 "settings.capture.open_menu" = "Menü öffnen";
 "settings.capture.hotkey_disabled_help" = "Kurzbefehle aktivieren, um jederzeit aufzunehmen";
 "settings.capture.quick_screenshot" = "Schnellaufnahme";
-"settings.capture.advanced_screenshot" = "Erweiterte Aufnahme";
-"settings.capture.ocr_capture" = "OCR";
 "settings.capture.window_border" = "Fensterrand";
 "settings.capture.window_border.enable" = "Fensterrand einschalten";
 "settings.capture.window_border.width" = "Randbreite";
@@ -84,19 +80,6 @@
 "settings.capture.window_border.color" = "Randfarbe";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "Bearbeitungsleiste";
-"settings.editor.toolbar.description" = "Wählen Sie die Werkzeuge nach einer erweiterten Aufnahme.";
-"settings.editor.toolbar.reorder_hint" = "Zum Neuordnen der Symbolleiste ziehen.";
-"settings.editor.toolbar.note" = "Mindestens ein Werkzeug aktiv lassen.";
-"settings.editor.radial.title" = "Schnellrad";
-"settings.editor.radial.description" = "Konfigurieren Sie das Rechtsklick-Rad mit 1–4 Werkzeugen.";
-"settings.editor.radial.enabled" = "Schnellrad verwenden";
-"settings.editor.radial.add" = "Werkzeug hinzufügen";
-"settings.editor.radial.note" = "Mindestens ein Werkzeug behalten. Im Editor rechtsklicken, um das Rad zu öffnen.";
-"settings.editor.ocr.title" = "OCR";
-"settings.editor.ocr.description" = "Erkennungs-Sprachen wählen. OCR erkennt automatisch innerhalb der aktivierten Sprachen.";
-"settings.editor.ocr.reset" = "Zurücksetzen";
-"settings.editor.ocr.note" = "Ohne Auswahl wird Systemstandard/Autoerkennung genutzt.";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "Speicherort";
@@ -111,69 +94,16 @@
 "settings.select_folder.message" = "Ordner zum Speichern wählen";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "Standard: Bild in Zwischenablage kopieren";
-"settings.apps.instructions" = "Fügen Sie unten Apps hinzu. Wählen Sie \"Path\", wenn die App den Dateipfad braucht (z.B. Terminal).";
-"settings.apps.rules" = "Regeln";
-"settings.apps.empty_title" = "Keine App-Regeln";
-"settings.apps.empty_description" = "Apps hinzufügen, um das Zwischenablage-Verhalten anzupassen.\nFür Terminals, die Pfade benötigen, \"Path\" nutzen.";
-"settings.apps.clipboard.image" = "Bild";
-"settings.apps.clipboard.path" = "Path";
-"settings.apps.add_rule" = "App-Regel hinzufügen";
-"settings.apps.select_app_message" = "App wählen";
 
 /* Tutorial */
-"tutorial.title" = "PastScreen-CN Benutzerhandbuch";
-"tutorial.subtitle" = "Schnell aufnehmen, automatisch in die Zwischenablage.";
-"tutorial.open_settings" = "Einstellungen öffnen";
-"tutorial.close" = "Schließen";
 
-"tutorial.section.getting_started" = "Erste Schritte";
-"tutorial.getting_started.body" = "PastScreen-CN ist ein Screenshot-Tool in der Menüleiste: Nach der Auswahl wird automatisch in die Zwischenablage kopiert; bei Bedarf kann auch in Dateien gespeichert werden.";
-"tutorial.getting_started.steps" = "1. Beim ersten Start „Bildschirmaufnahme“ und „Bedienungshilfen“ erlauben.\n2. Mit dem Kurzbefehl eine Bereichsaufnahme starten.\n3. Für Markierungen „Erweiterte Aufnahme“ verwenden.\n4. Zum Speichern: Einstellungen > Speicher, Ordner wählen und Speichern aktivieren.";
 
-"tutorial.section.permissions" = "Berechtigungen (erforderlich)";
-"tutorial.permission.request" = "Zugriff anfordern";
-"tutorial.permissions.footer" = "Pfad: Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme / Bedienungshilfen.";
 
-"tutorial.section.shortcuts" = "Kurzbefehle";
-"tutorial.shortcut.quick" = "Bereichsaufnahme";
-"tutorial.shortcut.advanced" = "Erweiterte Aufnahme (Markieren)";
-"tutorial.shortcut.ocr" = "OCR-Aufnahme";
-"tutorial.shortcuts.footer" = "Kurzbefehl in Einstellungen > Aufnahme neu aufnehmen.";
 
-"tutorial.section.capture" = "So funktioniert’s";
-"tutorial.capture.tips" = "• Hotkey drücken, dann Bereich ziehen; loslassen zum Abschließen.\n• Während der Auswahl Rechtsklick zum Abbrechen.\n• Danach wird automatisch in die Zwischenablage kopiert; Verlauf lässt sich auch in der Menüleiste ansehen/kopieren.";
 
-"tutorial.section.storage" = "In Datei speichern (optional)";
-"tutorial.storage.body" = "Standardmäßig wird in die Zwischenablage kopiert. Wenn du automatisch speichern möchtest: In Einstellungen > Speicher Speichern aktivieren und einen Ordner wählen.";
-"tutorial.storage.switch" = "Automatisch speichern";
-"tutorial.storage.folder" = "Speicherordner";
 
-"tutorial.section.troubleshooting" = "Häufige Probleme";
-"tutorial.troubleshooting.body" = "• Hotkey funktioniert nicht: prüfen, ob PastScreen-CN unter „Bedienungshilfen“ erlaubt ist.\n• Keine Aufnahme möglich: „Bildschirmaufnahme“-Berechtigung prüfen; nach dem Erteilen ggf. App neu starten.\n• Keine Dateien: wenn Speichern aus ist, liegt der Screenshot nur in der Zwischenablage.";
 
 /* Onboarding */
-"onboarding.title" = "Willkommen bei PastScreen-CN 📸";
-"onboarding.subtitle" = "Blitzschnelle Screenshots für Entwickler";
-"onboarding.why_title" = "Warum PastScreen-CN?";
-"onboarding.ultrafast" = "⚡ Ultraschnell";
-"onboarding.ultrafast.desc" = "In Sekunden aufnehmen und ins IDE einfügen.";
-"onboarding.ultrafast.note" = "Kein Dateimanagement, nur Tempo.";
-"onboarding.autoclean" = "🧹 Auto-Clean";
-"onboarding.autoclean.desc" = "Screenshot-Ordner wird beim Neustart aufgeräumt.";
-"onboarding.autoclean.note" = "Kein Aufwand, kein Chaos.";
-"onboarding.smart_notifications" = "🔔 Smarte Hinweise";
-"onboarding.smart_notifications.desc" = "Leichtgewichtig, nicht störend.";
-"onboarding.smart_notifications.note" = "Sanfter Hinweis bei Abschluss.";
-"onboarding.workflow" = "🎯 Workflow zuerst";
-"onboarding.workflow.desc" = "Für Entwickler gebaut, die im Editor leben.";
-"onboarding.workflow.note" = "Aufnehmen → Einfügen → Weiter coden.";
-"onboarding.customizable" = "⚙️ Anpassbar";
-"onboarding.customizable.desc" = "Shortcuts, Format und Speicher sind konfigurierbar.";
-"onboarding.vs_native" = "Gegen System-Capture: keine Vorschau-Verzögerung, direkt zur Zwischenablage.";
-"onboarding.vs_other" = "Gegen andere Tools: keine komplexen Schritte, kein Dateimanagement.";
-"onboarding.dont_show" = "Nicht mehr anzeigen";
-"onboarding.got_it" = "Verstanden, los!";
 
 /* Errors */
 "error.permissions_required.title" = "Bildschirmaufnahme erforderlich";
@@ -192,45 +122,18 @@
 "error.capture_interrupted" = "Aufnahme unterbrochen";
 
 /* Notifications */
-"notification.screenshot_ready" = "Aufnahme abgeschlossen";
-"notification.click_to_reveal" = "In Finder anzeigen";
 "notification.screenshot_saved" = "Bild in Zwischenablage gespeichert";
-"notification.reveal_in_finder" = "Im Finder anzeigen";
-"notification.dismiss" = "Schließen";
 
 /* Onboarding */
-"onboarding.button.previous" = "Zurück";
-"onboarding.button.next" = "Weiter";
-"onboarding.button.start" = "Start";
 
-"onboarding.page1.title" = "Geschwindigkeit";
-"onboarding.page1.description" = "In Sekunden aufnehmen und einfügen.\nHotkey → Aufnahme → ⌘V einfügen";
 
-"onboarding.page2.title" = "Speicherort";
-"onboarding.page2.description" = "Wähle, wohin PastScreen-CN speichert.";
 
-"onboarding.storage.default.title" = "Bilder-Ordner (Standard)";
-"onboarding.storage.default.desc" = "Im Bilder-Ordner speichern.\n(Berechtigung nötig)";
 
-"onboarding.storage.temp.title" = "Temporär (Auto-Clean)";
-"onboarding.storage.temp.desc" = "Ideal für schnelles Kopieren/Einfügen.\nNach Neustart gelöscht.";
 
-"onboarding.page3.title" = "Zwischenablage zuerst";
-"onboarding.page3.description" = "Automatisch in die Zwischenablage kopieren.\nFunktioniert mit Cursor, VSCode, Zed.";
 
-"onboarding.page4.title" = "Anpassbar";
-"onboarding.page4.description" = "Shortcuts, Format, Ordner...\nAlles über die Menüleiste.";
 
-"onboarding.page_apps.title" = "App-Regeln";
-"onboarding.page_apps.description" = "Verhalten je App anpassen.\nFür AI \"Image\", für Editoren/Terminals \"Path\".";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "Bildschirmaufnahme";
-"onboarding.permissions.screen_recording.description" = "Für Aufnahmen erforderlich.\nZum Erteilen unten klicken.";
-"onboarding.permissions.accessibility.title" = "Bedienungshilfen";
-"onboarding.permissions.accessibility.description" = "Für globale Kurzbefehle nötig.\nZum Erteilen unten klicken.";
-"onboarding.permissions.grant" = "Erlauben";
-"onboarding.permissions.granted" = "Erteilt";
 
 /* Permission Alerts */
 "permission.request.header" = "PastScreen-CN benötigt diese Berechtigungen:";
@@ -256,26 +159,10 @@
 "hotkey.prompt.press" = "Drücken Sie einen Kurzbefehl...";
 
 /* Tips */
-"tip.quick_capture.title" = "PastScreen-CN Tipp";
-"tip.quick_capture.message" = "Nutzen Sie den Hotkey oder eine Apple-Verknüpfung für schnelle Aufnahmen.";
 
 /* OCR Hotkey */
-"toast.ocr.success" = "OCR kopiert";
-"toast.ocr.failure" = "OCR fehlgeschlagen";
-"toast.ocr.no_text" = "Kein Text gefunden";
 
 /* App Intents */
-"intent.capture_area.title" = "Bereich aufnehmen";
-"intent.capture_area.description" = "Mit PastScreen-CN einen Bereich aufnehmen und das Bild kopieren.";
-"intent.capture_area.phrase1" = "Bereich mit \\(.applicationName) aufnehmen";
-"intent.capture_area.phrase2" = "Mit \\(.applicationName) Bereich aufnehmen";
-"intent.capture_area.short_title" = "Bereich";
-"intent.capture_full.title" = "Ganzen Bildschirm aufnehmen";
-"intent.capture_full.description" = "Mit PastScreen-CN den ganzen Bildschirm aufnehmen und kopieren.";
-"intent.capture_full.phrase1" = "Vollbild mit \\(.applicationName)";
-"intent.capture_full.phrase2" = "Mit \\(.applicationName) Vollbild aufnehmen";
-"intent.capture_full.short_title" = "Vollbild";
-"intent.error.app_unavailable" = "PastScreen-CN muss laufen, um dies auszuführen.";
 
 /* Common Actions */
 "common.cancel" = "Abbrechen";
@@ -292,27 +179,5 @@
 "permission.type.notifications" = "Mitteilungen";
 
 /* Editor */
-"editor.window.title" = "Screenshot bearbeiten";
-"editor.text.size" = "Größe";
-"editor.mosaic.size" = "Mosaikgröße";
-"editor.stroke.width" = "Strichstärke";
-"editor.text.title" = "Text eingeben";
-"editor.text.placeholder" = "Bitte Text eingeben";
-"editor.ocr.title" = "OCR";
-"editor.ocr.hint" = "Bereich für OCR ziehen";
-"editor.ocr.full_image" = "Ganzes Bild OCR";
-"editor.ocr.copy" = "Kopieren";
-"editor.ocr.empty" = "Kein Text erkannt";
-"editor.ocr.processing" = "Erkennen…";
-"editor.ocr.error.invalid_image" = "Bilddaten können nicht gelesen werden";
-"editor.ocr.error.cgimage" = "Bild für Erkennung kann nicht erstellt werden";
 
 /* Tools */
-"tool.pen" = "Stift";
-"tool.line" = "Linie";
-"tool.rectangle" = "Rechteck";
-"tool.circle" = "Kreis";
-"tool.arrow" = "Pfeil";
-"tool.mosaic" = "Mosaik";
-"tool.text" = "Text";
-"tool.ocr" = "OCR";

@@ -2,7 +2,6 @@
 "menu.tooltip" = "PastScreen-CN - 快速截图";
 "menu.capture_area" = "快速截图";
 "menu.capture_fullscreen" = "全屏截图";
-"menu.capture_advanced" = "高级截图";
 "menu.show_last" = "显示最近截图";
 "menu.history" = "历史记录";
 "menu.history.empty" = "暂无截图";
@@ -18,7 +17,6 @@
 /* Settings - Tabs */
 "settings.tab.general" = "通用";
 "settings.tab.capture" = "截图";
-"settings.tab.editor" = "编辑";
 "settings.tab.storage" = "存储";
 "settings.tab.apps" = "应用";
 
@@ -75,8 +73,6 @@
 "settings.capture.open_menu" = "打开菜单";
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
-"settings.capture.advanced_screenshot" = "高级截图";
-"settings.capture.ocr_capture" = "OCR";
 "settings.capture.window_border" = "窗口边框";
 "settings.capture.window_border.enable" = "启用窗口边框";
 "settings.capture.window_border.width" = "边框宽度";
@@ -84,19 +80,6 @@
 "settings.capture.window_border.color" = "边框颜色";
 
 /* Settings - Editor */
-"settings.editor.toolbar.title" = "编辑工具栏";
-"settings.editor.toolbar.description" = "选择在高级截图后的编辑页面里，要显示哪些工具。";
-"settings.editor.toolbar.reorder_hint" = "拖动上下调整工具顺序。";
-"settings.editor.toolbar.note" = "至少保留一个工具。";
-"settings.editor.radial.title" = "快捷轮盘";
-"settings.editor.radial.description" = "自定义右键呼出的快捷轮盘，添加 1-4 个已启用的常用工具。";
-"settings.editor.radial.enabled" = "启用快捷轮盘";
-"settings.editor.radial.add" = "添加工具";
-"settings.editor.radial.note" = "至少保留 1 个工具，在编辑器里右键打开快捷轮盘。";
-"settings.editor.ocr.title" = "OCR";
-"settings.editor.ocr.description" = "选择启用的识别语言，使用时会在已启用语言中自动识别。";
-"settings.editor.ocr.reset" = "恢复默认";
-"settings.editor.ocr.note" = "不勾选任何语言时，将使用系统默认/自动检测。";
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";
@@ -111,69 +94,16 @@
 "settings.select_folder.message" = "请选择用于保存截图的文件夹";
 
 /* Settings - Apps */
-"settings.apps.default_behavior" = "默认：复制图片到剪贴板";
-"settings.apps.instructions" = "在下面添加应用，如果需要复制文件路径，请将其设置为“路径”（适用于终端）。";
-"settings.apps.rules" = "规则";
-"settings.apps.empty_title" = "暂无应用规则";
-"settings.apps.empty_description" = "添加应用以改变剪贴板行为。\n终端需要文件路径时使用“路径”。";
-"settings.apps.clipboard.image" = "图片";
-"settings.apps.clipboard.path" = "路径";
-"settings.apps.add_rule" = "添加应用规则";
-"settings.apps.select_app_message" = "选择一个应用";
 
 /* Tutorial */
-"tutorial.title" = "PastScreen-CN 使用指南";
-"tutorial.subtitle" = "快速截图，自动进剪贴板。";
-"tutorial.open_settings" = "打开设置";
-"tutorial.close" = "关闭";
 
-"tutorial.section.getting_started" = "立即开始";
-"tutorial.getting_started.body" = "PastScreen-CN 是菜单栏截图工具：选区后会自动复制到剪贴板；也可以按需保存到文件。";
-"tutorial.getting_started.steps" = "1. 首次使用先授权「屏幕录制」「辅助功能」。\n2. 按快捷键开始选区截图。\n3. 需要标注就用「高级截图」。\n4. 想落盘就去设置 > 存储选择目录并开启保存。";
 
-"tutorial.section.permissions" = "权限（必须）";
-"tutorial.permission.request" = "请求授权";
-"tutorial.permissions.footer" = "路径：系统设置 → 隐私与安全性 → 屏幕录制 / 辅助功能。";
 
-"tutorial.section.shortcuts" = "快捷键";
-"tutorial.shortcut.quick" = "选区截图";
-"tutorial.shortcut.advanced" = "高级截图（标注）";
-"tutorial.shortcut.ocr" = "OCR 截图";
-"tutorial.shortcuts.footer" = "可在设置 > 截图中重新录制快捷键。";
 
-"tutorial.section.capture" = "怎么截图";
-"tutorial.capture.tips" = "• 按快捷键后拖拽选择区域；松开即完成。\n• 选区中右键可取消。\n• 完成后会自动复制到剪贴板；菜单栏里也能查看/复制历史。";
 
-"tutorial.section.storage" = "保存到文件（可选）";
-"tutorial.storage.body" = "默认会复制到剪贴板。若你希望自动保存到文件：在设置 > 存储里开启保存，并选择一个保存目录。";
-"tutorial.storage.switch" = "自动保存";
-"tutorial.storage.folder" = "保存目录";
 
-"tutorial.section.troubleshooting" = "常见问题";
-"tutorial.troubleshooting.body" = "• 快捷键不生效：检查「辅助功能」是否已允许 PastScreen-CN。\n• 无法截图：检查「屏幕录制」权限；授权后可能需要重启应用。\n• 找不到文件：若未开启保存，截图只在剪贴板中。";
 
 /* Onboarding */
-"onboarding.title" = "欢迎使用 PastScreen-CN 📸";
-"onboarding.subtitle" = "面向开发者的极速截图";
-"onboarding.why_title" = "为什么选择 PastScreen-CN？";
-"onboarding.ultrafast" = "⚡ 极速";
-"onboarding.ultrafast.desc" = "秒级截图并粘贴到你的 IDE";
-"onboarding.ultrafast.note" = "无需管理文件，只有速度";
-"onboarding.autoclean" = "🧹 自动清理";
-"onboarding.autoclean.desc" = "截图文件夹在重启时自动清理";
-"onboarding.autoclean.note" = "零维护、零杂乱";
-"onboarding.smart_notifications" = "🔔 智能通知";
-"onboarding.smart_notifications.desc" = "提示轻量不打扰";
-"onboarding.smart_notifications.note" = "悄悄告诉你已完成";
-"onboarding.workflow" = "🎯 工作流优先";
-"onboarding.workflow.desc" = "为长期在编辑器里的开发者打造";
-"onboarding.workflow.note" = "截图 → 粘贴 → 继续编码";
-"onboarding.customizable" = "⚙️ 可定制";
-"onboarding.customizable.desc" = "快捷键、格式、存储位置都可配置";
-"onboarding.vs_native" = "相比系统截图：无预览延迟，直接入剪贴板";
-"onboarding.vs_other" = "相比其他工具：无复杂流程、无需管理文件";
-"onboarding.dont_show" = "不再显示";
-"onboarding.got_it" = "明白了，开始吧！";
 
 /* Errors */
 "error.permissions_required.title" = "需要屏幕录制权限";
@@ -192,45 +122,18 @@
 "error.capture_interrupted" = "截图被中断";
 
 /* Notifications */
-"notification.screenshot_ready" = "截图已完成";
-"notification.click_to_reveal" = "点击在 Finder 中显示";
 "notification.screenshot_saved" = "截图已保存到剪贴板";
-"notification.reveal_in_finder" = "在 Finder 中显示";
-"notification.dismiss" = "关闭";
 
 /* Onboarding */
-"onboarding.button.previous" = "上一步";
-"onboarding.button.next" = "下一步";
-"onboarding.button.start" = "开始使用";
 
-"onboarding.page1.title" = "极速";
-"onboarding.page1.description" = "几秒完成截图与粘贴。\n你的热键 → 截图 → ⌘V 粘贴";
 
-"onboarding.page2.title" = "存储位置";
-"onboarding.page2.description" = "选择 PastScreen-CN 保存截图的位置。";
 
-"onboarding.storage.default.title" = "图片文件夹（默认）";
-"onboarding.storage.default.desc" = "保存到“图片”文件夹。\n（需要权限）";
 
-"onboarding.storage.temp.title" = "临时（自动清理）";
-"onboarding.storage.temp.desc" = "适合快速复制粘贴。\n重启后自动删除。";
 
-"onboarding.page3.title" = "直接剪贴板";
-"onboarding.page3.description" = "自动复制到剪贴板。\n适配 Cursor、VSCode、Zed。";
 
-"onboarding.page4.title" = "可定制";
-"onboarding.page4.description" = "快捷键、格式、文件夹...\n菜单栏即可配置。";
 
-"onboarding.page_apps.title" = "应用规则";
-"onboarding.page_apps.description" = "按应用自定义行为。\nAI 工具用“图片”，代码编辑器用“路径”。";
 
 /* Onboarding - Permissions */
-"onboarding.permissions.screen_recording.title" = "屏幕录制";
-"onboarding.permissions.screen_recording.description" = "截图需要此权限。\n点击下方授权。";
-"onboarding.permissions.accessibility.title" = "辅助功能";
-"onboarding.permissions.accessibility.description" = "全局快捷键需要此权限。\n点击下方授权。";
-"onboarding.permissions.grant" = "授权";
-"onboarding.permissions.granted" = "已授权";
 
 /* Permission Alerts */
 "permission.request.header" = "PastScreen-CN 需要以下权限才能正常工作：";
@@ -256,26 +159,10 @@
 "hotkey.prompt.press" = "请按下快捷键...";
 
 /* Tips */
-"tip.quick_capture.title" = "PastScreen-CN 提示";
-"tip.quick_capture.message" = "使用你的热键或 Apple 快捷指令即可快速截图。";
 
 /* OCR Hotkey */
-"toast.ocr.success" = "OCR 已复制";
-"toast.ocr.failure" = "OCR 失败";
-"toast.ocr.no_text" = "未识别到文字";
 
 /* App Intents */
-"intent.capture_area.title" = "选区截图";
-"intent.capture_area.description" = "使用 PastScreen-CN 截取自定义区域并复制图片。";
-"intent.capture_area.phrase1" = "用 \\(.applicationName) 选区截图";
-"intent.capture_area.phrase2" = "使用 \\(.applicationName) 截取选区";
-"intent.capture_area.short_title" = "选区截图";
-"intent.capture_full.title" = "全屏截图";
-"intent.capture_full.description" = "使用 PastScreen-CN 截取全屏并复制结果。";
-"intent.capture_full.phrase1" = "用 \\(.applicationName) 全屏截图";
-"intent.capture_full.phrase2" = "使用 \\(.applicationName) 截取全屏";
-"intent.capture_full.short_title" = "全屏截图";
-"intent.error.app_unavailable" = "PastScreen-CN 需要运行中才能执行此操作。";
 
 /* Common Actions */
 "common.cancel" = "取消";
@@ -292,27 +179,5 @@
 "permission.type.notifications" = "通知";
 
 /* Editor */
-"editor.window.title" = "编辑截图";
-"editor.text.size" = "大小";
-"editor.mosaic.size" = "马赛克大小";
-"editor.stroke.width" = "粗细";
-"editor.text.title" = "输入文字";
-"editor.text.placeholder" = "请输入文字";
-"editor.ocr.title" = "OCR";
-"editor.ocr.hint" = "拖拽选择区域进行 OCR";
-"editor.ocr.full_image" = "全图 OCR";
-"editor.ocr.copy" = "复制";
-"editor.ocr.empty" = "未识别到文字";
-"editor.ocr.processing" = "识别中…";
-"editor.ocr.error.invalid_image" = "无法读取图片数据";
-"editor.ocr.error.cgimage" = "无法创建图像用于识别";
 
 /* Tools */
-"tool.pen" = "画笔";
-"tool.line" = "直线";
-"tool.rectangle" = "矩形";
-"tool.circle" = "圆形";
-"tool.arrow" = "箭头";
-"tool.mosaic" = "马赛克";
-"tool.text" = "文字";
-"tool.ocr" = "OCR";
