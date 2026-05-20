@@ -63,6 +63,7 @@
 "settings.capture.format_section" = "이미지 형식";
 "settings.capture.image_format" = "형식:";
 "settings.capture.format_png" = "PNG(무손실)";
+"settings.capture.format_heic" = "HEIC (하드웨어 인코딩)";
 "settings.capture.format_jpeg" = "JPEG(압축)";
 "settings.capture.format_help" = "PNG는 품질이 높지만 용량이 크고, JPEG는 더 작습니다.";
 "settings.capture.shortcuts_section" = "단축키";

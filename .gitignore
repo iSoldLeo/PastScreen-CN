@@ -107,3 +107,9 @@ AGENTS.md
 build_log*.txt
 *.log
 .kiro/
+
+# Trellis AI workflow system (local state, not project source)
+.trellis/
+
+# Claude Code local state
+.claude/

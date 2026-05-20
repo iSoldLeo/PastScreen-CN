@@ -8,7 +8,9 @@
 //
 
 import Foundation
+// TODO: Remove @preconcurrency once Apple marks NSEvent as Sendable.
 @preconcurrency import AppKit  // NSEvent 未标记 Sendable，但在 addGlobalMonitorForEvents 回调中需要跨隔离域传递
+// TODO: Remove @preconcurrency once Apple marks Combine types as Sendable.
 @preconcurrency import Combine  // AnyCancellable 未标记 Sendable
 
 @MainActor
@@ -16,12 +18,18 @@ class HotKeyManager {
 
     static let shared = HotKeyManager()
 
-    // nonisolated(unsafe): These properties are accessed in deinit for cleanup.
-    // Safe because deinit runs after all references are released.
+    // nonisolated(unsafe): NSEvent monitor handles are typed as Any (not Sendable).
+    // They are created on MainActor (startMonitoring) and only cleaned up in deinit.
+    // Safe because: (1) writes only happen on MainActor, (2) reads in deinit happen
+    // after all references released, (3) NSEvent.removeMonitor is thread-safe.
+    // TODO: Replace with typed wrapper once Apple provides Sendable monitor token API.
     private nonisolated(unsafe) var globalEventMonitor: Any?
     private nonisolated(unsafe) var localEventMonitor: Any?
     private let settings = AppSettings.shared
     private let permissionManager = PermissionManager.shared
+    // nonisolated(unsafe): AnyCancellable is not marked Sendable by Apple.
+    // Set once in init (MainActor) and only cancelled in deinit.
+    // TODO: Remove once Combine types are marked Sendable.
     private nonisolated(unsafe) var settingsObserver: AnyCancellable?
     private nonisolated(unsafe) var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false

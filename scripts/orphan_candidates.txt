@@ -1,0 +1,46 @@
+PastScreen/PastScreenApp.swift:55: private var hasPromptedAccessibility = false
+PastScreen/PastScreenApp.swift:56: private var hasPromptedScreenRecording = false
+PastScreen/PastScreenApp.swift:335: private func requestAllPermissions() {
+PastScreen/Models/AppSettings.swift:255: private static let defaultOCRRecognitionLanguages: [String] = ["zh-Hans", "en-US"]
+PastScreen/Models/AppSettings.swift:913: private static func normalizeToolOrder(_ order: [DrawingTool], fallback: [DrawingTool]) -> [DrawingTool] {
+PastScreen/Models/AppSettings.swift:930: private static func normalizeRadialIdentifiers(_ identifiers: [String], allowed: [DrawingTool]) -> [String] {
+PastScreen/Views/SettingsView.swift:495: private struct TrailingSwitchToggleStyle: ToggleStyle {
+PastScreen/Views/CustomNotificationView.swift:20: private let notificationDuration: TimeInterval = 4.0
+PastScreen/Views/ImageEditingWindow.swift:975: private func addTextAtLocation() {
+PastScreen/Views/TutorialView.swift:93: private enum CaptureKind {
+PastScreen/Views/OnboardingView.swift:27: private var onboardingWindow: OnboardingWindow?
+PastScreen/Views/SelectionWindow.swift:375: private func emitSelection(rect: CGRect) {
+PastScreen/Services/ScreenshotIntentBridge.swift:60: private enum CaptureKind {
+PastScreen/Services/ScreenshotService.swift:33: private var frozenWindowSnapshots: [CGWindowID: FrozenWindowSnapshot] = [:] // Per-window snapshots captured via ScreenCaptureKit
+PastScreen/Services/ScreenshotService.swift:45: private enum CaptureMode {
+PastScreen/Services/ScreenshotService.swift:319: private func showErrorAlert(_ message: String) {
+PastScreen/Services/ScreenshotService.swift:468: private func isCurrentSelectionSession(_ id: UUID) -> Bool {
+PastScreen/Services/ScreenshotService.swift:555: private func prepareFrozenDisplaySnapshotsWithScreenCaptureKit() async throws -> [CGDirectDisplayID: SendableCGImage] {
+PastScreen/Services/ScreenshotService.swift:577: private func prepareFrozenWindowSnapshotsWithScreenCaptureKit(excludingWindowIDs: [CGWindowID]) async throws -> [CGWindowID: FrozenWindowSnapshot] {
+PastScreen/Services/ScreenshotService.swift:751: private func frozenCapture(for rect: CGRect) -> CGImage? {
+PastScreen/Services/ScreenshotService.swift:781: private func performOCRFrozenCapture(
+PastScreen/Services/ScreenshotService.swift:923: private func showSuccessNotification(filePath: String?) {
+PastScreen/Services/ScreenshotService.swift:975: private func performAdvancedCapture(
+PastScreen/Services/ScreenshotService.swift:1095: private func captureWithScreenCaptureKit(rect: CGRect, excludeWindowIDs: [CGWindowID]) async throws -> CGImage {
+PastScreen/Services/ScreenshotService.swift:1100: private func handleAdvancedCapture(
+PastScreen/Services/ScreenshotService.swift:1309: private func handleOCRResult(_ text: String) {
+PastScreen/Services/ScreenshotService.swift:1356: private func handleEditedImage(
+PastScreen/Services/ScreenshotService.swift:1455: private func handleSuccessfulCapture(
+PastScreen/Services/ScreenshotService.swift:1672: private func detectFrontmostApp() -> AppCategory {
+PastScreen/Services/ScreenshotService.swift:1799: private func saveToDiskAsync(
+PastScreen/Services/HotKeyManager.swift:168: private func handleHotKeyValues(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, characters: String?) -> Bool {
+PastScreen/Services/WindowCaptureCoordinator.swift:328: private func convertQuartzRectToAppKit(_ rect: CGRect) -> CGRect {
+PastScreen/Services/CaptureLibraryOCRReindexService.swift:136: private static func runReindexLoop(targetKey: String, preferredLanguages: [String]) async {
+PastScreen/Services/CaptureLibraryOCRReindexService.swift:229: private static func normalizedPreferredLanguages(_ raw: [String]) -> [String] {
+PastScreen/Services/CaptureLibraryOCRReindexService.swift:233: private static func langsKey(for preferredLanguages: [String]) -> String {
+PastScreen/Services/CaptureLibrary.swift:318: private func releaseJobSlot() {
+PastScreen/Services/CaptureLibrary.swift:328: private func releaseIndexSlot() {
+PastScreen/Services/CaptureLibrary.swift:359: private static let legacyMigrationKey = "captureLibrary.didMigrateLegacyHistory.v1"
+PastScreen/Services/CaptureLibrary/CaptureLibrarySemanticSearchService.swift:239: private static func sha256Hex(_ text: String) -> String {
+PastScreen/Services/CaptureLibrary/CaptureLibrarySemanticSearchService.swift:244: private static func encodeEmbedding(_ vector: [Float]) -> Data {
+PastScreen/Services/CaptureLibrary/CaptureLibrarySemanticSearchService.swift:249: private static func decodeEmbedding(_ data: Data, dim: Int) -> [Float]? {
+PastScreen/Services/CaptureLibrary/CaptureLibrarySemanticSearchService.swift:257: private static func dot(_ a: [Float], _ b: [Float]) -> Float {
+PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift:13: private let dbURL: URL
+PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift:36: private static func openDatabase(at url: URL) throws -> OpaquePointer {
+PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabase.swift:47: private static func configureDatabase(_ db: OpaquePointer) throws {
+PastScreen/Services/CaptureLibrary/Database/CaptureLibraryDatabaseMutations.swift:443: private static func normalizeOCRLangs(_ langs: [String]) -> String? {

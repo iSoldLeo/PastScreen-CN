@@ -117,7 +117,7 @@ enum CaptureClipboardFormat: String, Codable, CaseIterable, Identifiable, Sendab
     var id: String { rawValue }
 }
 
-struct RGBAColor: Codable, Equatable, Sendable {
+public struct RGBAColor: Codable, Equatable, Sendable {
     var r: Double
     var g: Double
     var b: Double

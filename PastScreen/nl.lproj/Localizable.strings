@@ -63,6 +63,7 @@
 "settings.capture.format_section" = "Beeldformaat";
 "settings.capture.image_format" = "Formaat:";
 "settings.capture.format_png" = "PNG (verliesvrij)";
+"settings.capture.format_heic" = "HEIC (hardware-gecodeerd)";
 "settings.capture.format_jpeg" = "JPEG (gecomprimeerd)";
 "settings.capture.format_help" = "PNG is beter van kwaliteit maar groter; JPEG is kleiner.";
 "settings.capture.shortcuts_section" = "Sneltoetsen";

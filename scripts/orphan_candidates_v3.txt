@@ -1,0 +1,10 @@
+PastScreen/PastScreenApp.swift:55: private var hasPromptedAccessibility = false
+PastScreen/PastScreenApp.swift:56: private var hasPromptedScreenRecording = false
+PastScreen/PastScreenApp.swift:335: private func requestAllPermissions() {
+PastScreen/Views/SettingsView.swift:495: private struct TrailingSwitchToggleStyle: ToggleStyle {
+PastScreen/Views/ImageEditingWindow.swift:975: private func addTextAtLocation() {
+PastScreen/Views/TutorialView.swift:93: private enum CaptureKind {
+PastScreen/Services/ScreenshotIntentBridge.swift:60: private enum CaptureKind {
+PastScreen/Services/ScreenshotService.swift:45: private enum CaptureMode {
+PastScreen/Services/ScreenshotService.swift:1672: private func detectFrontmostApp() -> AppCategory {
+PastScreen/Services/WindowCaptureCoordinator.swift:328: private func convertQuartzRectToAppKit(_ rect: CGRect) -> CGRect {

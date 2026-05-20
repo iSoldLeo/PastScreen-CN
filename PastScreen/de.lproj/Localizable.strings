@@ -63,6 +63,7 @@
 "settings.capture.format_section" = "Bildformat";
 "settings.capture.image_format" = "Format:";
 "settings.capture.format_png" = "PNG (verlustfrei)";
+"settings.capture.format_heic" = "HEIC (hardware-kodiert)";
 "settings.capture.format_jpeg" = "JPEG (komprimiert)";
 "settings.capture.format_help" = "PNG ist hochwertiger, aber größer; JPEG ist kleiner.";
 "settings.capture.shortcuts_section" = "Kurzbefehle";

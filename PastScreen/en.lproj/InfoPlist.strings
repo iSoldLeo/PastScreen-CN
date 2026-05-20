@@ -3,6 +3,5 @@
 "CFBundleName" = "PastScreen-CN";
 
 /* Permission descriptions */
-"NSAppleEventsUsageDescription" = "PastScreen-CN needs Apple Events access to register global shortcuts.";
 "NSScreenCaptureUsageDescription" = "PastScreen-CN needs screen recording permission to capture screenshots.";
 "NSUserNotificationsUsageDescription" = "PastScreen-CN uses notifications to confirm captures are complete.";

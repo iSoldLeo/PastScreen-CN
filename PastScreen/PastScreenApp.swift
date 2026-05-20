@@ -42,7 +42,7 @@ enum CaptureTrigger: String, Sendable {
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
-    var screenshotService: ScreenshotService?
+    let container = DependencyContainer()
     private var hasPromptedAccessibility = false
     private var hasPromptedScreenRecording = false
 
@@ -83,9 +83,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         //         print("⚠️ [APP] Notifications not authorized - DynamicIslandManager will provide feedback")
         //     }
         // }
-
-        // Initialize services
-        screenshotService = ScreenshotService()
 
         // NOTE: Permissions are now requested via Onboarding only
         // No auto-prompting at launch to avoid popup chaos
@@ -320,18 +317,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func performAreaCapture(source: CaptureTrigger = .menuBar) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.capturePreviousApp()
-        Task { @MainActor [weak screenshotService] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            screenshotService?.captureScreenshot(trigger: source)
-        }
+        container.captureCoordinator.startAreaCapture()
     }
 
     func performFullScreenCapture(source: CaptureTrigger = .menuBar) {
-        guard let screenshotService = screenshotService else { return }
-        screenshotService.capturePreviousApp()
-        screenshotService.captureFullScreen(trigger: source)
+        container.captureCoordinator.startFullScreenCapture()
     }
 
     // MARK: - Raccourci clavier global

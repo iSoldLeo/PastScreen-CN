@@ -63,6 +63,7 @@
 "settings.capture.format_section" = "画像フォーマット";
 "settings.capture.image_format" = "形式:";
 "settings.capture.format_png" = "PNG（非圧縮）";
+"settings.capture.format_heic" = "HEIC（ハードウェアエンコード）";
 "settings.capture.format_jpeg" = "JPEG（圧縮）";
 "settings.capture.format_help" = "PNG は高品質だがサイズが大きめ、JPEG は小さめ。";
 "settings.capture.shortcuts_section" = "ショートカット";

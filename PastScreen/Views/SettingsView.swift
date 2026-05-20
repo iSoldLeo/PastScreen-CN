@@ -348,10 +348,13 @@ struct HotKeyRecorderView: View {
         isRecording = true
         HotKeyManager.shared.setRecordingHotKey(true)
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let modifiers = HotKey.normalizedModifiers(event.modifierFlags)
-            let characters = event.charactersIgnoringModifiers?.lowercased()
-            hotkey = HotKey(keyCode: event.keyCode, modifiers: modifiers.rawValue, characters: characters)
-            stopRecording()
+            // SAFETY: addLocalMonitorForEvents always delivers on the main thread.
+            MainActor.assumeIsolated {
+                let modifiers = HotKey.normalizedModifiers(event.modifierFlags)
+                let characters = event.charactersIgnoringModifiers?.lowercased()
+                hotkey = HotKey(keyCode: event.keyCode, modifiers: modifiers.rawValue, characters: characters)
+                stopRecording()
+            }
             return nil
         }
     }

@@ -63,6 +63,7 @@
 "settings.capture.format_section" = "圖式";
 "settings.capture.image_format" = "格式:";
 "settings.capture.format_png" = "PNG（無損）";
+"settings.capture.format_heic" = "HEIC（硬體編碼）";
 "settings.capture.format_jpeg" = "JPEG（壓縮）";
 "settings.capture.format_help" = "PNG 質高而體大，JPEG 小而略損。";
 "settings.capture.shortcuts_section" = "捷鍵";

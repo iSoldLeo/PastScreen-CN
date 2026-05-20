@@ -12,7 +12,7 @@ import AppKit
 class DynamicIslandManager {
     static let shared = DynamicIslandManager()
     private var pillStatusItem: NSStatusItem?
-    private var dismissTimer: Timer?
+    private var dismissTask: Task<Void, Never>?
 
     enum Style: Sendable {
         case success
@@ -39,16 +39,16 @@ class DynamicIslandManager {
         button.bezelStyle = .rounded
         button.focusRingType = .none
 
-        dismissTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.dismiss()
-            }
+        dismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.dismiss()
         }
     }
 
     func dismiss() {
-        dismissTimer?.invalidate()
-        dismissTimer = nil
+        dismissTask?.cancel()
+        dismissTask = nil
 
         guard let item = pillStatusItem else { return }
 

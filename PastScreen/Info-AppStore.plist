@@ -36,8 +36,6 @@
 	<string>public.app-category.developer-tools</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>PastScreen-CN 需要使用 Apple 事件来注册全局快捷键。</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>PastScreen-CN 需要屏幕录制权限来进行截图。</string>
 	<key>NSUserNotificationsUsageDescription</key>
