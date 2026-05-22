@@ -1,1 +1,0 @@
-PastScreen/Views/SettingsView.swift:495: private struct TrailingSwitchToggleStyle: ToggleStyle {

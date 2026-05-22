@@ -1,0 +1,7 @@
+/* Bundle names */
+"CFBundleDisplayName" = "Mio";
+"CFBundleName" = "Mio";
+
+/* Permission descriptions */
+"NSScreenCaptureUsageDescription" = "Mio necesita permiso de grabación de pantalla para capturar.";
+"NSUserNotificationsUsageDescription" = "Mio usa notificaciones para avisar que la captura terminó.";

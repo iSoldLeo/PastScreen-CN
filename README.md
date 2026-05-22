@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="./PastScreen/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="PastScreen-CN icon" width="160" height="160">
+  <img src="./docs/mio-icon.png" alt="Mio icon" width="160" height="160">
 </p>
-<h1 align="center">📸 PastScreen-CN</h1>
+<h1 align="center">📸 Mio</h1>
 <p align="center">极速截图，自动进剪贴板。原生应用，小而快。</p>
 <p align="center">
   <a href="https://www.apple.com/macos/">
@@ -19,9 +19,9 @@
 ## 立即开始（用户指南）
 
 1. **下载**：从 Releases 获取最新版本  
-   https://github.com/iSoldLeo/PastScreen-CN/releases
+   https://github.com/iSoldLeo/Mio/releases
 2. **放行首次启动**：右键 App -> 打开（一次即可），或执行  
-   `xattr -dr com.apple.quarantine /Applications/PastScreen-CN.app`
+   `xattr -dr com.apple.quarantine /Applications/Mio.app`
 3. **授权**：按提示允许 *屏幕录制*、*辅助功能*、*通知*。
 4. **截图**：
    - 选区截图：默认 ⌥⌘S（可在设置中修改）  
@@ -84,7 +84,7 @@
 | 辅助功能   | 全局快捷键                   |
 | 通知       | 完成提示与「在 Finder 中显示」 |
 
-PastScreen-CN 离线运行，不上传、不联网。
+Mio 离线运行，不上传、不联网。
 
 ---
 
@@ -100,9 +100,9 @@ PastScreen-CN 离线运行，不上传、不联网。
 - 本地构建：
 
 ```bash
-git clone https://github.com/iSoldLeo/PastScreen-CN.git
-cd PastScreen-CN
-open PastScreen-CN.xcodeproj   
+git clone https://github.com/iSoldLeo/Mio.git
+cd Mio
+open Mio.xcodeproj   
 ```
 
 ---

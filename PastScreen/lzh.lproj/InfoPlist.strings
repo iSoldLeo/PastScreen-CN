@@ -1,7 +1,0 @@
-/* Bundle names */
-"CFBundleDisplayName" = "PastScreen-CN";
-"CFBundleName" = "PastScreen-CN";
-
-/* Permission descriptions */
-"NSScreenCaptureUsageDescription" = "PastScreen-CN 欲行截屏，必請螢幕錄製之權。";
-"NSUserNotificationsUsageDescription" = "為告知截圖已成，PastScreen-CN 需行通知。";

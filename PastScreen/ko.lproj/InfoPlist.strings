@@ -1,7 +1,0 @@
-/* Bundle names */
-"CFBundleDisplayName" = "PastScreen-CN";
-"CFBundleName" = "PastScreen-CN";
-
-/* Permission descriptions */
-"NSScreenCaptureUsageDescription" = "스크린샷을 찍으려면 화면 녹화 권한이 필요합니다.";
-"NSUserNotificationsUsageDescription" = "캡처가 완료되었음을 알리기 위해 알림을 사용합니다.";

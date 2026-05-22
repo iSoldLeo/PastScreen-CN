@@ -1,7 +1,0 @@
-/* Bundle names */
-"CFBundleDisplayName" = "PastScreen-CN";
-"CFBundleName" = "PastScreen-CN";
-
-/* Permission descriptions */
-"NSScreenCaptureUsageDescription" = "PastScreen-CN necesita permiso de grabación de pantalla para capturar.";
-"NSUserNotificationsUsageDescription" = "PastScreen-CN usa notificaciones para avisar que la captura terminó.";

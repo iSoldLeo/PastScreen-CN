@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="./PastScreen/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" alt="PastScreen-CN icon" width="160" height="160">
+  <img src="./docs/mio-icon.png" alt="Mio icon" width="160" height="160">
 </p>
-<h1 align="center">📸 PastScreen-CN</h1>
+<h1 align="center">📸 Mio</h1>
 <p align="center">Lightning-fast screenshots to clipboard. Native, small, and quick.</p>
 <p align="center">
   <a href="https://www.apple.com/macos/">
@@ -17,9 +17,9 @@
 ## Quick Start (User Guide)
 
 1. **Download**: grab the latest release  
-   https://github.com/iSoldLeo/PastScreen-CN/releases
+   https://github.com/iSoldLeo/Mio/releases
 2. **Unblock first launch**: Right-click the app and choose *Open* once, or run  
-   `xattr -dr com.apple.quarantine /Applications/PastScreen-CN.app`
+   `xattr -dr com.apple.quarantine /Applications/Mio.app`
 3. **Permissions**: follow prompts to allow *Screen Recording*, *Accessibility*, and *Notifications*.
 4. **Screenshot**:
    - Selection: default ⌥⌘S (configurable in Settings)  
@@ -72,7 +72,7 @@ The Capture Library search field supports whitespace-tokenized filters (filters 
 | Accessibility    | Global hotkeys               |
 | Notifications    | Completion alerts and “Show in Finder” |
 
-PastScreen-CN runs offline: no uploads, no network.
+Mio runs offline: no uploads, no network.
 
 ---
 
@@ -88,9 +88,9 @@ PastScreen-CN runs offline: no uploads, no network.
 - Local build:
 
 ```bash
-git clone https://github.com/iSoldLeo/PastScreen-CN.git
-cd PastScreen-CN
-open PastScreen-CN.xcodeproj
+git clone https://github.com/iSoldLeo/Mio.git
+cd Mio
+open Mio.xcodeproj
 ```
 
 ---
