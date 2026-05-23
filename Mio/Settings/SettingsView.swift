@@ -253,26 +253,6 @@ struct StorageSettingsView: View {
                 Text(NSLocalizedString("settings.storage.save_to_file.help", value: "关闭后，截图仅复制到剪切板，不写入磁盘。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
-                    HStack(spacing: 10) {
-                        Text(capture.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
-                            if let newPath = capture.selectFolder() {
-                                capture.saveFolderPath = newPath
-                            }
-                        }
-                        .controlSize(.small)
-                        .disabled(!capture.saveToFile)
-                    }
-                }
-                .opacity(capture.saveToFile ? 1.0 : 0.5)
             }
         }
     }
