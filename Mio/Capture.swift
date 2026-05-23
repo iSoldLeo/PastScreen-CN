@@ -551,6 +551,75 @@ public actor DisplayCaptureService {
             throw CaptureError("窗口截图失败:\(error.localizedDescription)")
         }
     }
+
+    // MARK: Full-display capture (screen-level freeze primitive)
+
+    /// Capture the full content of a single display by displayID.
+    ///
+    /// Used as the screen-level freezing primitive for PRODUCT.md §2: at the
+    /// trigger instant the caller takes one snapshot per screen, then drives
+    /// path A / path B UI off the frozen images. Producing one CaptureImage
+    /// per screen.
+    ///
+    /// - Precondition: caller guarantees that at the moment of this call Mio
+    ///   itself has no visible windows. Overlay / chooser windows must be
+    ///   created **after** `CapturePipeline.captureFrozenScreens()` returns,
+    ///   otherwise Mio's own UI would be baked into the frozen background.
+    /// - If no SCDisplay matches `displayID`, this method throws — it does
+    ///   **not** silently fall back to another display (preserving product
+    ///   contract: the user expects the exact screen they targeted).
+    public func captureFullDisplay(displayID: CGDirectDisplayID) async throws -> CaptureImage {
+        let content = try await SCShareableContent.current
+
+        // NSScreen is not Sendable; flatten on MainActor into Sendable primitives.
+        let screenInfo: (frame: CGRect, scaleFactor: CGFloat)? = await MainActor.run {
+            NSScreen.screens.first { ns in
+                let id = ns.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
+                return id == displayID
+            }.map { (frame: $0.frame, scaleFactor: $0.backingScaleFactor) }
+        }
+        guard let screenInfo else {
+            throw CaptureError("No NSScreen matching displayID \(displayID)")
+        }
+
+        guard let targetDisplay = content.displays.first(where: { $0.displayID == displayID }) else {
+            throw CaptureError("No SCDisplay matching displayID \(displayID)")
+        }
+
+        let filter = SCContentFilter(display: targetDisplay, excludingWindows: [])
+
+        let config = SCStreamConfiguration()
+        config.width = Int(screenInfo.frame.width * screenInfo.scaleFactor)
+        config.height = Int(screenInfo.frame.height * screenInfo.scaleFactor)
+        config.captureResolution = .best
+        config.showsCursor = false
+        config.scalesToFit = false
+        // sourceRect intentionally left unset — capture the full display.
+
+        do {
+            let cgImage = try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: config
+            )
+            return CaptureImage(
+                cgImage: cgImage,
+                scale: screenInfo.scaleFactor,
+                size: screenInfo.frame.size
+            )
+        } catch let streamError as SCStreamError {
+            let description: String = switch streamError.code {
+            case .userDeclined:
+                NSLocalizedString("屏幕录制权限被拒绝。请前往\"系统设置 → 隐私与安全性 → 屏幕录制\"开启。", comment: "")
+            case .systemStoppedStream:
+                NSLocalizedString("截图被系统中断", comment: "")
+            default:
+                streamError.localizedDescription
+            }
+            throw CaptureError(description)
+        } catch {
+            throw CaptureError("全屏截图失败:\(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - File output (PNG sequence)
@@ -745,6 +814,161 @@ public actor CapturePipeline {
 
         // Clipboard output (async call automatically hops to @MainActor implementation)
         try await clipboardOutput.copy(image: capturedImage)
+
+        // Play sound on main thread (NSSound requirement)
+        if config.playSoundOnCapture {
+            await MainActor.run {
+                let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+                if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
+                    sound.play()
+                } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
+                    fallback.play()
+                }
+            }
+        }
+
+        if let filePath {
+            eventBus.emit(.savedToFile(path: filePath))
+        }
+        eventBus.emit(.copiedToClipboard)
+    }
+
+    // MARK: Screen-level freeze pipeline (PRODUCT.md §2)
+
+    /// Capture every active screen concurrently, returning one CaptureImage
+    /// per displayID.
+    ///
+    /// Implements the freezing instant of PRODUCT.md §2: the caller takes the
+    /// snapshot first, then opens overlay / chooser UI on top of the frozen
+    /// images. Performance contract:
+    ///
+    /// - Soft target: ≤ 200ms total wall time (PRODUCT.md §5).
+    /// - Hard constraint: Mio process CPU peak ≤ 60% (PRODUCT.md §5). The
+    ///   application enforces an explicit batch concurrency cap of 3 — SCK's
+    ///   internal scheduling is opaque and cannot be relied on. Screens beyond
+    ///   the third are queued into successive batches that run serially.
+    /// - Failure semantics: any single-display failure throws and aborts the
+    ///   whole capture; no partial dictionary is returned.
+    public func captureFrozenScreens() async throws -> [CGDirectDisplayID: CaptureImage] {
+        // 1. Flatten NSScreen into Sendable triples on MainActor.
+        let screens: [(displayID: CGDirectDisplayID, frame: CGRect, scaleFactor: CGFloat)] =
+            await MainActor.run {
+                NSScreen.screens.compactMap { ns in
+                    guard let id = ns.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+                        return nil
+                    }
+                    return (displayID: id, frame: ns.frame, scaleFactor: ns.backingScaleFactor)
+                }
+            }
+        guard !screens.isEmpty else {
+            throw CaptureError("No screens detected")
+        }
+
+        // 2. Application-enforced concurrency cap. Each batch fans out via
+        //    TaskGroup; batches run serially so we never have > batchSize
+        //    SCStreamConfiguration captures in flight.
+        let batchSize = 3
+        var result: [CGDirectDisplayID: CaptureImage] = [:]
+        for batchStart in stride(from: 0, to: screens.count, by: batchSize) {
+            let batch = Array(screens[batchStart..<min(batchStart + batchSize, screens.count)])
+            try await withThrowingTaskGroup(of: (CGDirectDisplayID, CaptureImage).self) { group in
+                for entry in batch {
+                    group.addTask {
+                        let img = try await self.displayCapture.captureFullDisplay(displayID: entry.displayID)
+                        return (entry.displayID, img)
+                    }
+                }
+                for try await (id, img) in group {
+                    result[id] = img
+                }
+            }
+        }
+        return result
+    }
+
+    /// Crop a sub-rect out of a frozen full-screen image.
+    ///
+    /// - `frozen` is the full-screen CaptureImage produced by
+    ///   `captureFullDisplay(displayID:)`; its `size` equals the AppKit screen
+    ///   frame in points and its `scale` equals the screen's backingScaleFactor.
+    /// - `screenFrame` is the AppKit (bottom-left origin) frame of that screen
+    ///   in the global coordinate space.
+    /// - `rect` is the AppKit (bottom-left origin) rect to extract, in the
+    ///   same global coordinate space; it is expected to lie inside
+    ///   `screenFrame`. If it falls partially or fully outside, the method
+    ///   intersects with the screen bounds and either returns the intersected
+    ///   slice or throws if the intersection is empty.
+    public func cropFrozenImage(
+        from frozen: CaptureImage,
+        screenFrame: CGRect,
+        rect: CGRect
+    ) async throws -> CaptureImage {
+        guard rect.width > 0, rect.height > 0 else {
+            throw CaptureError("Invalid crop rect: \(rect)")
+        }
+
+        let scale = frozen.scale
+
+        // AppKit (bottom-left origin) → screen-local point coordinates.
+        let offsetX = rect.origin.x - screenFrame.origin.x
+        let offsetY = rect.origin.y - screenFrame.origin.y
+        // Convert screen-local AppKit point to CGImage (top-left origin) point.
+        let flippedY = screenFrame.height - offsetY - rect.height
+
+        // Convert points → pixels using the screen's scale factor.
+        let pixelRect = CGRect(
+            x: offsetX * scale,
+            y: flippedY * scale,
+            width: rect.width * scale,
+            height: rect.height * scale
+        )
+
+        // Intersect with the cgImage pixel bounds as a safety net for cases
+        // where rect drifted slightly outside the screen due to upstream
+        // coordinate rounding.
+        let imageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: frozen.cgImage.width,
+            height: frozen.cgImage.height
+        )
+        let clippedPixelRect = pixelRect.intersection(imageBounds)
+        guard !clippedPixelRect.isNull,
+              clippedPixelRect.width > 0,
+              clippedPixelRect.height > 0
+        else {
+            throw CaptureError("Selection is completely outside screen bounds")
+        }
+
+        guard let cropped = frozen.cgImage.cropping(to: clippedPixelRect) else {
+            throw CaptureError("CGImage cropping failed")
+        }
+
+        // Map the (possibly clipped) pixel rect back into points for the
+        // CaptureImage size metadata.
+        let pointSize = CGSize(
+            width: clippedPixelRect.width / scale,
+            height: clippedPixelRect.height / scale
+        )
+        return CaptureImage(cgImage: cropped, scale: scale, size: pointSize)
+    }
+
+    /// Output tail: file write (when enabled) → clipboard → optional sound →
+    /// success events. Verbatim port of `execute(request:)`'s post-capture
+    /// segment so behavior is preserved during the screen-freeze refactor.
+    public func finishOutput(image: CaptureImage, config: CaptureConfiguration) async throws {
+        // File output (must happen before clipboard for the saved-path event).
+        // The file output service owns the on-disk sequence counter internally.
+        // Skipped entirely when the user toggles `saveToFile` off — clipboard
+        // remains the only sink in that case.
+        var filePath: String?
+        if config.saveToFile && config.hasValidSaveFolder {
+            filePath = try await fileOutput.write(image: image, config: config)
+            try Task.checkCancellation()
+        }
+
+        // Clipboard output (async call automatically hops to @MainActor implementation)
+        try await clipboardOutput.copy(image: image)
 
         // Play sound on main thread (NSSound requirement)
         if config.playSoundOnCapture {
