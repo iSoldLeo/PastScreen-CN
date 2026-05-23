@@ -2,35 +2,43 @@
 //  HotKey.swift
 //  Mio
 //
-//  Codable hotkey representation shared across HotKeyManager,
-//  AppSettings, and the SwiftUI settings UI. Pure value type;
-//  no actor isolation required.
+//  Codable hotkey representation. Pure value type; lives in Domain/
+//  because it is shared across HotKeyManager (Services), HotKeySettings
+//  (Settings), and SettingsView (Views) — placing it in any single
+//  layer would create reverse-dependency between consumer layers.
 //
 
 import Foundation
 import AppKit
 
-struct HotKey: Codable, Equatable, Sendable {
-    var keyCode: UInt16
-    var modifiers: UInt
-    var characters: String?
+nonisolated public struct HotKey: Codable, Equatable, Sendable {
+    public var keyCode: UInt16
+    public var modifiers: UInt
+    public var characters: String?
 
-    static let supportedModifierMask: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
-    static let defaultCapture = HotKey(
+    public static let supportedModifierMask: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+
+    public static let defaultCapture = HotKey(
         keyCode: 1,
         modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
         characters: "s"
     )
 
-    var modifierFlags: NSEvent.ModifierFlags {
+    public init(keyCode: UInt16, modifiers: UInt, characters: String?) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        self.characters = characters
+    }
+
+    public var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
     }
 
-    var displayKey: String {
+    public var displayKey: String {
         Self.displayKey(for: keyCode, characters: characters)
     }
 
-    var displayParts: [String] {
+    public var displayParts: [String] {
         var parts: [String] = []
         if modifierFlags.contains(.control) { parts.append("Ctrl") }
         if modifierFlags.contains(.option) { parts.append("Opt") }
@@ -40,18 +48,18 @@ struct HotKey: Codable, Equatable, Sendable {
         return parts
     }
 
-    var displayString: String {
+    public var displayString: String {
         displayParts.joined(separator: "+")
     }
 
-    var keyEquivalent: String {
+    public var keyEquivalent: String {
         guard let chars = characters, !chars.isEmpty else {
             return ""
         }
         return chars.lowercased()
     }
 
-    static func normalizedModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+    public static func normalizedModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection(Self.supportedModifierMask)
     }
 
