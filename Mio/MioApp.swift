@@ -110,18 +110,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1
     }
 
-    /// Returns `true` once Screen Recording is granted; otherwise
-    /// presents the permission alert and returns `false` so the caller
-    /// skips the capture flow.
+    /// Returns `true` once Screen Recording is granted; otherwise returns
+    /// `false` so the caller skips the capture flow. The user-facing
+    /// guidance (system dialog on first request, onboarding redirect on
+    /// repeat denial) lives outside this function.
     private func ensureScreenRecordingGranted() async -> Bool {
         permissionManager.checkScreenRecordingPermission()
         if permissionManager.screenRecordingStatus == .authorized {
             return true
         }
-        let granted = await permissionManager.requestPermission(.screenRecording)
-        if !granted {
-            permissionManager.showPermissionAlert(for: [.screenRecording])
-        }
-        return granted
+        return await permissionManager.requestPermission(.screenRecording)
     }
 }

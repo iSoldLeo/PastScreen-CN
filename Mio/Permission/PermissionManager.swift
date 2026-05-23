@@ -5,6 +5,12 @@
 //  Tracks Screen Recording / Accessibility permission status and
 //  exposes async helpers to request them.
 //
+//  No bespoke alert UI: macOS itself shows a system TCC dialog on the
+//  first call to `CGRequestScreenCaptureAccess()` (the Info.plist
+//  `NSScreenCaptureUsageDescription` string is the user-visible
+//  rationale). The "user has previously denied → system stops asking"
+//  edge case is delegated to the onboarding flow (see 06 plan).
+//
 
 import Foundation
 import AppKit
@@ -13,24 +19,6 @@ import Combine
 enum PermissionType: CaseIterable, Sendable {
     case screenRecording
     case accessibility
-
-    /// Used inside `showPermissionAlert` informativeText, displayed to
-    /// the user. Not a developer-facing log.
-    var icon: String {
-        switch self {
-        case .screenRecording: return "📱"
-        case .accessibility: return "♿️"
-        }
-    }
-
-    var localizedName: String {
-        switch self {
-        case .screenRecording:
-            return NSLocalizedString("permission.type.screen_recording", value: "屏幕录制", comment: "")
-        case .accessibility:
-            return NSLocalizedString("permission.type.accessibility", value: "辅助功能", comment: "")
-        }
-    }
 }
 
 enum PermissionStatus: Sendable {
@@ -66,10 +54,15 @@ final class PermissionManager: ObservableObject {
 
     // MARK: - Requests
 
-    /// Prompts the user (via the system dialog) for the requested
+    /// Prompts the user (via the system TCC dialog) for the requested
     /// permission and returns whether it was granted. Re-checks status
     /// after a short delay so the @Published properties reflect the
     /// post-prompt state for any UI bound to them.
+    ///
+    /// Note: macOS only shows the system dialog on the *first* call.
+    /// If the user has previously denied, this function returns false
+    /// silently — the onboarding flow is responsible for guiding the
+    /// user to System Settings in that case.
     func requestPermission(_ type: PermissionType) async -> Bool {
         switch type {
         case .screenRecording:
@@ -96,30 +89,5 @@ final class PermissionManager: ObservableObject {
             checkAccessibilityPermission()
             return accessibilityStatus == .authorized
         }
-    }
-
-    // MARK: - User feedback
-
-    func showPermissionAlert(for permissions: [PermissionType]) {
-        let alert = NSAlert()
-        alert.messageText = NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
-
-        let header = NSLocalizedString("permission.request.header", value: "Mio 需要以下权限才能正常工作：", comment: "")
-        let footer = NSLocalizedString("permission.request.footer", value: "请在“系统设置 → 隐私与安全性”中开启。", comment: "")
-        let permissionsList = permissions.map { "\($0.icon) \($0.localizedName)" }.joined(separator: "\n")
-
-        alert.informativeText = "\(header)\n\n\(permissionsList)\n\n\(footer)"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "打开系统设置", comment: ""))
-        alert.addButton(withTitle: NSLocalizedString("error.later", value: "稍后", comment: ""))
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            openSystemPreferences()
-        }
-    }
-
-    func openSystemPreferences() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!
-        NSWorkspace.shared.open(url)
     }
 }
