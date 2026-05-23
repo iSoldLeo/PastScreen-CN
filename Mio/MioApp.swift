@@ -30,7 +30,7 @@ struct MioApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    let container = DependencyContainer()
+    let coordinator = CaptureCoordinator()
 
     private let permissionManager = PermissionManager.shared
 
@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             if await self.ensureScreenRecordingGranted() {
-                self.container.captureCoordinator.startAreaCapture()
+                self.coordinator.startAreaCapture()
             }
         }
     }
@@ -70,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             if await self.ensureScreenRecordingGranted() {
-                self.container.captureCoordinator.startAreaCapture()
+                self.coordinator.startAreaCapture()
             }
         }
     }
@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             if await self.ensureScreenRecordingGranted() {
-                self.container.captureCoordinator.startFullScreenCapture()
+                self.coordinator.startFullScreenCapture()
             }
         }
     }
