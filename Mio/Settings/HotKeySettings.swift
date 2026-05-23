@@ -7,8 +7,6 @@
 //  enable/disable propagation, and reads `globalHotkey` when matching
 //  events.
 //
-//  Phase 6A theme split: aggregated under `AppSettings.shared.hotkey`.
-//
 
 import Foundation
 import SwiftUI

@@ -17,18 +17,17 @@ import Foundation
 public actor FileOutputService: FileWriting {
 
     /// UserDefaults key under which the next-to-write sequence number is
-    /// persisted. The same key was used by AppSettings before Phase 5, so
-    /// existing user installs are picked up transparently.
+    /// persisted.
     nonisolated private static let sequenceDefaultsKey = "screenshotSequence"
 
     /// Cached sequence counter. Loaded lazily from UserDefaults on first
-    /// `write`/`reset` call. Always holds the *next* sequence number to
-    /// try when generating a filename.
+    /// `write` call. Always holds the *next* sequence number to try when
+    /// generating a filename.
     private var currentSequence: Int?
 
     public init() {}
 
-    /// Save image to disk.
+    /// Save image to disk as PNG.
     /// Writes atomically via a temporary file to avoid partial writes on crash.
     public func write(
         image: CaptureImage,
@@ -36,21 +35,17 @@ public actor FileOutputService: FileWriting {
     ) async throws -> String? {
         let cgImage = image.cgImage
         let pointSize = image.size
-        let imageFormat = config.imageFormat
         let folderPath = config.saveFolderPath
 
         let bitmapImage = NSBitmapImageRep(cgImage: cgImage)
         bitmapImage.size = pointSize
 
-        let fileType = imageFormat.nsBitmapFileType
-        let fileExtension = imageFormat.fileExtension
-
-        guard let data = bitmapImage.representation(using: fileType, properties: [:]) else {
-            throw CaptureError("Failed to encode image as \(fileExtension)")
+        guard let data = bitmapImage.representation(using: .png, properties: [:]) else {
+            throw CaptureError("Failed to encode image as PNG")
         }
 
         var seq = loadSequenceIfNeeded()
-        var filename = "Screen-\(seq).\(fileExtension)"
+        var filename = "Screen-\(seq).png"
 
         let fileManager = FileManager.default
         let folderURL = URL(fileURLWithPath: folderPath, isDirectory: true)
@@ -58,7 +53,7 @@ public actor FileOutputService: FileWriting {
 
         while fileManager.fileExists(atPath: saveURL.path) {
             seq += 1
-            filename = "Screen-\(seq).\(fileExtension)"
+            filename = "Screen-\(seq).png"
             saveURL = folderURL.appendingPathComponent(filename)
         }
 
@@ -82,12 +77,6 @@ public actor FileOutputService: FileWriting {
                 underlyingDescription: error.localizedDescription
             )
         }
-    }
-
-    /// Reset the on-disk sequence counter to 1. Called by AppSettings after
-    /// `clearSaveFolder` so the next capture starts fresh.
-    public func resetSequence() {
-        persistSequence(1)
     }
 
     // MARK: - Private

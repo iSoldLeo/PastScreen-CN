@@ -3,17 +3,18 @@
 //  Mio
 //
 //  Owns the security-scoped bookmark for the user-selected save
-//  folder, including the modal NSOpenPanel and the folder-creation
-//  helper. Extracted from AppSettings to localise the App Store
-//  sandbox surface area.
+//  folder, the modal NSOpenPanel, and the folder-creation helper.
+//  Localises the App Store sandbox surface area (Apple guideline
+//  2.4.5(i)) into one place so other settings stores don't need to
+//  know about security-scoped resources.
 //
 //  Bookmark resolution and `startAccessingSecurityScopedResource`
 //  perform synchronous I/O and must operate on the same URL (only
 //  the resolved security-scoped URL carries the sandbox extension
-//  token). To avoid blocking AppSettings.init on the main actor,
-//  the public restore entry point is async and runs both calls
-//  inside a single detached utility-priority task; the URL never
-//  crosses an actor boundary.
+//  token). To avoid blocking init on the main actor, the public
+//  restore entry point is async and runs both calls inside a single
+//  detached utility-priority task; the URL never crosses an actor
+//  boundary.
 //
 
 import Foundation
@@ -116,15 +117,11 @@ private struct BookmarkResolution: Sendable {
 
     /// Resolves a bookmark blob *and* starts security-scoped access against
     /// the same URL — the only URL on which `startAccessingSecurityScopedResource`
-    /// is documented to work. Returns a Sendable summary. Returns nil on failure.
+    /// is documented to work. Returns a Sendable summary, or nil on failure.
     ///
-    /// `nonisolated` because it is invoked from within `Task.detached(...)`
-    /// (off the main actor), and `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
-    /// would otherwise infer @MainActor on this static method.
-    ///
-    /// Once the call returns the sandbox extension is consumed at the process
-    /// level, so any later file IO targeting the bookmarked path will succeed
-    /// regardless of which actor performs it.
+    /// Once the call returns the sandbox extension is consumed at the
+    /// process level, so any later file IO targeting the bookmarked path
+    /// will succeed regardless of which actor performs it.
     nonisolated static func resolveAndStartAccessing(bookmarkData: Data) -> BookmarkResolution? {
         var isStale = false
         do {

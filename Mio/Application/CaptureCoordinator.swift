@@ -4,7 +4,7 @@
 //
 //  @MainActor coordinator that bridges UI entry points (hotkey, menu bar)
 //  to the CapturePipeline. Manages SelectionWindow lifecycle and forwards
-//  pipeline events to DynamicIsland / NotificationCenter.
+//  pipeline events to DynamicIsland.
 //
 
 import Foundation
@@ -31,10 +31,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
     public func startAreaCapture() {
         cleanupExistingWindow()
 
-        let window = SelectionWindow(
-            frozenScreenshots: [:],
-            overlayConfiguration: .screenshot
-        )
+        let window = SelectionWindow(overlayConfiguration: .screenshot)
         window.selectionDelegate = self
         window.show()
         selectionWindow = window
@@ -97,26 +94,17 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
 
     private func executeCapture(request: CaptureRequest) async {
         do {
-            _ = try await pipeline.execute(request: request)
+            try await pipeline.execute(request: request)
         } catch {
             showCaptureError(error)
         }
     }
 
     private func makeCaptureConfiguration() -> CaptureConfiguration {
-        let settings = AppSettings.shared
-        let ui = settings.ui
-        let capture = settings.capture
+        let capture = AppSettings.shared.capture
         return CaptureConfiguration(
-            imageFormat: capture.imageFormat,
-            saveToFile: capture.saveToFile,
             saveFolderPath: capture.saveFolderPath,
             hasValidSaveFolder: capture.hasValidSaveFolder,
-            windowBorderEnabled: ui.windowBorderEnabled,
-            windowBorderWidth: ui.windowBorderWidth,
-            windowBorderCornerRadius: ui.windowBorderCornerRadius,
-            windowBorderColor: ui.windowBorderColor,
-            captureClipboardFormat: capture.captureClipboardFormat,
             playSoundOnCapture: capture.playSoundOnCapture
         )
     }
@@ -128,7 +116,6 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
 
     private func cleanupSelectionWindow() {
         selectionWindow = nil
-        NotificationCenter.default.post(name: .captureFlowEnded, object: nil)
     }
 
     private func showCaptureError(_ error: Error) {
@@ -152,24 +139,10 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
 
     private func handleEvent(_ event: CaptureEvent) {
         switch event {
-        case .savedToFile(let path):
+        case .savedToFile:
             DynamicIslandManager.shared.show(message: "已保存", duration: 3.0, style: .success)
-            // Backward-compatible notification for AppDelegate.lastScreenshotPath
-            NotificationCenter.default.post(
-                name: .screenshotCaptured,
-                object: nil,
-                userInfo: ["filePath": path]
-            )
-        case .failed(let error):
-            DynamicIslandManager.shared.show(
-                message: error.localizedDescription,
-                duration: 3.0,
-                style: .failure
-            )
         case .copiedToClipboard:
             DynamicIslandManager.shared.show(message: "已复制", duration: 1.5, style: .success)
-        default:
-            break
         }
     }
 

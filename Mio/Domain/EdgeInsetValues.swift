@@ -8,7 +8,7 @@
 
 import Foundation
 
-public struct EdgeInsetValues: Sendable {
+nonisolated public struct EdgeInsetValues: Sendable {
     public let top: CGFloat
     public let left: CGFloat
     public let bottom: CGFloat

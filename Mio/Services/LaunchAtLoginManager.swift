@@ -51,23 +51,14 @@ class LaunchAtLoginManager {
         await Task.detached(priority: .utility) {
             do {
                 let service = SMAppService.mainApp
-                if enabled {
-                    if service.status == .enabled {
-                        NSLog("✅ [LAUNCH] Already enabled")
-                    } else {
-                        try service.register()
-                        NSLog("✅ [LAUNCH] Enabled successfully")
-                    }
-                } else {
-                    if service.status == .notRegistered {
-                        NSLog("✅ [LAUNCH] Already disabled")
-                    } else {
-                        try service.unregister()
-                        NSLog("✅ [LAUNCH] Disabled successfully")
-                    }
+                if enabled, service.status != .enabled {
+                    try service.register()
+                } else if !enabled, service.status != .notRegistered {
+                    try service.unregister()
                 }
             } catch {
-                NSLog("❌ [LAUNCH] Failed to \(enabled ? "enable" : "disable"): \(error.localizedDescription)")
+                // SMAppService errors are currently swallowed; UI toggle and
+                // launchd state may diverge silently on failure.
             }
         }.value
     }

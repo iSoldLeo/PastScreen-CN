@@ -5,7 +5,7 @@
 //  Domain-layer capture type enum.
 //
 
-public enum CaptureItemCaptureType: Int, Codable, CaseIterable, Sendable {
+nonisolated public enum CaptureItemCaptureType: Int, Codable, CaseIterable, Sendable {
     case area = 0
     case window = 1
     case fullscreen = 2

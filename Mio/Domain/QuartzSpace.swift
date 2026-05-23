@@ -9,7 +9,7 @@ import Foundation
 import CoreGraphics
 import ApplicationServices
 
-public enum QuartzSpace {
+nonisolated public enum QuartzSpace {
     /// Height of the main display in Quartz coordinates.
     /// Quartz global coordinates use (0,0) at the top-left of the main display framebuffer.
     /// Returns 0 on headless systems; callers should validate before conversion.

@@ -2,20 +2,12 @@
 //  MioApp.swift
 //  Mio
 //
-//  Created by Eric COLOGNI on 03/11/2025.
+//  App entry point and AppDelegate. Bridges AppKit lifecycle events to
+//  the SwiftUI MenuBarExtra/Settings scenes and the capture pipeline.
 //
 
 import SwiftUI
 import AppKit
-import UserNotifications
-import Combine
-
-// Notification names
-extension Notification.Name {
-    static let screenshotCaptured = Notification.Name("screenshotCaptured")
-    static let hotKeyPressed = Notification.Name("hotKeyPressed")
-    static let captureFlowEnded = Notification.Name("captureFlowEnded")
-}
 
 @main
 struct MioApp: App {
@@ -26,323 +18,109 @@ struct MioApp: App {
             MenuBarContentView(app: appDelegate)
         }
 
-        // Pas de fenêtre principale ; les préférences s'ouvrent via le menu
+        // No main window — preferences open from the menu bar.
         Settings {
             SettingsView()
                 .environmentObject(AppSettings.shared.appearance)
                 .environmentObject(AppSettings.shared.hotkey)
-                .environmentObject(AppSettings.shared.ui)
                 .environmentObject(AppSettings.shared.capture)
         }
     }
 }
 
-enum CaptureTrigger: String, Sendable {
-    case menuBar
-    case hotkey
-}
-
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, ObservableObject {
+final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     let container = DependencyContainer()
-    private var hasPromptedAccessibility = false
-    private var hasPromptedScreenRecording = false
 
-    // Services
-    var permissionManager = PermissionManager.shared
-
-    var settings = AppSettings.shared
-    private let hotKeyManager = HotKeyManager.shared
-
-    /// Holds the Combine subscription for `AppearanceSettings.showInDock`
-    /// so the activation-policy update fires exactly once per change, on
-    /// MainActor.
-    private var showInDockObserver: AnyCancellable?
-
-    // Track last screenshot for "Reveal in Finder" menu item
-    @Published var lastScreenshotPath: String?
+    private let permissionManager = PermissionManager.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSLog("🎯 [APP] ====== APPLICATION DID FINISH LAUNCHING ======")
-        // Vérifier qu'une seule instance tourne
-        if let bundleID = Bundle.main.bundleIdentifier {
-            let runningInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            if runningInstances.count > 1 {
-                NSLog("⚠️ [APP] Une autre instance de Mio est déjà en cours d'exécution (\(runningInstances.count))")
-                NSLog("💡 [APP] Mio est limité à une seule instance - arrêt de cette nouvelle instance")
-                NSApp.terminate(nil)
-                return
-            }
+        if isAlreadyRunningElsewhere() {
+            NSApp.terminate(nil)
+            return
         }
 
-        // Setup notification center delegate
-        UNUserNotificationCenter.current().delegate = self
-
-        // IMPORTANT: Don't check permissions at startup to avoid system pop-ups
-        // Permissions will be requested through the onboarding flow
-        // permissionManager.checkAllPermissions()
-
-        // Don't request notification permission automatically
-        // permissionManager.requestPermission(.notifications) { granted in
-        //     if granted {
-        //         print("✅ [APP] Notifications authorized")
-        //     } else {
-        //         print("⚠️ [APP] Notifications not authorized - DynamicIslandManager will provide feedback")
-        //     }
-        // }
-
-        // NOTE: Permissions are now requested via Onboarding only
-        // No auto-prompting at launch to avoid popup chaos
-
-        #if DEBUG
-        testNotification()
-        #endif
-
-        // Start monitoring for the global hotkey. The manager will handle settings changes internally.
-        hotKeyManager.startMonitoring()
-
-        // Observe when the hotkey is pressed
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleHotKeyPressed),
-            name: .hotKeyPressed,
-            object: nil
-        )
-
-        // Check permission status (read-only, no popups)
+        // Permissions are checked read-only at launch. User-facing
+        // prompts belong to the (yet-to-be-implemented) onboarding
+        // flow, not here.
         permissionManager.checkAllPermissions()
 
-        // Observer les captures d'écran réussies pour mettre à jour lastScreenshotPath
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleScreenshotCaptured),
-            name: .screenshotCaptured,
-            object: nil
-        )
+        HotKeyManager.shared.start { [weak self] in
+            self?.handleHotKeyPressed()
+        }
 
-        // Observer les changements du mode Dock via Combine.
-        // AppearanceSettings est @MainActor; le sink reste donc sur le main
-        // actor sans nécessiter de hop explicite.
-        showInDockObserver = settings.appearance.$showInDock
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.updateActivationPolicy()
-            }
-
-        // Configurer le mode initial (Dock ou menu bar seulement)
-        updateActivationPolicy()
-
+        // Menu bar app: no Dock icon, accessory activation policy.
+        NSApp.setActivationPolicy(.accessory)
     }
 
-    @objc func handleScreenshotCaptured(_ notification: Notification) {
-        if let path = notification.userInfo?["filePath"] as? String {
-            lastScreenshotPath = path
+    // MARK: - Hotkey
+
+    private func handleHotKeyPressed() {
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.container.captureCoordinator.startAreaCapture()
+            }
         }
     }
 
+    // MARK: - Menu actions
+
     @objc func takeScreenshot() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performAreaCapture(source: .menuBar)
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.container.captureCoordinator.startAreaCapture()
+            }
         }
     }
 
     @objc func captureFullScreen() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performFullScreenCapture(source: .menuBar)
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.container.captureCoordinator.startFullScreenCapture()
+            }
         }
-    }
-
-    @objc func handleHotKeyPressed() {
-        requestScreenRecordingIfNeeded { [weak self] in
-            self?.performAreaCapture(source: .hotkey)
-        }
-    }
-
-    @objc func revealLastScreenshot() {
-        guard let path = lastScreenshotPath else { return }
-
-        // Verify file still exists
-        guard FileManager.default.fileExists(atPath: path) else {
-            // Reset lastScreenshotPath since file doesn't exist
-            lastScreenshotPath = nil
-            // Show alert
-            let alert = NSAlert()
-            alert.messageText = NSLocalizedString("error.file_not_found.title", comment: "")
-            alert.informativeText = NSLocalizedString("error.file_not_found.message", comment: "")
-            alert.alertStyle = .warning
-            alert.runModal()
-            return
-        }
-
-        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-    }
-
-    func copyFromHistory(path: String) {
-        guard FileManager.default.fileExists(atPath: path) else { return }
-        guard let image = NSImage(contentsOfFile: path) else { return }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.writeObjects([image])
-        pasteboard.setString(path, forType: .string)
-
-        if AppSettings.shared.capture.playSoundOnCapture {
-            NSSound(named: "Pop")?.play()
-        }
-
-        DynamicIslandManager.shared.show(message: "已复制", duration: 1.5)
-    }
-
-    @objc func copyFromHistory(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-        copyFromHistory(path: path)
     }
 
     @objc func changeDestinationFolder() {
-        // Ensure window is frontmost for the panel
+        // Bring Mio to front so NSOpenPanel attaches as expected.
         NSApp.activate(ignoringOtherApps: true)
 
         if let newPath = AppSettings.shared.capture.selectFolder() {
             AppSettings.shared.capture.saveFolderPath = newPath
-            // Also ensure saving is enabled if user explicitly picks a folder
-            AppSettings.shared.capture.saveToFile = true
         }
-    }
-
-    @objc func openPreferences() {
-        // Trigger SwiftUI Settings scene (macOS 14+)
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }
 
     @objc func quit() {
-        // Cleanup full screen service if needed
-
-        // Terminer l'application (le raccourci reste actif)
         NSApplication.shared.terminate(nil)
     }
 
-    // MARK: - UNUserNotificationCenterDelegate
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        if #available(macOS 12.0, *) {
-            completionHandler([.banner, .list, .sound])
-        } else {
-            completionHandler([.banner])
-        }
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let filePath = response.notification.request.content.userInfo["filePath"] as? String {
-            NSWorkspace.shared.selectFile(filePath, inFileViewerRootedAtPath: "")
-        }
-
-        // Fix: Force activation policy back to accessory if Dock icon shouldn't be shown
-        // Clicking a notification might activate the app, making the Dock icon appear.
-        if !AppSettings.shared.appearance.showInDock {
-            NSApp.setActivationPolicy(.accessory)
-        }
-
-        completionHandler()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        // HotKeyManager cleans itself up via deinit, so we don't need to call stopMonitoring.
-    }
-
+    // The menu bar app survives all window closures.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
 
-    func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    // MARK: - Private
+
+    private func isAlreadyRunningElsewhere() -> Bool {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return false }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1
     }
 
-#if DEBUG
-    func testNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "Mio - 测试"
-        content.body = "应用已启动"
-        content.sound = .default
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
-    }
-#endif
-
-    // REMOVED: Auto-permission request functions
-    // Permissions are now ONLY requested via Onboarding
-    // This prevents popup chaos on first launch
-
-    private func requestAllPermissions() {
-        // Check current status of all permissions
-        permissionManager.checkAllPermissions()
-
-        // Request Screen Recording permission
-        permissionManager.requestPermission(.screenRecording) { _ in }
-
-        // Request Accessibility permission (for global hotkeys)
-        permissionManager.requestPermission(.accessibility) { _ in }
-
-        // Check if any permissions are missing after 2 seconds
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            guard let self = self else { return }
-            let missing = self.permissionManager.getMissingPermissions()
-            if !missing.isEmpty {
-                // Only show alert if Screen Recording is missing (critical)
-                if missing.contains(.screenRecording) {
-                    self.permissionManager.showPermissionAlert(for: missing)
-                }
-            }
-        }
-    }
-
-    private func requestScreenRecordingIfNeeded(onGranted: @escaping () -> Void) {
+    /// Returns `true` once Screen Recording is granted; otherwise
+    /// presents the permission alert and returns `false` so the caller
+    /// skips the capture flow.
+    private func ensureScreenRecordingGranted() async -> Bool {
         permissionManager.checkScreenRecordingPermission()
         if permissionManager.screenRecordingStatus == .authorized {
-            onGranted()
-            return
+            return true
         }
-
-        // Use async wrapper to avoid capturing non-@Sendable onGranted in @Sendable completion.
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let granted = await withCheckedContinuation { continuation in
-                self.permissionManager.requestPermission(.screenRecording) { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-            if granted {
-                onGranted()
-            } else {
-                self.permissionManager.showPermissionAlert(for: [.screenRecording])
-            }
+        let granted = await permissionManager.requestPermission(.screenRecording)
+        if !granted {
+            permissionManager.showPermissionAlert(for: [.screenRecording])
         }
-    }
-
-    func performAreaCapture(source: CaptureTrigger = .menuBar) {
-        container.captureCoordinator.startAreaCapture()
-    }
-
-    func performFullScreenCapture(source: CaptureTrigger = .menuBar) {
-        container.captureCoordinator.startFullScreenCapture()
-    }
-
-    // MARK: - Raccourci clavier global
-
-    // All global hotkey logic has been refactored into the HotKeyManager class
-    // to improve separation of concerns. The manager is initialized at launch
-    // and communicates with AppDelegate via NotificationCenter.
-
-    // MARK: - Dock Icon Management
-
-    func updateActivationPolicy() {
-        let showInDock = settings.appearance.showInDock
-
-        if showInDock {
-            NSApp.setActivationPolicy(.regular)
-        } else {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        return granted
     }
 }

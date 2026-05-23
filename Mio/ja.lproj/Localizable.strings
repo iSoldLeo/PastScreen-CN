@@ -1,15 +1,8 @@
 /* Menu Items */
-"menu.tooltip" = "Mio - クイックキャプチャ";
 "menu.capture_area" = "クイックキャプチャ";
-"menu.capture_window" = "ウィンドウをキャプチャ";
 "menu.capture_fullscreen" = "フルスクリーンをキャプチャ";
-"menu.show_last" = "直前のキャプチャを表示";
-"menu.history" = "履歴";
-"menu.history.empty" = "キャプチャなし";
-"menu.history.clear" = "履歴をクリア";
 "menu.destination" = "保存フォルダを変更...";
 "menu.preferences" = "設定...";
-"menu.check_updates" = "アップデートを確認...";
 "menu.quit" = "Mio を終了";
 
 /* Window Titles */
@@ -24,9 +17,6 @@
 /* Settings - General */
 "settings.general.options" = "オプション";
 "settings.general.launch_at_login" = "ログイン時に起動";
-"settings.general.show_in_dock" = "Dock に表示";
-"settings.general.copy_clipboard" = "クリップボードにコピー";
-"settings.general.copy_clipboard.help" = "キャプチャ後に自動コピー";
 "settings.general.play_sound" = "シャッター音を再生";
 "settings.general.play_sound.help" = "キャプチャ時にカメラ音を鳴らす";
 "settings.general.show_dimensions" = "サイズを表示";
@@ -45,28 +35,8 @@
 "settings.general.privacy.description" = "Mio は何も収集せず、すべて Mac に残ります。";
 "settings.general.privacy.bullets" = "• 解析や追跡なし\n• クラウドへのアップロードなし\n• サードパーティなし\n• すべてローカル動作";
 "settings.general.privacy.view_policy" = "プライバシーポリシーを表示";
-"settings.general.language" = "言語";
-"settings.general.language.system" = "システムに従う";
-"settings.general.language.zh_hans" = "简体中文";
-"settings.general.language.zh_hant" = "繁體中文";
-"settings.general.language.classical_chinese" = "文言文";
-"settings.general.language.english" = "English";
-"settings.general.language.japanese" = "日本語";
-"settings.general.language.korean" = "한국어";
-"settings.general.language.german" = "Deutsch";
-"settings.general.language.french" = "Français";
-"settings.general.language.spanish" = "Español";
-"settings.general.language.dutch" = "Nederlands";
-"settings.general.language.antarctic" = "南極語（音あり）";
-"settings.general.language.note" = "言語変更は再起動後に反映されます。";
 
 /* Settings - Capture */
-"settings.capture.format_section" = "画像フォーマット";
-"settings.capture.image_format" = "形式:";
-"settings.capture.format_png" = "PNG（非圧縮）";
-"settings.capture.format_heic" = "HEIC（ハードウェアエンコード）";
-"settings.capture.format_jpeg" = "JPEG（圧縮）";
-"settings.capture.format_help" = "PNG は高品質だがサイズが大きめ、JPEG は小さめ。";
 "settings.capture.shortcuts_section" = "ショートカット";
 "settings.capture.enable_hotkey" = "グローバルショートカットを有効にする";
 "settings.capture.enable_hotkey.help" = "ショートカットをシステム全体で使えるようにする";
@@ -75,23 +45,13 @@
 "settings.capture.open_menu" = "メニューを開く";
 "settings.capture.hotkey_disabled_help" = "いつでもキャプチャできるようショートカットを有効化";
 "settings.capture.quick_screenshot" = "クイックキャプチャ";
-"settings.capture.window_border" = "ウィンドウ枠";
-"settings.capture.window_border.enable" = "ウィンドウ枠を有効にする";
-"settings.capture.window_border.width" = "枠の太さ";
-"settings.capture.window_border.corner" = "角の丸み";
-"settings.capture.window_border.color" = "枠の色";
 
 /* Settings - Editor */
 
 /* Settings - Storage */
 "settings.storage.section_title" = "保存先";
-"settings.storage.save_to_disk" = "ディスクに保存";
-"settings.storage.save_to_disk.help" = "クリップボードに加えファイルも保存";
 "settings.storage.save_folder.label" = "保存先";
-"settings.storage.folder_label" = "フォルダ:";
 "settings.storage.change_button" = "変更...";
-"settings.storage.open_folder" = "フォルダを開く";
-"settings.storage.clear_folder" = "フォルダをクリア";
 "settings.select_folder.prompt" = "選択";
 "settings.select_folder.message" = "キャプチャを保存するフォルダを選択";
 
@@ -117,14 +77,9 @@
 "error.open_system_settings" = "システム設定を開く";
 "error.capture_error" = "キャプチャに失敗しました";
 "error.unable_to_launch" = "Mio を起動できません";
-"error.file_not_found.title" = "ファイルが見つかりません";
-"error.file_not_found.message" = "最新のキャプチャが見つかりません。削除または移動された可能性があります。";
 "error.invalid_rectangle" = "選択範囲が無効です";
 "error.permission_denied" = "権限が拒否されました";
 "error.capture_interrupted" = "キャプチャが中断されました";
-
-/* Notifications */
-"notification.screenshot_saved" = "キャプチャ画像をクリップボードに保存";
 
 /* Onboarding */
 
@@ -140,7 +95,6 @@
 /* Permission Alerts */
 "permission.request.header" = "Mio を正しく動作させるには以下の権限が必要です:";
 "permission.request.footer" = "システム設定 → プライバシーとセキュリティで有効にしてください。";
-"permission.max_retries.message" = "Mio が権限要求の上限に達しました。\n\n手動で有効にしてください";
 
 /* Hotkey Labels */
 "hotkey.key.code" = "キー %d";
@@ -178,7 +132,6 @@
 /* Permissions */
 "permission.type.screen_recording" = "画面収録";
 "permission.type.accessibility" = "アクセシビリティ";
-"permission.type.notifications" = "通知";
 
 /* Editor */
 

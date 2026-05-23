@@ -2,12 +2,9 @@
 //  CaptureSettings.swift
 //  Mio
 //
-//  Capture-pipeline-scoped settings: where to save, what format,
-//  what to copy to the clipboard, whether to play the camera shutter
-//  sound. Owns the security-scoped bookmark store because the bookmark
-//  is bound to `saveFolderPath` semantically.
-//
-//  Phase 6A theme split: aggregated under `AppSettings.shared.capture`.
+//  Capture-pipeline-scoped settings: where to save, whether to play the
+//  camera shutter sound. Owns the security-scoped bookmark store because
+//  the bookmark is bound to `saveFolderPath` semantically.
 //
 
 import Foundation
@@ -22,12 +19,6 @@ final class CaptureSettings: ObservableObject {
     /// store persists the *access grant*.
     private let bookmarkStore = SaveFolderBookmarkStore()
 
-    @Published var saveToFile: Bool {
-        didSet {
-            UserDefaults.standard.set(saveToFile, forKey: "saveToFile")
-        }
-    }
-
     @Published var saveFolderPath: String {
         didSet {
             UserDefaults.standard.set(saveFolderPath, forKey: "saveFolderPath")
@@ -35,21 +26,9 @@ final class CaptureSettings: ObservableObject {
         }
     }
 
-    @Published var imageFormat: ImageFormat {
-        didSet {
-            UserDefaults.standard.set(imageFormat.rawValue, forKey: "imageFormat")
-        }
-    }
-
     @Published var playSoundOnCapture: Bool {
         didSet {
             UserDefaults.standard.set(playSoundOnCapture, forKey: "playSoundOnCapture")
-        }
-    }
-
-    @Published var captureClipboardFormat: CaptureClipboardFormat {
-        didSet {
-            UserDefaults.standard.set(captureClipboardFormat.rawValue, forKey: "captureClipboardFormat")
         }
     }
 
@@ -66,30 +45,19 @@ final class CaptureSettings: ObservableObject {
         // This complies with Apple guideline 2.4.5(i) - user-accessible storage
         self.saveFolderPath = UserDefaults.standard.string(forKey: "saveFolderPath") ?? ""
 
-        self.saveToFile = UserDefaults.standard.object(forKey: "saveToFile") as? Bool ?? true  // Default: enabled
-        self.imageFormat = ImageFormat.fromLegacyString(UserDefaults.standard.string(forKey: "imageFormat")) ?? .png
         self.playSoundOnCapture = UserDefaults.standard.object(forKey: "playSoundOnCapture") as? Bool ?? true
 
-        if let raw = UserDefaults.standard.string(forKey: "captureClipboardFormat"),
-           let format = CaptureClipboardFormat(rawValue: raw) {
-            self.captureClipboardFormat = format
-        } else {
-            self.captureClipboardFormat = .image
-        }
-
         // Restore the security-scoped bookmark off the main actor, then
-        // re-create the configured folder once access is armed. This
-        // unblocks cold launch — `URL(resolvingBookmarkData:)` performs
-        // synchronous I/O that previously executed in `init` on the main
-        // actor.
+        // re-create the configured folder once access is armed. The
+        // detached task lives inside `bookmarkStore.restoreFolderAccess()`;
+        // we await its result here on the main actor to chain
+        // `ensureFolderExists`.
         //
-        // Owner: CaptureSettings (held by AppSettings.shared, process-lifetime).
-        // Priority: utility (inherits from BookmarkResolution.resolve).
-        // Cancellation: not propagated; folder access must be re-armed
-        // before the first capture lands, otherwise file output silently
-        // fails. Process-lifetime singleton means the task always runs to
-        // completion or is terminated with the app.
-        Task { @MainActor [bookmarkStore] in
+        // Known limitation: this task is fire-and-forget — the first
+        // capture can still race with bookmark resolution if it triggers
+        // before this completes. File output silently fails in that
+        // window. Functional fix is out of scope for the settings layer.
+        Task { [bookmarkStore] in
             await bookmarkStore.restoreFolderAccess()
             self.ensureFolderExists()
         }

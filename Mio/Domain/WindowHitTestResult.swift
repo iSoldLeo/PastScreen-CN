@@ -3,13 +3,12 @@
 //  Mio
 //
 //  Domain-layer DTO for Quartz window hit-test results.
-//  Replaces the type previously defined in WindowCaptureCoordinator.
 //
 
 import Foundation
 import CoreGraphics
 
-public struct WindowHitTestResult: Sendable {
+nonisolated public struct WindowHitTestResult: Sendable {
     public let windowID: CGWindowID
     /// Bounds in AppKit screen coordinates (bottom-left origin, points).
     public let bounds: CGRect

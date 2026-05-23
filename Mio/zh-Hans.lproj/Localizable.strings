@@ -1,15 +1,8 @@
 /* Menu Items */
-"menu.tooltip" = "Mio - 快速截图";
 "menu.capture_area" = "快速截图";
-"menu.capture_window" = "窗口截图";
 "menu.capture_fullscreen" = "全屏截图";
-"menu.show_last" = "显示最近截图";
-"menu.history" = "历史记录";
-"menu.history.empty" = "暂无截图";
-"menu.history.clear" = "清空历史";
 "menu.destination" = "更改保存文件夹...";
 "menu.preferences" = "设置...";
-"menu.check_updates" = "检查更新...";
 "menu.quit" = "退出 Mio";
 
 /* Window Titles */
@@ -24,9 +17,6 @@
 /* Settings - General */
 "settings.general.options" = "选项";
 "settings.general.launch_at_login" = "开机启动";
-"settings.general.show_in_dock" = "在 Dock 栏里显示";
-"settings.general.copy_clipboard" = "复制到剪贴板";
-"settings.general.copy_clipboard.help" = "截图完成后自动复制到剪贴板";
 "settings.general.play_sound" = "播放截图音效";
 "settings.general.play_sound.help" = "截图时播放相机快门音效";
 "settings.general.show_dimensions" = "显示尺寸";
@@ -45,28 +35,8 @@
 "settings.general.privacy.description" = "Mio 不收集任何数据，所有内容仅保存在你的 Mac 上。";
 "settings.general.privacy.bullets" = "• 无分析或追踪\n• 无云端上传\n• 无第三方服务\n• 仅本地运行";
 "settings.general.privacy.view_policy" = "查看完整隐私政策";
-"settings.general.language" = "语言";
-"settings.general.language.system" = "跟随系统";
-"settings.general.language.zh_hans" = "简体中文";
-"settings.general.language.zh_hant" = "繁體中文";
-"settings.general.language.classical_chinese" = "文言文";
-"settings.general.language.english" = "English";
-"settings.general.language.japanese" = "日本語";
-"settings.general.language.korean" = "한국어";
-"settings.general.language.german" = "Deutsch";
-"settings.general.language.french" = "Français";
-"settings.general.language.spanish" = "Español";
-"settings.general.language.dutch" = "Nederlands";
-"settings.general.language.antarctic" = "南极语（有声音）";
-"settings.general.language.note" = "更改后重启应用生效。";
 
 /* Settings - Capture */
-"settings.capture.format_section" = "图片格式";
-"settings.capture.image_format" = "格式：";
-"settings.capture.format_png" = "PNG（无损）";
-"settings.capture.format_heic" = "HEIC（硬件编码）";
-"settings.capture.format_jpeg" = "JPEG（压缩）";
-"settings.capture.format_help" = "PNG 质量更好但体积更大，JPEG 更小。";
 "settings.capture.shortcuts_section" = "快捷键";
 "settings.capture.enable_hotkey" = "启用全局快捷键";
 "settings.capture.enable_hotkey.help" = "允许快捷键在全系统范围生效";
@@ -75,23 +45,13 @@
 "settings.capture.open_menu" = "打开菜单";
 "settings.capture.hotkey_disabled_help" = "开启快捷键即可随时截图";
 "settings.capture.quick_screenshot" = "快速截图";
-"settings.capture.window_border" = "窗口边框";
-"settings.capture.window_border.enable" = "启用窗口边框";
-"settings.capture.window_border.width" = "边框宽度";
-"settings.capture.window_border.corner" = "圆角半径";
-"settings.capture.window_border.color" = "边框颜色";
 
 /* Settings - Editor */
 
 /* Settings - Storage */
 "settings.storage.section_title" = "存储位置";
-"settings.storage.save_to_disk" = "保存到磁盘";
-"settings.storage.save_to_disk.help" = "除剪贴板外同时保存截图文件";
 "settings.storage.save_folder.label" = "保存位置";
-"settings.storage.folder_label" = "文件夹：";
 "settings.storage.change_button" = "更改...";
-"settings.storage.open_folder" = "打开文件夹";
-"settings.storage.clear_folder" = "清空文件夹";
 "settings.select_folder.prompt" = "选择";
 "settings.select_folder.message" = "请选择用于保存截图的文件夹";
 
@@ -117,14 +77,9 @@
 "error.open_system_settings" = "打开系统设置";
 "error.capture_error" = "截图失败";
 "error.unable_to_launch" = "无法启动 Mio";
-"error.file_not_found.title" = "未找到文件";
-"error.file_not_found.message" = "无法找到最近的截图，可能已被删除或移动。";
 "error.invalid_rectangle" = "选区无效";
 "error.permission_denied" = "权限被拒绝";
 "error.capture_interrupted" = "截图被中断";
-
-/* Notifications */
-"notification.screenshot_saved" = "截图已保存到剪贴板";
 
 /* Onboarding */
 
@@ -140,7 +95,6 @@
 /* Permission Alerts */
 "permission.request.header" = "Mio 需要以下权限才能正常工作：";
 "permission.request.footer" = "请在“系统设置 → 隐私与安全性”中开启。";
-"permission.max_retries.message" = "Mio 已达到权限请求次数上限。\n\n请手动开启";
 
 /* Hotkey Labels */
 "hotkey.key.code" = "按键 %d";
@@ -178,7 +132,6 @@
 /* Permissions */
 "permission.type.screen_recording" = "屏幕录制";
 "permission.type.accessibility" = "辅助功能";
-"permission.type.notifications" = "通知";
 
 /* Editor */
 

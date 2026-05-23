@@ -1,17 +1,13 @@
 import SwiftUI
 import AppKit
-import Combine
 
 struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
     @ObservedObject private var hotkey = AppSettings.shared.hotkey
     @ObservedObject var app: AppDelegate
-    private var canRevealLast: Bool { app.lastScreenshotPath != nil }
 
     var body: some View {
         captureSection
-        Divider()
-        historySection
         Divider()
         utilitySection
     }
@@ -26,16 +22,6 @@ struct MenuBarContentView: View {
             Button(NSLocalizedString("menu.capture_fullscreen", comment: "")) {
                 app.captureFullScreen()
             }
-        }
-    }
-
-    private var historySection: some View {
-        Group {
-            Button(NSLocalizedString("menu.show_last", comment: "")) {
-                app.revealLastScreenshot()
-            }
-            .disabled(!canRevealLast)
-
         }
     }
 

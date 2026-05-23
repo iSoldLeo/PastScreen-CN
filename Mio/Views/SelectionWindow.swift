@@ -7,9 +7,8 @@
 
 import Foundation
 // TODO: Remove @preconcurrency once Apple marks NSEvent as Sendable.
-@preconcurrency import AppKit  // NSEvent 未标记 Sendable，addGlobalMonitorForEvents 回调需要抑制
+@preconcurrency import AppKit
 
-// Protocol simple pour communiquer avec le service
 @MainActor
 protocol SelectionWindowDelegate: AnyObject {
     func selectionWindow(_ window: SelectionWindow, didSelectRect rect: CGRect)
@@ -36,16 +35,6 @@ final class OverlayWindow: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
-
-    override func keyDown(with event: NSEvent) {
-        // Allow ESC to propagate to parent SelectionWindow
-        if event.keyCode == 53 { // ESC
-            // Will be handled by SelectionOverlayView
-            super.keyDown(with: event)
-        } else {
-            super.keyDown(with: event)
-        }
-    }
 }
 
 @MainActor
@@ -55,15 +44,10 @@ class SelectionWindow: NSWindow {
     // Multi-screen support: one window per screen
     private var overlayWindows: [OverlayWindow] = []
     private let overlayConfiguration: SelectionOverlayView.Configuration
-    private var frozenScreenshots: [CGDirectDisplayID: CaptureImage]
     private var escapeKeyMonitor: Any?
 
-    init(
-        frozenScreenshots: [CGDirectDisplayID: CaptureImage] = [:],
-        overlayConfiguration: SelectionOverlayView.Configuration = .screenshot
-    ) {
+    init(overlayConfiguration: SelectionOverlayView.Configuration = .screenshot) {
         self.overlayConfiguration = overlayConfiguration
-        self.frozenScreenshots = frozenScreenshots
         // Create main window (first screen) for NSWindow inheritance
         let mainScreen = NSScreen.main ?? NSScreen.screens.first!
 
@@ -94,17 +78,11 @@ class SelectionWindow: NSWindow {
             // Manually position window to this screen's frame
             window.setFrame(screen.frame, display: false)
 
-            // Resolve snapshot for this screen if available
-            let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
-            let snapshot = displayID.flatMap { frozenScreenshots[$0] }
-
             // Create overlay view for this screen - frame must be relative to window (0,0 origin)
             let overlayFrame = NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height)
             let overlayView = SelectionOverlayView(
                 frame: overlayFrame,
-                configuration: overlayConfiguration,
-                displayID: displayID,
-                backgroundImage: snapshot
+                configuration: overlayConfiguration
             )
             overlayView.onComplete = { [weak self] rect in
                 guard let self = self else { return }
@@ -126,14 +104,6 @@ class SelectionWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { // ESC
-            selectionDelegate?.selectionWindowDidCancel(self)
-        } else {
-            super.keyDown(with: event)
-        }
-    }
 
     // Convenience methods for showing/hiding
     func show() {
@@ -167,53 +137,23 @@ class SelectionWindow: NSWindow {
             window.ignoresMouseEvents = true
         }
     }
-
-    // Get overlay window IDs for ScreenCaptureKit exclusion
-    func getOverlayWindowIDs() -> [CGWindowID] {
-        let windowIDs = overlayWindows.compactMap { window -> CGWindowID? in
-            let windowNumber = window.windowNumber
-            guard windowNumber > 0 else { return nil }
-            return CGWindowID(windowNumber)
-        }
-        return windowIDs
-    }
-
-    /// Adjust alpha for all overlay windows (useful to hide overlays during background capture).
-    func setOverlayAlpha(_ alpha: CGFloat) {
-        for window in overlayWindows {
-            window.alphaValue = alpha
-        }
-    }
-
-    func updateBackgroundSnapshots(_ snapshots: [CGDirectDisplayID: CaptureImage]) {
-        frozenScreenshots = snapshots
-        for window in overlayWindows {
-            guard let overlayView = window.contentView as? SelectionOverlayView else { continue }
-            guard let displayID = overlayView.displayID else { continue }
-            overlayView.updateBackground(snapshots[displayID])
-        }
-    }
 }
 
-// Vue simple pour dessiner la sélection
 @MainActor
 class SelectionOverlayView: NSView {
     var onComplete: ((CGRect) -> Void)?
     var onWindowSelect: ((WindowHitTestResult) -> Void)?
     var onCancel: (() -> Void)?
-    
+
     struct Configuration {
         var overlayOpacity: CGFloat
         var clickThreshold: CGFloat
         var minSelectionSize: CGFloat
 
         static let screenshot = Configuration(overlayOpacity: 0.2, clickThreshold: 10, minSelectionSize: 10)
-        static let ocr = Configuration(overlayOpacity: 0.2, clickThreshold: 2, minSelectionSize: 2)
     }
 
     private let configuration: Configuration
-    private(set) var displayID: CGDirectDisplayID?
-    private var backgroundImage: CaptureImage?
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
@@ -222,12 +162,9 @@ class SelectionOverlayView: NSView {
     private var hoverWindowHit: WindowHitTestResult?
     private var highlightRect: NSRect?
     private var trackingArea: NSTrackingArea?
-    private var didReceiveMouseMove = false
 
-    init(frame: NSRect, configuration: Configuration = .screenshot, displayID: CGDirectDisplayID? = nil, backgroundImage: CaptureImage? = nil) {
+    init(frame: NSRect, configuration: Configuration = .screenshot) {
         self.configuration = configuration
-        self.displayID = displayID
-        self.backgroundImage = backgroundImage
         super.init(frame: frame)
         self.wantsLayer = true
         // Keep layer clear; dimming is drawn in draw(_:) to allow full transparency in the selection hole
@@ -246,12 +183,6 @@ class SelectionOverlayView: NSView {
         hoverWindowHit = nil
         pendingWindowHit = nil
         highlightRect = nil
-        didReceiveMouseMove = false
-        needsDisplay = true
-    }
-
-    func updateBackground(_ image: CaptureImage?) {
-        backgroundImage = image
         needsDisplay = true
     }
 
@@ -280,7 +211,6 @@ class SelectionOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
-        didReceiveMouseMove = true
         hoverWindowHit = resolveWindowHit()
         pendingWindowHit = hoverWindowHit
         needsDisplay = true
@@ -315,7 +245,7 @@ class SelectionOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard isDragging, let start = startPoint, let end = endPoint else {
             // Defer callback to avoid crash during event handling
-            Task { @MainActor [weak self] in
+            Task { [weak self] in
                 self?.onCancel?()
             }
             return
@@ -329,7 +259,7 @@ class SelectionOverlayView: NSView {
 
         if !hasDragged, let windowHit = pendingWindowHit {
             // Treat as window-click capture
-            Task { @MainActor [weak self] in
+            Task { [weak self] in
                 self?.onWindowSelect?(windowHit)
             }
             pendingWindowHit = nil
@@ -348,11 +278,11 @@ class SelectionOverlayView: NSView {
 
         // Defer callbacks to avoid crash when window is hidden/deallocated during event handling
         if rect.width > configuration.minSelectionSize && rect.height > configuration.minSelectionSize {
-            Task { @MainActor [weak self] in
+            Task { [weak self] in
                 self?.emitSelection(rect: rect)
             }
         } else {
-            Task { @MainActor [weak self] in
+            Task { [weak self] in
                 self?.onCancel?()
             }
         }
@@ -371,7 +301,7 @@ class SelectionOverlayView: NSView {
         highlightRect = nil
         needsDisplay = true
 
-        Task { @MainActor [weak self] in
+        Task { [weak self] in
             self?.onCancel?()
         }
     }
@@ -392,11 +322,7 @@ class SelectionOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
-            context.draw(backgroundImage.cgImage, in: bounds)
-        }
-
-        // Fond semi-transparent plus marqué
+        // Semi-transparent dimming
         NSColor.black.withAlphaComponent(configuration.overlayOpacity).setFill()
         bounds.fill()
 
@@ -415,15 +341,7 @@ class SelectionOverlayView: NSView {
 
         guard let rect = holeRect else { return }
 
-        // Redraw snapshot inside selection to keep it bright (no dimming)
-        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
-            context.saveGState()
-            context.clip(to: rect)
-            context.draw(backgroundImage.cgImage, in: bounds)
-            context.restoreGState()
-        }
-
-        // Bordure
+        // Selection border
         NSColor.systemBlue.setStroke()
         let path = NSBezierPath(rect: rect)
         path.lineWidth = 2

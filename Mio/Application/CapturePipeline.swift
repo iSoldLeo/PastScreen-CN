@@ -2,7 +2,7 @@
 //  CapturePipeline.swift
 //  Mio
 //
-//  Actor that executes the capture → render → output flow.
+//  Actor that executes the capture → output flow.
 //  All work happens off the main thread.
 //
 
@@ -16,86 +16,58 @@ public enum CaptureRequest: Sendable {
     case fullscreen(rect: CGRect, config: CaptureConfiguration)
 }
 
-public struct CapturePipelineOutput: Sendable {
-    public let result: CaptureResult
-    public let filePath: String?
-}
-
 public actor CapturePipeline {
     private let displayCapture: any ScreenCapturing
-    private let imageRender: any ImageRendering
     private let fileOutput: any FileWriting
     private let clipboardOutput: any ClipboardWriting
     private let eventBus: any EventBusing
 
     public init(
         displayCapture: any ScreenCapturing,
-        imageRender: any ImageRendering,
         fileOutput: any FileWriting,
         clipboardOutput: any ClipboardWriting,
         eventBus: any EventBusing
     ) {
         self.displayCapture = displayCapture
-        self.imageRender = imageRender
         self.fileOutput = fileOutput
         self.clipboardOutput = clipboardOutput
         self.eventBus = eventBus
     }
 
-    public func execute(request: CaptureRequest) async throws -> CapturePipelineOutput {
+    public func execute(request: CaptureRequest) async throws {
         let config: CaptureConfiguration = switch request {
         case .area(_, let cfg): cfg
         case .window(_, _, let cfg): cfg
         case .fullscreen(_, let cfg): cfg
         }
 
-        eventBus.emit(.started(config))
         try Task.checkCancellation()
 
-        let captureType: CaptureItemCaptureType
         let capturedImage: CaptureImage
-        var appBundleID: String?
-        var appName: String?
 
         switch request {
         case .area(let rect, _):
-            captureType = .area
             capturedImage = try await displayCapture.captureDisplay(rect: rect, excludingWindowIDs: [])
-            appBundleID = nil
-            appName = nil
 
         case .window(let windowID, _, _):
-            captureType = .window
             capturedImage = try await displayCapture.captureWindow(windowID: windowID)
-            appBundleID = nil
-            appName = nil
 
         case .fullscreen(let rect, _):
-            captureType = .fullscreen
             capturedImage = try await displayCapture.captureDisplay(rect: rect, excludingWindowIDs: [])
-            appBundleID = nil
-            appName = nil
         }
 
         try Task.checkCancellation()
 
-        // Render border for window captures when enabled
-        var finalImage = capturedImage
-        if captureType == .window && config.windowBorderEnabled {
-            finalImage = try await imageRender.addBorder(to: capturedImage, config: config)
-            try Task.checkCancellation()
-        }
-
-        // File output (must happen before clipboard for path/markdown formats).
+        // File output (must happen before clipboard for the saved-path event).
         // The file output service owns the on-disk sequence counter internally.
         var filePath: String?
-        if config.saveToFile && config.hasValidSaveFolder {
-            filePath = try await fileOutput.write(image: finalImage, config: config)
+        if config.hasValidSaveFolder {
+            filePath = try await fileOutput.write(image: capturedImage, config: config)
             try Task.checkCancellation()
         }
 
         // Clipboard output (async call automatically hops to @MainActor implementation)
-        try await clipboardOutput.copy(image: finalImage, config: config, filePath: filePath)
+        try await clipboardOutput.copy(image: capturedImage)
 
         // Play sound on main thread (NSSound requirement)
         if config.playSoundOnCapture {
@@ -109,19 +81,9 @@ public actor CapturePipeline {
             }
         }
 
-        let result = CaptureResult(
-            image: finalImage,
-            captureType: captureType,
-            appBundleID: appBundleID,
-            appName: appName
-        )
-
-        eventBus.emit(.captured(result))
         if let filePath {
             eventBus.emit(.savedToFile(path: filePath))
         }
         eventBus.emit(.copiedToClipboard)
-
-        return CapturePipelineOutput(result: result, filePath: filePath)
     }
 }

@@ -2,72 +2,42 @@
 //  HotKeyManager.swift
 //  Mio
 //
-//  Created by Eric COLOGNI on 2025-11-20.
+//  Owns the global capture-hotkey monitors. Re-evaluates monitor state
+//  when the user toggles the hotkey or grants Accessibility permission.
 //
-//  Manages the global hotkey for capturing screenshots.
+//  Hotkey delivery uses a callback (`start(onHotKeyPressed:)`) rather
+//  than a NotificationCenter broadcast: the only consumer is
+//  `AppDelegate`, so a typed closure is simpler and easier to reason
+//  about under strict concurrency.
 //
 
 import Foundation
-// TODO: Remove @preconcurrency once Apple marks NSEvent as Sendable.
-@preconcurrency import AppKit  // NSEvent 未标记 Sendable，但在 addGlobalMonitorForEvents 回调中需要跨隔离域传递
-// TODO: Remove @preconcurrency once Apple marks Combine types as Sendable.
-@preconcurrency import Combine  // AnyCancellable 未标记 Sendable
+import AppKit
+import Combine
 
 @MainActor
-class HotKeyManager {
+final class HotKeyManager {
 
     static let shared = HotKeyManager()
 
-    // nonisolated(unsafe): NSEvent monitor handles are typed as Any (not Sendable).
-    // They are created on MainActor (startMonitoring) and only cleaned up in deinit.
-    // Safe because: (1) writes only happen on MainActor, (2) reads in deinit happen
-    // after all references released, (3) NSEvent.removeMonitor is thread-safe.
-    // TODO: Replace with typed wrapper once Apple provides Sendable monitor token API.
-    private nonisolated(unsafe) var globalEventMonitor: Any?
-    private nonisolated(unsafe) var localEventMonitor: Any?
+    // NSEvent monitor handles are typed as `Any` and `AnyCancellable` is
+    // not Sendable, but they live entirely inside this @MainActor class
+    // and are touched only from MainActor contexts (including
+    // `isolated deinit`). No `nonisolated(unsafe)` required.
+    private var globalEventMonitor: Any?
+    private var localEventMonitor: Any?
+    private var settingsObserver: AnyCancellable?
+    private var permissionObserver: AnyCancellable?
+    private var onHotKeyPressed: (@MainActor () -> Void)?
+
     private let hotKeySettings = AppSettings.shared.hotkey
     private let permissionManager = PermissionManager.shared
-    // nonisolated(unsafe): AnyCancellable is not marked Sendable by Apple.
-    // Set once in init (MainActor) and only cancelled in deinit.
-    // TODO: Remove once Combine types are marked Sendable.
-    private nonisolated(unsafe) var settingsObserver: AnyCancellable?
-    private nonisolated(unsafe) var permissionObserver: AnyCancellable?
     private var isRecordingHotKey = false
-    private var isStartingMonitoring = false
+    private var isReinstalling = false
 
-    private init() {
-        // Observe changes to the hotkey enabled setting.
-        // This allows enabling/disabling the hotkey from the Settings window
-        // without needing to restart the app.
-        settingsObserver = hotKeySettings.$globalHotkeyEnabled.sink { [weak self] enabled in
-            Task { [weak self] in
-                guard let self else { return }
-                if enabled {
-                    self.startMonitoring()
-                } else {
-                    self.stopMonitoring()
-                }
-            }
-        }
+    private init() {}
 
-        // Restart monitoring automatically once Accessibility permission is granted
-        permissionObserver = permissionManager.$accessibilityStatus
-            .sink { [weak self] status in
-                Task { [weak self] in
-                    guard let self else { return }
-                    if status == .authorized {
-                        self.startMonitoring()
-                    } else {
-                        self.stopMonitoring()
-                    }
-                }
-            }
-    }
-
-    nonisolated deinit {
-        // deinit is nonisolated — only do minimal cleanup here.
-        // NSEvent monitors are removed via removeMonitor which is safe to call from any thread.
-        // We access the stored monitor references directly (nonisolated access to stored properties is allowed in deinit).
+    isolated deinit {
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
         }
@@ -78,69 +48,34 @@ class HotKeyManager {
         permissionObserver?.cancel()
     }
 
-    /// Starts listening for the global hotkey if it's enabled in settings.
-    func startMonitoring() {
-        // Reentrancy guard: prevent double-installation when multiple observers
-        // fire simultaneously (e.g. settings change + permission grant).
-        guard !isStartingMonitoring else { return }
-        isStartingMonitoring = true
-        defer { isStartingMonitoring = false }
+    // MARK: - Public API
 
-        // Ensure we don't create multiple monitors by stopping any existing ones.
-        stopMonitoring()
+    /// Starts monitoring and registers the callback that fires when the
+    /// configured hotkey is pressed. Subsequent calls replace the
+    /// previous callback and reinstall the monitors.
+    func start(onHotKeyPressed: @escaping @MainActor () -> Void) {
+        self.onHotKeyPressed = onHotKeyPressed
 
-        guard hotKeySettings.globalHotkeyEnabled else {
-            return
+        if settingsObserver == nil {
+            settingsObserver = hotKeySettings.$globalHotkeyEnabled.sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.reinstallMonitors()
+                }
+            }
         }
-
-        // The hotkey requires Accessibility permissions. We check for them here but
-        // do not prompt the user. The onboarding flow is responsible for requesting permissions.
-        guard AXIsProcessTrusted() else {
-            return
-        }
-
-        globalEventMonitor = Self.installGlobalMonitor { [weak self] keyCode, modifierFlags, characters in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                _ = self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
+        if permissionObserver == nil {
+            permissionObserver = permissionManager.$accessibilityStatus.sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.reinstallMonitors()
+                }
             }
         }
 
-        localEventMonitor = Self.installLocalMonitor { [weak self] keyCode, modifierFlags, characters in
-            // SAFETY: addLocalMonitorForEvents always delivers on the main thread.
-            // We use assumeIsolated because the callback is synchronous and must return NSEvent?.
-            return MainActor.assumeIsolated {
-                guard let self = self else { return false }
-                return self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
-            }
-        }
-    }
-
-    // MARK: - nonisolated monitor installation
-    // These are nonisolated to avoid NSEvent (non-Sendable) crossing @MainActor boundary.
-    // NSEvent values are extracted inside the closure and only Sendable values are passed out.
-
-    /// Installs a global key-down monitor. The callback receives extracted Sendable values only.
-    private nonisolated static func installGlobalMonitor(
-        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Void
-    ) -> Any? {
-        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
-        }
-    }
-
-    /// Installs a local key-down monitor. The callback returns true if the event was handled (should be swallowed).
-    private nonisolated static func installLocalMonitor(
-        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Bool
-    ) -> Any? {
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let handled = handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
-            return handled ? nil : event
-        }
+        reinstallMonitors()
     }
 
     /// Stops listening for the global hotkey.
-    func stopMonitoring() {
+    func stop() {
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
             globalEventMonitor = nil
@@ -151,22 +86,80 @@ class HotKeyManager {
         }
     }
 
+    /// Briefly disables hotkey matching while the user records a new
+    /// shortcut in Settings, so the in-progress key combination does not
+    /// trigger a screenshot.
     func setRecordingHotKey(_ recording: Bool) {
         isRecordingHotKey = recording
+    }
+
+    // MARK: - Private
+
+    private func reinstallMonitors() {
+        // Reentrancy guard: prevent double-installation when multiple
+        // observers fire in the same tick (e.g. settings change +
+        // permission grant).
+        guard !isReinstalling else { return }
+        isReinstalling = true
+        defer { isReinstalling = false }
+
+        stop()
+
+        guard hotKeySettings.globalHotkeyEnabled else { return }
+        guard AXIsProcessTrusted() else { return }
+
+        globalEventMonitor = Self.installGlobalMonitor { [weak self] keyCode, modifierFlags, characters in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                _ = self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
+            }
+        }
+
+        localEventMonitor = Self.installLocalMonitor { [weak self] keyCode, modifierFlags, characters in
+            // SAFETY: addLocalMonitorForEvents always delivers on the
+            // main thread, but the closure is synchronous and must
+            // return NSEvent? immediately, so `await` is not an option.
+            // `assumeIsolated` is the documented escape hatch.
+            return MainActor.assumeIsolated {
+                guard let self else { return false }
+                return self.handleHotKeyValues(keyCode: keyCode, modifierFlags: modifierFlags, characters: characters)
+            }
+        }
+    }
+
+    /// nonisolated so NSEvent (non-Sendable) never crosses the MainActor
+    /// boundary; only Sendable values flow out of the closure.
+    private nonisolated static func installGlobalMonitor(
+        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Void
+    ) -> Any? {
+        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+            handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
+        }
+    }
+
+    /// Returns `true` when the event was consumed (and should be
+    /// swallowed); the local monitor uses this to suppress the normal
+    /// app keystroke after a hotkey match.
+    private nonisolated static func installLocalMonitor(
+        handler: @escaping @Sendable (UInt16, NSEvent.ModifierFlags, String?) -> Bool
+    ) -> Any? {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let handled = handler(event.keyCode, event.modifierFlags, event.charactersIgnoringModifiers)
+            return handled ? nil : event
+        }
     }
 
     @discardableResult
     private func handleHotKeyValues(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, characters: String?) -> Bool {
         guard !isRecordingHotKey else { return false }
 
-        // Check for regular screenshot hotkey
         let hotkey = hotKeySettings.globalHotkey
         let requiredModifiers = hotkey.modifierFlags
         let eventModifiers = HotKey.normalizedModifiers(modifierFlags)
 
         let matchesModifiers = eventModifiers == requiredModifiers
         let matchesKeyCode = keyCode == hotkey.keyCode
-        let matchesCharacters = {
+        let matchesCharacters: Bool = {
             guard let expected = hotkey.characters?.lowercased(),
                   let actual = characters?.lowercased() else {
                 return false
@@ -175,12 +168,9 @@ class HotKeyManager {
         }()
 
         if matchesModifiers && (matchesKeyCode || matchesCharacters) {
-            // Post a notification to decouple the hotkey detection from the action.
-            // The AppDelegate will listen for this notification to trigger a screenshot.
-            NotificationCenter.default.post(name: .hotKeyPressed, object: nil)
+            onHotKeyPressed?()
             return true
         }
-
         return false
     }
 }

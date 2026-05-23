@@ -12,7 +12,7 @@
 
 import Foundation
 
-public struct CaptureError: Error, LocalizedError, Sendable {
+nonisolated public struct CaptureError: Error, LocalizedError, Sendable {
     public let message: String
     public let underlyingDescription: String?
 

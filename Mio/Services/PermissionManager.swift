@@ -2,24 +2,24 @@
 //  PermissionManager.swift
 //  Mio
 //
-//  Comprehensive permission management with retry logic and diagnostics
+//  Tracks Screen Recording / Accessibility permission status and
+//  exposes async helpers to request them.
 //
 
 import Foundation
 import AppKit
-import UserNotifications
 import Combine
 
 enum PermissionType: CaseIterable, Sendable {
     case screenRecording
     case accessibility
-    case notifications
 
+    /// Used inside `showPermissionAlert` informativeText, displayed to
+    /// the user. Not a developer-facing log.
     var icon: String {
         switch self {
         case .screenRecording: return "📱"
         case .accessibility: return "♿️"
-        case .notifications: return "🔔"
         }
     }
 
@@ -29,8 +29,6 @@ enum PermissionType: CaseIterable, Sendable {
             return NSLocalizedString("permission.type.screen_recording", value: "屏幕录制", comment: "")
         case .accessibility:
             return NSLocalizedString("permission.type.accessibility", value: "辅助功能", comment: "")
-        case .notifications:
-            return NSLocalizedString("permission.type.notifications", value: "通知", comment: "")
         }
     }
 }
@@ -40,159 +38,67 @@ enum PermissionStatus: Sendable {
     case denied
     case notDetermined
     case restricted
-
-    var description: String {
-        switch self {
-        case .authorized: return "✅ Authorized"
-        case .denied: return "❌ Denied"
-        case .notDetermined: return "⏳ Not Determined"
-        case .restricted: return "🚫 Restricted"
-        }
-    }
 }
 
 @MainActor
-class PermissionManager: ObservableObject {
+final class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
 
     @Published var screenRecordingStatus: PermissionStatus = .notDetermined
     @Published var accessibilityStatus: PermissionStatus = .notDetermined
-    @Published var notificationStatus: PermissionStatus = .notDetermined
 
-    private var retryCount: [PermissionType: Int] = [:]
-    private let maxRetries = 3
+    private init() {}
 
-    // MARK: - Permission Status Checking
+    // MARK: - Status checking
 
     func checkAllPermissions() {
         checkScreenRecordingPermission()
         checkAccessibilityPermission()
-        checkNotificationPermission()
     }
 
     func checkScreenRecordingPermission() {
-        if #available(macOS 10.15, *) {
-            let hasAccess = CGPreflightScreenCaptureAccess()
-            screenRecordingStatus = hasAccess ? .authorized : .denied
-        }
+        screenRecordingStatus = CGPreflightScreenCaptureAccess() ? .authorized : .denied
     }
 
     func checkAccessibilityPermission() {
-        let hasAccess = AXIsProcessTrusted()
-        accessibilityStatus = hasAccess ? .authorized : .denied
+        accessibilityStatus = AXIsProcessTrusted() ? .authorized : .denied
     }
 
-    func checkNotificationPermission() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            let status = settings.authorizationStatus
-            Task { @MainActor in
-                switch status {
-                case .authorized, .provisional, .ephemeral:
-                    self.notificationStatus = .authorized
-                case .denied:
-                    self.notificationStatus = .denied
-                case .notDetermined:
-                    self.notificationStatus = .notDetermined
-                @unknown default:
-                    self.notificationStatus = .restricted
-                }
-            }
-        }
-    }
+    // MARK: - Requests
 
-    // MARK: - Permission Requests with Retry
-
-    func requestPermission(_ type: PermissionType, completion: @escaping @Sendable (Bool) -> Void) {
-        let currentRetry = retryCount[type] ?? 0
-
-        if currentRetry >= maxRetries {
-            showMaxRetriesAlert(for: type)
-            completion(false)
-            return
-        }
-
-        retryCount[type] = currentRetry + 1
-
+    /// Prompts the user (via the system dialog) for the requested
+    /// permission and returns whether it was granted. Re-checks status
+    /// after a short delay so the @Published properties reflect the
+    /// post-prompt state for any UI bound to them.
+    func requestPermission(_ type: PermissionType) async -> Bool {
         switch type {
         case .screenRecording:
-            requestScreenRecording(completion: completion)
+            if CGPreflightScreenCaptureAccess() {
+                checkScreenRecordingPermission()
+                return true
+            }
+            CGRequestScreenCaptureAccess()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            checkScreenRecordingPermission()
+            return screenRecordingStatus == .authorized
+
         case .accessibility:
-            requestAccessibility(completion: completion)
-        case .notifications:
-            requestNotifications(completion: completion)
-        }
-    }
-
-    private func requestScreenRecording(completion: @escaping @Sendable (Bool) -> Void) {
-        if #available(macOS 10.15, *) {
-            let wasAuthorized = CGPreflightScreenCaptureAccess()
-            if !wasAuthorized {
-                CGRequestScreenCaptureAccess()
-
-                // Check again after a delay
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    self.checkScreenRecordingPermission()
-                    completion(self.screenRecordingStatus == .authorized)
-                }
-            } else {
-                completion(true)
+            if AXIsProcessTrusted() {
+                checkAccessibilityPermission()
+                return true
             }
-        }
-    }
-
-    private func requestAccessibility(completion: @escaping @Sendable (Bool) -> Void) {
-        let wasAuthorized = AXIsProcessTrusted()
-        if !wasAuthorized {
-            // Use string literal instead of kAXTrustedCheckOptionPrompt to avoid
-            // Swift 6 concurrency-safety warning on the global CF constant.
+            // Use the string literal instead of `kAXTrustedCheckOptionPrompt`
+            // to avoid the Swift 6 concurrency-safety warning on the
+            // global CF constant.
             let options = ["AXTrustedCheckOptionPrompt" as CFString: true] as CFDictionary
-            let _ = AXIsProcessTrustedWithOptions(options)
-
-            // Check again after a delay
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                self.checkAccessibilityPermission()
-                completion(self.accessibilityStatus == .authorized)
-            }
-        } else {
-            completion(true)
+            _ = AXIsProcessTrustedWithOptions(options)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            checkAccessibilityPermission()
+            return accessibilityStatus == .authorized
         }
     }
 
-    private func requestNotifications(completion: @escaping @Sendable (Bool) -> Void) {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-            Task { @MainActor in
-                self.checkNotificationPermission()
-                completion(granted)
-            }
-        }
-    }
-
-    // MARK: - User Feedback
-
-    func allPermissionsGranted() -> Bool {
-        return screenRecordingStatus == .authorized &&
-               accessibilityStatus == .authorized &&
-               notificationStatus == .authorized
-    }
-
-    func getMissingPermissions() -> [PermissionType] {
-        var missing: [PermissionType] = []
-
-        if screenRecordingStatus != .authorized {
-            missing.append(.screenRecording)
-        }
-        if accessibilityStatus != .authorized {
-            missing.append(.accessibility)
-        }
-        if notificationStatus != .authorized {
-            missing.append(.notifications)
-        }
-
-        return missing
-    }
+    // MARK: - User feedback
 
     func showPermissionAlert(for permissions: [PermissionType]) {
         let alert = NSAlert()
@@ -212,51 +118,8 @@ class PermissionManager: ObservableObject {
         }
     }
 
-    private func showMaxRetriesAlert(for type: PermissionType) {
-        let alert = NSAlert()
-        alert.messageText = "\(type.icon) \(type.localizedName) " + NSLocalizedString("error.permission_denied", value: "需要权限", comment: "")
-
-        let message = NSLocalizedString("permission.max_retries.message", value: "Mio 已达到权限请求次数上限。\n\n请手动开启", comment: "")
-
-        alert.informativeText = """
-        \(message) \(type.localizedName):
-        系统设置 → 隐私与安全性 → \(type.localizedName)
-        """
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: NSLocalizedString("error.open_system_prefs", value: "打开系统设置", comment: ""))
-        alert.addButton(withTitle: NSLocalizedString("common.ok", comment: ""))
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            openSystemPreferences()
-        }
-    }
-
     func openSystemPreferences() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!
         NSWorkspace.shared.open(url)
-    }
-
-    // MARK: - Reset
-
-    func resetRetryCounters() {
-        retryCount.removeAll()
-    }
-
-    // MARK: - Convenience Methods
-
-    func requestAccessibilityPermission(completion: @escaping @Sendable (Bool) -> Void) {
-        requestPermission(.accessibility, completion: completion)
-    }
-
-    func requestScreenRecordingPermission(completion: @escaping @Sendable (Bool) -> Void) {
-        requestPermission(.screenRecording, completion: completion)
-    }
-
-    var hasAllPermissions: Bool {
-        return screenRecordingStatus == .authorized && accessibilityStatus == .authorized
-    }
-
-    func hasReachedMaxRetries(for type: PermissionType) -> Bool {
-        return (retryCount[type] ?? 0) >= maxRetries
     }
 }

@@ -7,7 +7,6 @@
 
 import SwiftUI
 @preconcurrency import AppKit  // NSEvent 未标记 Sendable
-import Combine
 
 private struct SettingsPage<Content: View>: View {
     private let content: Content
@@ -111,18 +110,10 @@ struct GeneralSettingsView: View {
         SettingsPage {
             SettingsGlassSection(
                 NSLocalizedString("settings.general.options", value: "常规", comment: ""),
-                systemImage: "slider.horizontal.3",
-                footer: NSLocalizedString("settings.general.language.note", value: "更改后重启应用生效", comment: "")
+                systemImage: "slider.horizontal.3"
             ) {
                 Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $appearance.launchAtLogin)
-                Toggle(NSLocalizedString("settings.general.show_in_dock", value: "在 Dock 栏里显示", comment: ""), isOn: $appearance.showInDock)
                 Toggle(NSLocalizedString("settings.general.play_sound", comment: ""), isOn: $capture.playSoundOnCapture)
-                Picker(NSLocalizedString("settings.general.language", value: "语言", comment: ""), selection: $appearance.appLanguage) {
-                    ForEach(AppLanguage.allCases) { lang in
-                        Text(lang.displayName).tag(lang)
-                    }
-                }
-                .pickerStyle(.menu)
             }
 
             SettingsGlassSection(
@@ -148,82 +139,9 @@ struct GeneralSettingsView: View {
 
 struct CaptureSettingsView: View {
     @EnvironmentObject var hotkey: HotKeySettings
-    @EnvironmentObject var ui: UISettings
-    @EnvironmentObject var capture: CaptureSettings
 
     var body: some View {
         SettingsPage {
-            SettingsGlassSection(
-                NSLocalizedString("settings.capture.clipboard_section", value: "复制", comment: ""),
-                systemImage: "doc.on.clipboard"
-            ) {
-                Picker(NSLocalizedString("settings.capture.clipboard.default", value: "截图后复制", comment: ""), selection: $capture.captureClipboardFormat) {
-                    Text(NSLocalizedString("settings.capture.clipboard.image", value: "图片", comment: "")).tag(CaptureClipboardFormat.image)
-                    Text(NSLocalizedString("settings.capture.clipboard.path", value: "路径（文本）", comment: "")).tag(CaptureClipboardFormat.path)
-                    Text(NSLocalizedString("settings.capture.clipboard.markdown_image", value: "Markdown 图片引用", comment: "")).tag(CaptureClipboardFormat.markdownImage)
-                }
-                .pickerStyle(.menu)
-
-                if capture.captureClipboardFormat != .image {
-                    Text(NSLocalizedString("settings.capture.clipboard.requires_saving", value: "复制路径/Markdown 需要启用并设置“保存到磁盘”。", comment: ""))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            SettingsGlassSection(
-                NSLocalizedString("settings.capture.format_section", comment: ""),
-                systemImage: "photo"
-            ) {
-                Picker(NSLocalizedString("settings.capture.image_format", comment: ""), selection: $capture.imageFormat) {
-                    Text(NSLocalizedString("settings.capture.format_png", comment: "")).tag(ImageFormat.png)
-                    Text(NSLocalizedString("settings.capture.format_jpeg", comment: "")).tag(ImageFormat.jpeg)
-                }
-                .pickerStyle(.segmented)
-            }
-
-            SettingsGlassSection(
-                NSLocalizedString("settings.capture.window_border", value: "窗口边框", comment: ""),
-                systemImage: "square.on.square.dashed"
-            ) {
-                Toggle(NSLocalizedString("settings.capture.window_border.enable", value: "启用窗口边框", comment: ""), isOn: $ui.windowBorderEnabled)
-
-                if ui.windowBorderEnabled {
-                    LabeledContent(NSLocalizedString("settings.capture.window_border.width", value: "边框宽度", comment: "")) {
-                        HStack(spacing: 8) {
-                            Slider(value: $ui.windowBorderWidth, in: 8...32, step: 1)
-                            Text("\(Int(ui.windowBorderWidth)) pt")
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    LabeledContent(NSLocalizedString("settings.capture.window_border.corner", value: "圆角半径", comment: "")) {
-                        HStack(spacing: 8) {
-                            Slider(value: $ui.windowBorderCornerRadius, in: 8...32, step: 1)
-                            Text("\(Int(ui.windowBorderCornerRadius)) pt")
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    ColorPicker(
-                        NSLocalizedString("settings.capture.window_border.color", value: "边框颜色", comment: ""),
-                        selection: Binding<Color>(
-                            get: { ui.windowBorderColor.swiftUIColor },
-                            set: { newColor in
-                                if let cg = newColor.cgColor, let rgba = RGBAColor(cgColor: cg) {
-                                    ui.windowBorderColor = rgba
-                                }
-                            }
-                        ),
-                        supportsOpacity: true
-                    )
-                }
-            }
-
             SettingsGlassSection(
                 NSLocalizedString("settings.capture.shortcuts_section", comment: ""),
                 systemImage: "keyboard"
@@ -251,42 +169,21 @@ struct StorageSettingsView: View {
                 NSLocalizedString("settings.storage.section_title", comment: ""),
                 systemImage: "externaldrive"
             ) {
-                Toggle(NSLocalizedString("settings.storage.save_to_disk", comment: ""), isOn: $capture.saveToFile)
-                    .onChange(of: capture.saveToFile) { _, newValue in
-                        if newValue {
-                            if !capture.hasValidBookmark {
-                                Task { @MainActor in
-                                    try? await Task.sleep(nanoseconds: 100_000_000)
-                                    if let newPath = capture.selectFolder() {
-                                        capture.saveFolderPath = newPath
-                                    }
-                                }
+                LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
+                    HStack(spacing: 10) {
+                        Text(capture.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
+                            if let newPath = capture.selectFolder() {
+                                capture.saveFolderPath = newPath
                             }
                         }
-                    }
-
-                if capture.saveToFile {
-                    LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
-                        HStack(spacing: 10) {
-                            Text(capture.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            Button(NSLocalizedString("settings.storage.change_button", comment: "")) {
-                                if let newPath = capture.selectFolder() {
-                                    capture.saveFolderPath = newPath
-                                }
-                            }
-                            .controlSize(.small)
-
-                            Button(NSLocalizedString("settings.storage.open_folder", comment: "")) {
-                                NSWorkspace.shared.open(URL(fileURLWithPath: capture.saveFolderPath))
-                            }
-                            .controlSize(.small)
-                        }
+                        .controlSize(.small)
                     }
                 }
             }
@@ -393,7 +290,6 @@ struct SettingsView_Previews: PreviewProvider {
         SettingsView()
             .environmentObject(AppSettings.shared.appearance)
             .environmentObject(AppSettings.shared.hotkey)
-            .environmentObject(AppSettings.shared.ui)
             .environmentObject(AppSettings.shared.capture)
     }
 }

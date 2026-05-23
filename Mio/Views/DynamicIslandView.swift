@@ -39,7 +39,7 @@ class DynamicIslandManager {
         button.bezelStyle = .rounded
         button.focusRingType = .none
 
-        dismissTask = Task { @MainActor [weak self] in
+        dismissTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             guard !Task.isCancelled else { return }
             self?.dismiss()

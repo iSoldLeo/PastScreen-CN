@@ -9,7 +9,7 @@
 import Foundation
 import CoreGraphics
 
-public enum WindowCaptureError: LocalizedError, Sendable {
+nonisolated public enum WindowCaptureError: LocalizedError, Sendable {
     case mouseLocationUnavailable
     case noWindowAtPoint
     case shareableWindowNotFound(CGWindowID)

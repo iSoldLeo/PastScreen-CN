@@ -7,9 +7,9 @@
 //  (CaptureCoordinator) iterate `events` to react.
 //
 //  Aligns with the other service protocols (`FileWriting`,
-//  `ClipboardWriting`, `ScreenCapturing`, `ImageRendering`) so all
-//  pipeline dependencies cross actor boundaries through a `Sendable`
-//  abstraction rather than concrete types.
+//  `ClipboardWriting`, `ScreenCapturing`) so all pipeline dependencies
+//  cross actor boundaries through a `Sendable` abstraction rather than
+//  concrete types.
 //
 
 import Foundation

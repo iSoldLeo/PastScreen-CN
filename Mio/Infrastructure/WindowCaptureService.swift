@@ -2,9 +2,10 @@
 //  WindowCaptureService.swift
 //  Mio
 //
-//  Non-isolated hit-test service for Quartz window detection.
-//  Must remain nonisolated because SelectionWindow.mouseMoved
-//  synchronously calls resolveWindowHit().
+//  Quartz window hit-test service.
+//  hitTestFrontmostWindowAtMouse is @MainActor (NSEvent.mouseLocation requires main thread).
+//  Internal hit-test work is delegated to the non-isolated hitTestFrontmostWindow,
+//  which is safe to call synchronously from SelectionOverlayView.mouseMoved.
 //
 
 import Foundation
@@ -35,13 +36,12 @@ public final class WindowCaptureService: WindowHitTesting, Sendable {
 
     /// Use Quartz (CGWindowListCopyWindowInfo) to find the frontmost on-screen window under a point.
     /// By default, windows owned by this process are skipped so overlay UIs don't get picked.
-    public func hitTestFrontmostWindow(
+    private func hitTestFrontmostWindow(
         quartzPoint: CGPoint,
-        excludingPIDs: Set<pid_t> = [],
-        excludingWindowIDs: Set<CGWindowID> = [],
-        skipSelfWindows: Bool = true
+        excludingWindowIDs: Set<CGWindowID>,
+        skipSelfWindows: Bool
     ) throws -> WindowHitTestResult {
-        let skipPIDs = skipSelfWindows ? excludingPIDs.union([selfPID]) : excludingPIDs
+        let skipPIDs: Set<pid_t> = skipSelfWindows ? [selfPID] : []
         let skipWindowIDs = excludingWindowIDs
         let mainDisplayBounds = CGDisplayBounds(CGMainDisplayID())
         let screenWidth = mainDisplayBounds.width
