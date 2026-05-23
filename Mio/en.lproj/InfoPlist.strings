@@ -1,7 +1,0 @@
-/* Bundle names */
-"CFBundleDisplayName" = "Mio";
-"CFBundleName" = "Mio";
-
-/* Permission descriptions */
-"NSScreenCaptureUsageDescription" = "Mio needs screen recording permission to capture screenshots.";
-"NSUserNotificationsUsageDescription" = "Mio uses notifications to confirm captures are complete.";

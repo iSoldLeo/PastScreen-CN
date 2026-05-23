@@ -8,6 +8,7 @@
 
 import SwiftUI
 import AppKit
+import Combine  // ObservableObject conformance synthesis (Xcode 26 no longer relies on SwiftUI re-export)
 
 @main
 struct MioApp: App {
