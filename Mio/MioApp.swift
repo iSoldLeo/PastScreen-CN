@@ -22,7 +22,7 @@ struct MioApp: App {
         // No main window — preferences open from the menu bar.
         Settings {
             SettingsView()
-                .environmentObject(AppSettings.shared.appearance)
+                .environmentObject(AppSettings.shared.general)
                 .environmentObject(AppSettings.shared.hotkey)
                 .environmentObject(AppSettings.shared.capture)
         }

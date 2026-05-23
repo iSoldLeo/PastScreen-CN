@@ -17,22 +17,22 @@ final class HotKeySettings: ObservableObject {
 
     @Published var globalHotkeyEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(globalHotkeyEnabled, forKey: "globalHotkeyEnabled")
+            UserDefaults.standard.set(globalHotkeyEnabled, forKey: SettingsKeys.globalHotkeyEnabled)
         }
     }
 
     @Published var globalHotkey: HotKey {
         didSet {
             if let encoded = try? JSONEncoder().encode(globalHotkey) {
-                UserDefaults.standard.set(encoded, forKey: "globalHotkey")
+                UserDefaults.standard.set(encoded, forKey: SettingsKeys.globalHotkey)
             }
         }
     }
 
     init() {
-        self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: "globalHotkeyEnabled") as? Bool ?? true
+        self.globalHotkeyEnabled = UserDefaults.standard.object(forKey: SettingsKeys.globalHotkeyEnabled) as? Bool ?? true
 
-        if let data = UserDefaults.standard.data(forKey: "globalHotkey"),
+        if let data = UserDefaults.standard.data(forKey: SettingsKeys.globalHotkey),
            let decoded = try? JSONDecoder().decode(HotKey.self, from: data) {
             self.globalHotkey = decoded
         } else {

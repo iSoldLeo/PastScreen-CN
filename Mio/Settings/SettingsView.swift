@@ -179,7 +179,7 @@ struct SettingsView: View {
 // MARK: - General Settings
 
 struct GeneralSettingsView: View {
-    @EnvironmentObject var appearance: AppearanceSettings
+    @EnvironmentObject var general: GeneralSettings
     @EnvironmentObject var capture: CaptureSettings
 
     var body: some View {
@@ -188,7 +188,7 @@ struct GeneralSettingsView: View {
                 NSLocalizedString("settings.general.options", value: "常规", comment: ""),
                 systemImage: "slider.horizontal.3"
             ) {
-                Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $appearance.launchAtLogin)
+                Toggle(NSLocalizedString("settings.general.launch_at_login", value: "开机启动", comment: ""), isOn: $general.launchAtLogin)
                 Toggle(NSLocalizedString("settings.general.play_sound", comment: ""), isOn: $capture.playSoundOnCapture)
             }
 
@@ -245,6 +245,15 @@ struct StorageSettingsView: View {
                 NSLocalizedString("settings.storage.section_title", comment: ""),
                 systemImage: "externaldrive"
             ) {
+                Toggle(
+                    NSLocalizedString("settings.storage.save_to_file", value: "保存截图到文件", comment: ""),
+                    isOn: $capture.saveToFile
+                )
+
+                Text(NSLocalizedString("settings.storage.save_to_file.help", value: "关闭后，截图仅复制到剪切板，不写入磁盘。", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 LabeledContent(NSLocalizedString("settings.storage.save_folder.label", value: "保存位置", comment: "")) {
                     HStack(spacing: 10) {
                         Text(capture.saveFolderPath.replacingOccurrences(of: "/Users/\(NSUserName())", with: "~"))
@@ -260,8 +269,10 @@ struct StorageSettingsView: View {
                             }
                         }
                         .controlSize(.small)
+                        .disabled(!capture.saveToFile)
                     }
                 }
+                .opacity(capture.saveToFile ? 1.0 : 0.5)
             }
         }
     }
@@ -364,7 +375,7 @@ extension HotKey {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
-            .environmentObject(AppSettings.shared.appearance)
+            .environmentObject(AppSettings.shared.general)
             .environmentObject(AppSettings.shared.hotkey)
             .environmentObject(AppSettings.shared.capture)
     }

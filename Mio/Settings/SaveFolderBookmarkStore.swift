@@ -26,11 +26,9 @@ final class SaveFolderBookmarkStore {
     /// The path component that AppSettings persists. The store does not
     /// own the path itself (AppSettings drives `@Published var saveFolderPath`),
     /// only the bookmark blob and the modal/IO flow.
-    private static let bookmarkKey = "saveFolderBookmark"
-
     private var saveFolderBookmark: Data? {
-        get { UserDefaults.standard.data(forKey: Self.bookmarkKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.bookmarkKey) }
+        get { UserDefaults.standard.data(forKey: SettingsKeys.saveFolderBookmark) }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.saveFolderBookmark) }
     }
 
     var hasValidBookmark: Bool { saveFolderBookmark != nil }

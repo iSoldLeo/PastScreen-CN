@@ -21,14 +21,25 @@ final class CaptureSettings: ObservableObject {
 
     @Published var saveFolderPath: String {
         didSet {
-            UserDefaults.standard.set(saveFolderPath, forKey: "saveFolderPath")
+            UserDefaults.standard.set(saveFolderPath, forKey: SettingsKeys.saveFolderPath)
             ensureFolderExists()
         }
     }
 
     @Published var playSoundOnCapture: Bool {
         didSet {
-            UserDefaults.standard.set(playSoundOnCapture, forKey: "playSoundOnCapture")
+            UserDefaults.standard.set(playSoundOnCapture, forKey: SettingsKeys.playSoundOnCapture)
+        }
+    }
+
+    /// When false, captures are copied to the clipboard only and never
+    /// written to disk — useful for "throwaway" screenshots aimed at AI
+    /// chat / messaging where the file would be deleted right after.
+    /// Defaults to `true` so existing users see no behavioural change
+    /// after this setting is reintroduced.
+    @Published var saveToFile: Bool {
+        didSet {
+            UserDefaults.standard.set(saveToFile, forKey: SettingsKeys.saveToFile)
         }
     }
 
@@ -43,9 +54,10 @@ final class CaptureSettings: ObservableObject {
     init() {
         // No default path - user MUST select a folder via NSOpenPanel
         // This complies with Apple guideline 2.4.5(i) - user-accessible storage
-        self.saveFolderPath = UserDefaults.standard.string(forKey: "saveFolderPath") ?? ""
+        self.saveFolderPath = UserDefaults.standard.string(forKey: SettingsKeys.saveFolderPath) ?? ""
 
-        self.playSoundOnCapture = UserDefaults.standard.object(forKey: "playSoundOnCapture") as? Bool ?? true
+        self.playSoundOnCapture = UserDefaults.standard.object(forKey: SettingsKeys.playSoundOnCapture) as? Bool ?? true
+        self.saveToFile = UserDefaults.standard.object(forKey: SettingsKeys.saveToFile) as? Bool ?? true
 
         // Restore the security-scoped bookmark off the main actor, then
         // re-create the configured folder once access is armed. The

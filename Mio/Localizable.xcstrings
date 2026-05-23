@@ -2606,7 +2606,77 @@
       }
     },
     "屏幕录制权限被拒绝。请前往\"系统设置 → 隐私与安全性 → 屏幕录制\"开启。": {},
-    "截图被系统中断": {}
+    "截图被系统中断": {},
+    "settings.storage.save_to_file": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存截图到文件"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save screenshots to file"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スクリーンショットをファイルに保存"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshots in Datei speichern"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer les captures dans un fichier"
+          }
+        }
+      }
+    },
+    "settings.storage.save_to_file.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭后，截图仅复制到剪切板，不写入磁盘。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, captures go to the clipboard only and are not written to disk."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフにすると、スクリーンショットはクリップボードにのみコピーされ、ディスクには書き込まれません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn deaktiviert, werden Aufnahmen nur in die Zwischenablage kopiert, nicht auf die Festplatte."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Désactivé : les captures vont uniquement dans le presse-papiers, jamais sur le disque."
+          }
+        }
+      }
+    }
   },
   "version": "1.2"
 }

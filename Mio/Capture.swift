@@ -74,15 +74,18 @@ nonisolated public struct CaptureConfiguration: Sendable {
     public let saveFolderPath: String
     public let hasValidSaveFolder: Bool
     public let playSoundOnCapture: Bool
+    public let saveToFile: Bool
 
     public init(
         saveFolderPath: String,
         hasValidSaveFolder: Bool,
-        playSoundOnCapture: Bool
+        playSoundOnCapture: Bool,
+        saveToFile: Bool
     ) {
         self.saveFolderPath = saveFolderPath
         self.hasValidSaveFolder = hasValidSaveFolder
         self.playSoundOnCapture = playSoundOnCapture
+        self.saveToFile = saveToFile
     }
 }
 
@@ -560,7 +563,7 @@ public actor DisplayCaptureService {
 public actor FileOutputService {
 
     /// UserDefaults key under which the next-to-write sequence number is persisted.
-    nonisolated private static let sequenceDefaultsKey = "screenshotSequence"
+    nonisolated private static let sequenceDefaultsKey = SettingsKeys.screenshotSequence
 
     /// Cached sequence counter. Loaded lazily from UserDefaults on first
     /// `write` call. Always holds the *next* sequence number to try when
@@ -732,8 +735,10 @@ public actor CapturePipeline {
 
         // File output (must happen before clipboard for the saved-path event).
         // The file output service owns the on-disk sequence counter internally.
+        // Skipped entirely when the user toggles `saveToFile` off — clipboard
+        // remains the only sink in that case.
         var filePath: String?
-        if config.hasValidSaveFolder {
+        if config.saveToFile && config.hasValidSaveFolder {
             filePath = try await fileOutput.write(image: capturedImage, config: config)
             try Task.checkCancellation()
         }
@@ -868,7 +873,8 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
         return CaptureConfiguration(
             saveFolderPath: capture.saveFolderPath,
             hasValidSaveFolder: capture.hasValidSaveFolder,
-            playSoundOnCapture: capture.playSoundOnCapture
+            playSoundOnCapture: capture.playSoundOnCapture,
+            saveToFile: capture.saveToFile
         )
     }
 
