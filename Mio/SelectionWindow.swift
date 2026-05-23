@@ -6,8 +6,7 @@
 //
 
 import Foundation
-// TODO: Remove @preconcurrency once Apple marks NSEvent as Sendable.
-@preconcurrency import AppKit
+import AppKit
 
 @MainActor
 protocol SelectionWindowDelegate: AnyObject {

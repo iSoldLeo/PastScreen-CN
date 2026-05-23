@@ -56,12 +56,12 @@ import CoreGraphics
 /// ClipboardOutputService stamps the same point size on the pasteboard NSImage.
 ///
 /// TODO: Remove `@unchecked` once Apple marks CGImage as Sendable.
-public struct CaptureImage: @unchecked Sendable {
+nonisolated public struct CaptureImage: @unchecked Sendable {
     public let cgImage: CGImage
     public let scale: CGFloat
     public let size: CGSize
 
-    nonisolated public init(cgImage: CGImage, scale: CGFloat, size: CGSize) {
+    public init(cgImage: CGImage, scale: CGFloat, size: CGSize) {
         self.cgImage = cgImage
         self.scale = scale
         self.size = size
@@ -184,7 +184,7 @@ nonisolated public enum QuartzSpace {
 
 // MARK: - Capture request
 
-public enum CaptureRequest: Sendable {
+nonisolated public enum CaptureRequest: Sendable {
     case area(CGRect, config: CaptureConfiguration)
     case window(windowID: CGWindowID, bounds: CGRect, config: CaptureConfiguration)
     case fullscreen(rect: CGRect, config: CaptureConfiguration)

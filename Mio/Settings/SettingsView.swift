@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-@preconcurrency import AppKit  // NSEvent 未标记 Sendable
+import AppKit
 
 // MARK: - Glass Helpers (inlined from LiquidGlassComponents — sole consumer is SettingsView)
 
