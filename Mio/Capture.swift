@@ -1002,6 +1002,15 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
     private let pipeline: CapturePipeline
     private let eventBus: CaptureEventBus
     private var selectionWindow: SelectionWindow?
+    private var frozenScreens: [CGDirectDisplayID: CaptureImage]?
+    private var screenFrames: [CGDirectDisplayID: CGRect]?
+    private var isStartingFlow: Bool = false
+    /// Monotonic counter incremented at every flow start. Async output Tasks
+    /// (`handleSelectedRect`'s crop+output Task) capture the value at spawn
+    /// time and only call `cleanupFlow()` on completion if the generation is
+    /// still current. This prevents a stale Task from clobbering the state
+    /// of a flow that the user has cancelled and restarted in the meantime.
+    private var flowGeneration: UInt64 = 0
     private var eventTask: Task<Void, Never>?
 
     public init() {
@@ -1018,15 +1027,56 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
 
     // MARK: Public API
 
-    /// Start an area-selection capture flow. Creates a `SelectionWindow` and
-    /// waits for the user to drag a rect or click a window.
+    /// Start an area-selection capture flow. PRODUCT.md §2 product essence:
+    /// at the trigger instant freeze every screen, then let the user pick a
+    /// region (drag rect or click a window) from the frozen images.
+    ///
+    /// Re-entry is blocked: pressing the hotkey again while a capture is
+    /// already starting (i.e. while `captureFrozenScreens()` is in flight)
+    /// is a no-op, otherwise two concurrent freeze flows would compete for
+    /// SCK resources and double the CPU spike (violating PRODUCT.md §5).
     public func startAreaCapture() {
-        cleanupExistingWindow()
+        guard !isStartingFlow else { return }
+        // Hide any stale window then clear leftover state, *before* arming
+        // the new flow generation. Otherwise the cleanup call would reset
+        // isStartingFlow back to false right after we set it.
+        selectionWindow?.hide()
+        cleanupFlow()
+        isStartingFlow = true
+        flowGeneration &+= 1
+        let myGeneration = flowGeneration
 
-        let window = SelectionWindow(overlayConfiguration: .screenshot)
-        window.selectionDelegate = self
-        window.show()
-        selectionWindow = window
+        Task { [weak self] in
+            // Task inherits @MainActor isolation from CaptureCoordinator
+            // (SE-0466 default-isolation MainActor). NSScreen.screens access
+            // and self.frozenScreens writes below are MainActor-safe.
+            guard let self else { return }
+            do {
+                let frozen = try await pipeline.captureFrozenScreens()
+                // If the user has already cancelled (or started a new flow)
+                // while captureFrozenScreens was in flight, drop the result.
+                guard self.flowGeneration == myGeneration else { return }
+                let frames = NSScreen.screens.reduce(into: [CGDirectDisplayID: CGRect]()) {
+                    if let id = $1.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
+                        $0[id] = $1.frame
+                    }
+                }
+                self.frozenScreens = frozen
+                self.screenFrames = frames
+
+                let window = SelectionWindow(
+                    frozenScreens: frozen,
+                    overlayConfiguration: .screenshot
+                )
+                window.selectionDelegate = self
+                window.show()
+                self.selectionWindow = window
+            } catch {
+                guard self.flowGeneration == myGeneration else { return }
+                self.showCaptureError(error)
+                self.cleanupFlow()
+            }
+        }
     }
 
     /// Capture all screens immediately (no selection UI).
@@ -1044,45 +1094,72 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
     // MARK: SelectionWindowDelegate
 
     func selectionWindow(_ window: SelectionWindow, didSelectRect rect: CGRect) {
-        window.hide()
-
-        let config = makeCaptureConfiguration()
-        let request = CaptureRequest.area(rect, config: config)
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.executeCapture(request: request)
-            await MainActor.run { [weak self] in
-                self?.cleanupSelectionWindow()
-            }
-        }
+        handleSelectedRect(rect)
     }
 
     func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult) {
-        window.hide()
-
-        let config = makeCaptureConfiguration()
-        let request = CaptureRequest.window(
-            windowID: windowResult.windowID,
-            bounds: windowResult.bounds,
-            config: config
-        )
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.executeCapture(request: request)
-            await MainActor.run { [weak self] in
-                self?.cleanupSelectionWindow()
-            }
-        }
+        handleSelectedRect(windowResult.bounds)
     }
 
     func selectionWindowDidCancel(_ window: SelectionWindow) {
         window.hide()
-        cleanupSelectionWindow()
+        cleanupFlow()
     }
 
     // MARK: Private
+
+    /// Shared synchronous entry for both `didSelectRect` and `didSelectWindow`.
+    /// Reads frozen state into local values **before** spawning the Task so
+    /// concurrent cancellation (`cleanupFlow` clearing `frozenScreens`) cannot
+    /// race the in-flight crop. The Task captures `flowGeneration` at spawn
+    /// time and only calls `cleanupFlow` if the generation is still current
+    /// — preventing a stale Task from clobbering a flow the user has
+    /// cancelled and restarted in the meantime.
+    private func handleSelectedRect(_ rect: CGRect) {
+        selectionWindow?.hide()
+
+        guard let frozen = frozenScreens, let frames = screenFrames else {
+            cleanupFlow()
+            return
+        }
+
+        // Anchor the rect to the screen containing its center point
+        // (PRODUCT.md §10: cross-screen windows are normalized by center).
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        guard let match = frames.first(where: { $0.value.contains(center) }),
+              let frozenImage = frozen[match.key]
+        else {
+            showCaptureError(CaptureError("Selection outside any screen"))
+            cleanupFlow()
+            return
+        }
+        let screenFrame = match.value
+
+        let config = makeCaptureConfiguration()
+        let myGeneration = flowGeneration
+        Task { [weak self] in
+            // Task inherits @MainActor; pipeline calls hop into the actor.
+            guard let self else { return }
+            do {
+                let cropped = try await pipeline.cropFrozenImage(
+                    from: frozenImage,
+                    screenFrame: screenFrame,
+                    rect: rect
+                )
+                try await pipeline.finishOutput(image: cropped, config: config)
+            } catch {
+                if self.flowGeneration == myGeneration {
+                    self.showCaptureError(error)
+                }
+            }
+            // Only clean up if we still own the active flow. If the user
+            // pressed ESC or restarted, a new generation has been armed and
+            // owns the state — don't clobber it.
+            if self.flowGeneration == myGeneration {
+                self.cleanupFlow()
+            }
+        }
+    }
 
     private func executeCapture(request: CaptureRequest) async {
         do {
@@ -1102,13 +1179,11 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
         )
     }
 
-    private func cleanupExistingWindow() {
-        selectionWindow?.hide()
+    private func cleanupFlow() {
         selectionWindow = nil
-    }
-
-    private func cleanupSelectionWindow() {
-        selectionWindow = nil
+        frozenScreens = nil
+        screenFrames = nil
+        isStartingFlow = false
     }
 
     private func showCaptureError(_ error: Error) {

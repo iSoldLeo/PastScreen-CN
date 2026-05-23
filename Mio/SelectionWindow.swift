@@ -42,10 +42,15 @@ class SelectionWindow: NSWindow {
 
     // Multi-screen support: one window per screen
     private var overlayWindows: [OverlayWindow] = []
+    private let frozenScreens: [CGDirectDisplayID: CaptureImage]
     private let overlayConfiguration: SelectionOverlayView.Configuration
     private var escapeKeyMonitor: Any?
 
-    init(overlayConfiguration: SelectionOverlayView.Configuration = .screenshot) {
+    init(
+        frozenScreens: [CGDirectDisplayID: CaptureImage],
+        overlayConfiguration: SelectionOverlayView.Configuration = .screenshot
+    ) {
+        self.frozenScreens = frozenScreens
         self.overlayConfiguration = overlayConfiguration
         // Create main window (first screen) for NSWindow inheritance
         let mainScreen = NSScreen.main ?? NSScreen.screens.first!
@@ -77,11 +82,19 @@ class SelectionWindow: NSWindow {
             // Manually position window to this screen's frame
             window.setFrame(screen.frame, display: false)
 
+            // Per-screen frozen snapshot lookup. The CaptureCoordinator
+            // captures every screen before constructing SelectionWindow, so
+            // each NSScreen here has a corresponding CaptureImage entry.
+            let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+            let snapshot = displayID.flatMap { frozenScreens[$0] }
+
             // Create overlay view for this screen - frame must be relative to window (0,0 origin)
             let overlayFrame = NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height)
             let overlayView = SelectionOverlayView(
                 frame: overlayFrame,
-                configuration: overlayConfiguration
+                configuration: overlayConfiguration,
+                displayID: displayID,
+                backgroundImage: snapshot
             )
             overlayView.onComplete = { [weak self] rect in
                 guard let self = self else { return }
@@ -153,6 +166,8 @@ class SelectionOverlayView: NSView {
     }
 
     private let configuration: Configuration
+    private(set) var displayID: CGDirectDisplayID?
+    private let backgroundImage: CaptureImage?
 
     private var startPoint: NSPoint?
     private var endPoint: NSPoint?
@@ -162,8 +177,13 @@ class SelectionOverlayView: NSView {
     private var highlightRect: NSRect?
     private var trackingArea: NSTrackingArea?
 
-    init(frame: NSRect, configuration: Configuration = .screenshot) {
+    init(frame: NSRect,
+         configuration: Configuration = .screenshot,
+         displayID: CGDirectDisplayID? = nil,
+         backgroundImage: CaptureImage? = nil) {
         self.configuration = configuration
+        self.displayID = displayID
+        self.backgroundImage = backgroundImage
         super.init(frame: frame)
         self.wantsLayer = true
         // Keep layer clear; dimming is drawn in draw(_:) to allow full transparency in the selection hole
@@ -321,10 +341,19 @@ class SelectionOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        // Semi-transparent dimming
+        // Step 1: paint the frozen full-screen snapshot as the background.
+        // PRODUCT.md §2: every screen is frozen at trigger time and the user
+        // picks the region from those frozen pixels.
+        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
+            context.draw(backgroundImage.cgImage, in: bounds)
+        }
+
+        // Step 2: dim the entire screen so unselected area visibly recedes.
         NSColor.black.withAlphaComponent(configuration.overlayOpacity).setFill()
         bounds.fill()
 
+        // Step 3: compute holeRect — either the live drag rect or the hover
+        // window highlight (whichever is active).
         var holeRect: NSRect?
 
         if let start = startPoint, let end = endPoint, (abs(end.x - start.x) > 0 || abs(end.y - start.y) > 0) {
@@ -340,7 +369,16 @@ class SelectionOverlayView: NSView {
 
         guard let rect = holeRect else { return }
 
-        // Selection border
+        // Step 4: clip to holeRect and re-draw the snapshot, "punching out"
+        // the dim layer so the selection shows the original brightness.
+        if let backgroundImage, let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+            context.clip(to: rect)
+            context.draw(backgroundImage.cgImage, in: bounds)
+            context.restoreGState()
+        }
+
+        // Step 5: stroke the selection border.
         NSColor.systemBlue.setStroke()
         let path = NSBezierPath(rect: rect)
         path.lineWidth = 2
