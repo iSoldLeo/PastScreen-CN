@@ -815,15 +815,11 @@ public actor CapturePipeline {
         // Clipboard output (async call automatically hops to @MainActor implementation)
         try await clipboardOutput.copy(image: capturedImage)
 
-        // Play sound on main thread (NSSound requirement)
+        // Play screenshot sound. The player retains its NSSound reference
+        // so playback isn't truncated when this Task returns.
         if config.playSoundOnCapture {
             await MainActor.run {
-                let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-                if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                    sound.play()
-                } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                    fallback.play()
-                }
+                CaptureSoundPlayer.shared.play()
             }
         }
 
@@ -970,15 +966,11 @@ public actor CapturePipeline {
         // Clipboard output (async call automatically hops to @MainActor implementation)
         try await clipboardOutput.copy(image: image)
 
-        // Play sound on main thread (NSSound requirement)
+        // Play screenshot sound. The player retains its NSSound reference
+        // so playback isn't truncated when this Task returns.
         if config.playSoundOnCapture {
             await MainActor.run {
-                let systemSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
-                if let sound = NSSound(contentsOfFile: systemSoundPath, byReference: true) {
-                    sound.play()
-                } else if let fallback = NSSound(named: NSSound.Name("Glass")) {
-                    fallback.play()
-                }
+                CaptureSoundPlayer.shared.play()
             }
         }
 
@@ -998,10 +990,11 @@ public actor CapturePipeline {
 /// The coordinator self-assembles the full capture stack in its initializer;
 /// no separate dependency container is needed for a single-tenant app.
 @MainActor
-public final class CaptureCoordinator: SelectionWindowDelegate {
+public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWindowDelegate {
     private let pipeline: CapturePipeline
     private let eventBus: CaptureEventBus
     private var selectionWindow: SelectionWindow?
+    private var screenChooserWindow: ScreenChooserWindow?
     private var frozenScreens: [CGDirectDisplayID: CaptureImage]?
     private var screenFrames: [CGDirectDisplayID: CGRect]?
     private var isStartingFlow: Bool = false
@@ -1040,8 +1033,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
         // Hide any stale window then clear leftover state, *before* arming
         // the new flow generation. Otherwise the cleanup call would reset
         // isStartingFlow back to false right after we set it.
-        selectionWindow?.hide()
-        cleanupFlow()
+        cleanupExistingWindows()
         isStartingFlow = true
         flowGeneration &+= 1
         let myGeneration = flowGeneration
@@ -1079,15 +1071,74 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
         }
     }
 
-    /// Capture all screens immediately (no selection UI).
+    /// Capture all screens. PRODUCT.md §2 product essence + 02-user-paths §3:
+    /// freeze every screen at trigger time, then output. Single-screen path
+    /// outputs the frozen image directly (no UI). Multi-screen path opens
+    /// `ScreenChooserWindow` for the user to pick a screen.
+    ///
+    /// Uses the same isStartingFlow + flowGeneration discipline as path A
+    /// (PRODUCT.md §5 CPU ≤ 60% hard limit; N9 generation isolation against
+    /// stale-Task clobber).
     public func startFullScreenCapture() {
-        let screenFrame = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
-        let config = makeCaptureConfiguration()
-        let request = CaptureRequest.fullscreen(rect: screenFrame, config: config)
+        guard !isStartingFlow else { return }
+        cleanupExistingWindows()
+        isStartingFlow = true
+        flowGeneration &+= 1
+        let myGeneration = flowGeneration
 
         Task { [weak self] in
             guard let self else { return }
-            await self.executeCapture(request: request)
+            do {
+                let frozen = try await pipeline.captureFrozenScreens()
+                guard self.flowGeneration == myGeneration else { return }
+
+                // Single-screen branch: output directly with no UI. Use
+                // frozen.count as the single source of truth (avoids race
+                // with NSScreen.screens between the two reads).
+                if frozen.count == 1, let onlyImage = frozen.values.first {
+                    let config = makeCaptureConfiguration()
+                    do {
+                        try await pipeline.finishOutput(image: onlyImage, config: config)
+                    } catch {
+                        if self.flowGeneration == myGeneration {
+                            self.showCaptureError(error)
+                        }
+                    }
+                    if self.flowGeneration == myGeneration {
+                        self.cleanupFlow()
+                    }
+                    return
+                }
+
+                // Multi-screen branch: present ScreenChooserWindow.
+                let frames = NSScreen.screens.reduce(into: [CGDirectDisplayID: CGRect]()) {
+                    if let id = $1.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
+                        $0[id] = $1.frame
+                    }
+                }
+                self.frozenScreens = frozen
+                self.screenFrames = frames
+
+                let chooser = ScreenChooserWindow(
+                    frozenScreens: frozen,
+                    screenFrames: frames
+                )
+                guard chooser.hasPanels else {
+                    // Defensive: every screen failed the per-panel consistency
+                    // check (frozen / frames / displayID lookup). Showing the
+                    // chooser would present no UI and lock the flow.
+                    self.showCaptureError(CaptureError("Screen chooser produced no panels"))
+                    self.cleanupFlow()
+                    return
+                }
+                chooser.chooserDelegate = self
+                chooser.show()
+                self.screenChooserWindow = chooser
+            } catch {
+                guard self.flowGeneration == myGeneration else { return }
+                self.showCaptureError(error)
+                self.cleanupFlow()
+            }
         }
     }
 
@@ -1102,6 +1153,44 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
     }
 
     func selectionWindowDidCancel(_ window: SelectionWindow) {
+        window.hide()
+        cleanupFlow()
+    }
+
+    // MARK: ScreenChooserWindowDelegate
+
+    func screenChooser(_ window: ScreenChooserWindow, didSelectScreen displayID: CGDirectDisplayID) {
+        window.hide()
+
+        // Pick out the per-screen frozen image *before* spawning the Task,
+        // so cancellation that clears self.frozenScreens cannot race the
+        // in-flight finishOutput.
+        guard let frozen = frozenScreens?[displayID] else {
+            cleanupFlow()
+            return
+        }
+
+        let config = makeCaptureConfiguration()
+        // Re-capture the generation here: the one captured inside
+        // startFullScreenCapture's Task has already escaped; this delegate
+        // call is a fresh main-thread invocation tied to the current flow.
+        let myGeneration = flowGeneration
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await pipeline.finishOutput(image: frozen, config: config)
+            } catch {
+                if self.flowGeneration == myGeneration {
+                    self.showCaptureError(error)
+                }
+            }
+            if self.flowGeneration == myGeneration {
+                self.cleanupFlow()
+            }
+        }
+    }
+
+    func screenChooserDidCancel(_ window: ScreenChooserWindow) {
         window.hide()
         cleanupFlow()
     }
@@ -1179,8 +1268,15 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
         )
     }
 
+    private func cleanupExistingWindows() {
+        selectionWindow?.hide()
+        screenChooserWindow?.hide()
+        cleanupFlow()
+    }
+
     private func cleanupFlow() {
         selectionWindow = nil
+        screenChooserWindow = nil
         frozenScreens = nil
         screenFrames = nil
         isStartingFlow = false
@@ -1216,6 +1312,38 @@ public final class CaptureCoordinator: SelectionWindowDelegate {
 
     deinit {
         eventTask?.cancel()
+    }
+}
+
+// MARK: - Capture sound
+
+/// Plays the screenshot sound effect on `finishOutput`. Holds the most
+/// recently created `NSSound` instance as a stored property so the sound is
+/// not deallocated mid-playback. Recreating the same `NSSound` (instead of
+/// calling `play()` on a single instance) is the documented way to retrigger
+/// the sound when captures happen in quick succession.
+///
+/// Earlier versions inlined `NSSound(...)` as a local in `MainActor.run`
+/// closures inside `CapturePipeline.execute` / `finishOutput`. On macOS 26
+/// the local was released as the closure returned, cutting playback short
+/// (or skipping it entirely). Hoisting the reference here keeps it alive.
+@MainActor
+final class CaptureSoundPlayer {
+    static let shared = CaptureSoundPlayer()
+
+    private static let systemSoundPath =
+        "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
+
+    private var current: NSSound?
+
+    private init() {}
+
+    func play() {
+        let sound = NSSound(contentsOfFile: Self.systemSoundPath, byReference: true)
+            ?? NSSound(named: NSSound.Name("Glass"))
+        guard let sound else { return }
+        current = sound
+        sound.play()
     }
 }
 
