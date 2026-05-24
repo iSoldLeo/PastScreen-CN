@@ -17,8 +17,15 @@ nonisolated enum SettingsKeys {
     static let launchAtLogin = "launchAtLogin"
 
     /// HotKeySettings.
-    static let globalHotkeyEnabled = "globalHotkeyEnabled"
-    static let globalHotkey = "globalHotkey"
+    static let windowCaptureHotkey = "windowCaptureHotkey"
+    static let fullScreenHotkey = "fullScreenHotkey"
+
+    /// Legacy key — present in pre-2 hotkey users' UserDefaults. Migrated
+    /// to `windowCaptureHotkey` on first launch and then removed.
+    static let legacyGlobalHotkey = "globalHotkey"
+    /// Legacy key — present in pre-2 hotkey users' UserDefaults. Removed
+    /// on first launch (replaced by per-hotkey "unset" state).
+    static let legacyGlobalHotkeyEnabled = "globalHotkeyEnabled"
 
     /// CaptureSettings.
     static let saveFolderPath = "saveFolderPath"

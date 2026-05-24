@@ -46,8 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // flow, not here.
         permissionManager.checkAllPermissions()
 
-        HotKeyManager.shared.start { [weak self] in
-            self?.handleHotKeyPressed()
+        HotKeyManager.shared.start { [weak self] match in
+            switch match {
+            case .windowCapture:
+                self?.handleWindowHotKey()
+            case .fullScreen:
+                self?.handleFullScreenHotKey()
+            }
         }
 
         // Menu bar app: no Dock icon, accessory activation policy.
@@ -56,11 +61,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     // MARK: - Hotkey
 
-    private func handleHotKeyPressed() {
+    private func handleWindowHotKey() {
         Task { [weak self] in
             guard let self else { return }
             if await self.ensureScreenRecordingGranted() {
                 self.coordinator.startAreaCapture()
+            }
+        }
+    }
+
+    private func handleFullScreenHotKey() {
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.coordinator.startFullScreenCapture()
             }
         }
     }

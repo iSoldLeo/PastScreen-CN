@@ -18,9 +18,19 @@ nonisolated public struct HotKey: Codable, Equatable, Sendable {
 
     public static let supportedModifierMask: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
 
-    public static let defaultCapture = HotKey(
+    /// Sentinel meaning "no hotkey configured" — `keyCode == 0` with no
+    /// modifiers is treated as unset by HotKeyManager (skip matching).
+    public static let unset = HotKey(keyCode: 0, modifiers: 0, characters: nil)
+
+    public static let defaultWindowCapture = HotKey(
         keyCode: 1,
         modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
+        characters: "s"
+    )
+
+    public static let defaultFullScreen = HotKey(
+        keyCode: 1,
+        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
         characters: "s"
     )
 
@@ -32,6 +42,12 @@ nonisolated public struct HotKey: Codable, Equatable, Sendable {
 
     public var modifierFlags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: modifiers).intersection(Self.supportedModifierMask)
+    }
+
+    /// True when this hotkey represents the "no shortcut configured"
+    /// state. HotKeyManager skips matching for unset hotkeys.
+    public var isUnset: Bool {
+        keyCode == 0 && modifiers == 0
     }
 
     public var displayKey: String {

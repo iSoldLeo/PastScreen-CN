@@ -17,11 +17,12 @@ struct MenuBarContentView: View {
             Button(NSLocalizedString("menu.capture_area", comment: "")) {
                 app.takeScreenshot()
             }
-            .applyHotkey(keyboardShortcut(for: hotkey.globalHotkeyEnabled ? hotkey.globalHotkey : nil))
+            .applyHotkey(keyboardShortcut(for: hotkey.windowCaptureHotkey))
 
             Button(NSLocalizedString("menu.capture_fullscreen", comment: "")) {
                 app.captureFullScreen()
             }
+            .applyHotkey(keyboardShortcut(for: hotkey.fullScreenHotkey))
         }
     }
 
@@ -41,9 +42,9 @@ struct MenuBarContentView: View {
         }
     }
 
-    private func keyboardShortcut(for hotkey: HotKey?) -> KeyboardShortcut? {
+    private func keyboardShortcut(for hotkey: HotKey) -> KeyboardShortcut? {
         guard
-            let hotkey,
+            !hotkey.isUnset,
             let chars = hotkey.characters,
             let first = chars.first
         else { return nil }
