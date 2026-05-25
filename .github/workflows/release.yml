@@ -48,7 +48,41 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Development"
 
-      - name: Package zip
+      - name: Install create-dmg
+        shell: bash
+        run: brew install create-dmg
+
+      - name: Build DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_TAG="${GITHUB_REF_NAME}"
+          APP_PATH="build/Release-arm64/Mio.app"
+          DMG_NAME="Mio-${VERSION_TAG}-macOS-arm64.dmg"
+
+          # Stage only the app so create-dmg's source folder stays clean.
+          STAGE_DIR="dmg-stage"
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR"
+          cp -R "$APP_PATH" "$STAGE_DIR/"
+
+          create-dmg \
+            --volname "Mio" \
+            --background "assets/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --text-size 13 \
+            --icon "Mio.app" 170 200 \
+            --hide-extension "Mio.app" \
+            --app-drop-link 430 200 \
+            --no-internet-enable \
+            "$DMG_NAME" \
+            "$STAGE_DIR"
+
+          shasum -a 256 "$DMG_NAME" > "${DMG_NAME}.sha256"
+
+      - name: Build zip (fallback for power users)
         shell: bash
         run: |
           set -euo pipefail
@@ -62,6 +96,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            Mio-*-macOS-arm64.dmg
+            Mio-*-macOS-arm64.dmg.sha256
             Mio-*-macOS-arm64.zip
             Mio-*-macOS-arm64.zip.sha256
           generate_release_notes: true
