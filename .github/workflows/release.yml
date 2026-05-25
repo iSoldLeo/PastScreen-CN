@@ -80,24 +80,9 @@ jobs:
             "$DMG_NAME" \
             "$STAGE_DIR"
 
-          shasum -a 256 "$DMG_NAME" > "${DMG_NAME}.sha256"
-
-      - name: Build zip (fallback for power users)
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION_TAG="${GITHUB_REF_NAME}"
-          APP_PATH="build/Release-arm64/Mio.app"
-          ZIP_NAME="Mio-${VERSION_TAG}-macOS-arm64.zip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
-          shasum -a 256 "$ZIP_NAME" > "${ZIP_NAME}.sha256"
-
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             Mio-*-macOS-arm64.dmg
-            Mio-*-macOS-arm64.dmg.sha256
-            Mio-*-macOS-arm64.zip
-            Mio-*-macOS-arm64.zip.sha256
           generate_release_notes: true
