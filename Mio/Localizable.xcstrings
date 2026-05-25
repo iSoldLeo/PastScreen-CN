@@ -1,6 +1,289 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "editor.tool.rectangle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Rechteck" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rectangle" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rectangle" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "長方形" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "矩形" } }
+      }
+    },
+    "editor.tool.ellipse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Ellipse" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ellipse" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ellipse" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "楕円" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "椭圆" } }
+      }
+    },
+    "editor.tool.arrow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Pfeil" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Arrow" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Flèche" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "矢印" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "箭头" } }
+      }
+    },
+    "editor.tool.pencil" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Pinsel" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Brush" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Pinceau" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブラシ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "画笔" } }
+      }
+    },
+    "editor.tool.mosaic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mosaik" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mosaic" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mosaïque" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "モザイク" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "马赛克" } }
+      }
+    },
+    "editor.tool.text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Text" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Text" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Texte" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テキスト" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字" } }
+      }
+    },
+    "editor.eyedropper.help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Bildschirmfarbe wählen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick screen color" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Sélectionner une couleur à l'écran" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "画面の色を取得" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "屏幕取色" } }
+      }
+    },
+    "editor.sampled_color.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Noch keine Farbe gewählt" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No color picked yet" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune couleur choisie" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "未選択" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未取色" } }
+      }
+    },
+    "editor.sampled_color.use" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zuletzt gewählte Farbe verwenden" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use last picked color" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utiliser la dernière couleur" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "直前に選んだ色を使う" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用刚才取到的颜色" } }
+      }
+    },
+    "settings.section.general" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Allgemein" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "General" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Général" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一般" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "settings.section.general.footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Drücke den Kurzbefehl, um den entsprechenden Aufnahmemodus in jeder App auszulösen. Die erweiterte Fensteraufnahme öffnet anschließend den Editor." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press the shortcut to trigger the matching capture mode from any app. Advanced window capture opens the editor afterwards." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Appuyez sur le raccourci pour déclencher le mode de capture correspondant depuis n’importe quelle app. La capture de fenêtre avancée ouvre ensuite l’éditeur." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ショートカットを押すと、どのアプリからでも対応するキャプチャモードが起動します。高度なウィンドウキャプチャは撮影後にエディタが開きます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按下快捷键即可在任意应用中触发对应的截图模式。高级窗口截图截完后会进入编辑器。" } }
+      }
+    },
+    "settings.section.storage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Speicher" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Stockage" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存储" } }
+      }
+    },
+    "settings.section.storage.footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Wenn „Aufnahmen als Datei speichern“ deaktiviert ist, werden Aufnahmen nur in die Zwischenablage kopiert und nicht auf die Festplatte geschrieben." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "When “Save captures to file” is off, captures are only copied to the clipboard and never written to disk." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lorsque « Enregistrer les captures en fichier » est désactivé, les captures sont uniquement copiées dans le presse-papiers et jamais écrites sur le disque." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "「キャプチャをファイルに保存」をオフにすると、キャプチャはクリップボードにコピーされるのみで、ディスクには書き込まれません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭「保存截图到文件」后，截图仅复制到剪切板，不写入磁盘。" } }
+      }
+    },
+    "settings.section.about" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Über" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "À propos" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "情報" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关于" } }
+      }
+    },
+    "settings.hotkey.window_capture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Fensteraufnahme" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Window Capture" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Capture de fenêtre" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ウィンドウキャプチャ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "窗口截图" } }
+      }
+    },
+    "settings.hotkey.advanced_window_capture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Erweiterte Fensteraufnahme" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Advanced Window Capture" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Capture de fenêtre avancée" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "高度なウィンドウキャプチャ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高级窗口截图" } }
+      }
+    },
+    "settings.hotkey.full_screen" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Vollbildaufnahme" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Full Screen Capture" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Capture plein écran" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フルスクリーンキャプチャ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全屏截图" } }
+      }
+    },
+    "settings.launch_at_login" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Beim Anmelden öffnen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Launch at login" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ouvrir à la connexion" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログイン時に起動" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开机启动" } }
+      }
+    },
+    "settings.play_sound_on_capture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Aufnahmeton" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Capture sound" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Son de capture" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャプチャ音" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "截图音效" } }
+      }
+    },
+    "settings.save_to_file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Aufnahmen als Datei speichern" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save captures to file" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer les captures en fichier" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャプチャをファイルに保存" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存截图到文件" } }
+      }
+    },
+    "settings.save_to" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Speichern unter" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save to" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer dans" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存先" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存到" } }
+      }
+    },
+    "settings.view_onboarding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Einführung anzeigen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View onboarding" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Voir l’introduction" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "入門ガイドを見る" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看入门指引" } }
+      }
+    },
+    "settings.version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本" } }
+      }
+    },
+    "settings.project_homepage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Projekt-Website" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Project Homepage" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Site du projet" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロジェクトホーム" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "项目主页" } }
+      }
+    },
+    "settings.privacy_policy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Datenschutz" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy Policy" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Confidentialité" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライバシーポリシー" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐私政策" } }
+      }
+    },
+    "settings.hotkey.press_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Drücke einen Kurzbefehl…" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press a shortcut…" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Appuyez sur un raccourci…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ショートカットを押してください…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请按下快捷键…" } }
+      }
+    },
+    "settings.hotkey.unset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Nicht festgelegt" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not set" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Non défini" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "未設定" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未设置" } }
+      }
+    },
+    "settings.hotkey.clear" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Kurzbefehl entfernen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear shortcut" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Effacer le raccourci" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ショートカットを削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除快捷键" } }
+      }
+    },
+    "" : {
+
+    },
     "%lld" : {
 
     },
@@ -9,7 +292,7 @@
     },
     "common.cancel" : {
       "comment" : "Common Actions",
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -44,7 +327,7 @@
       }
     },
     "common.change" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {

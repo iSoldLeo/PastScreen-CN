@@ -29,32 +29,32 @@ struct SettingsView: View {
         Form {
             // MARK: 通用
             Section {
-                LabeledContent("窗口截图") {
+                LabeledContent("settings.hotkey.window_capture") {
                     HotKeyRecorderView(hotkey: $hotkey.windowCaptureHotkey)
                 }
-                LabeledContent("高级窗口截图") {
+                LabeledContent("settings.hotkey.advanced_window_capture") {
                     HotKeyRecorderView(hotkey: $hotkey.advancedWindowCaptureHotkey)
                 }
-                LabeledContent("全屏截图") {
+                LabeledContent("settings.hotkey.full_screen") {
                     HotKeyRecorderView(hotkey: $hotkey.fullScreenHotkey)
                 }
-                Toggle("开机启动", isOn: $general.launchAtLogin)
-                Toggle("截图音效", isOn: $capture.playSoundOnCapture)
+                Toggle("settings.launch_at_login", isOn: $general.launchAtLogin)
+                Toggle("settings.play_sound_on_capture", isOn: $capture.playSoundOnCapture)
             } header: {
-                Text("通用")
+                Text("settings.section.general")
             } footer: {
-                Text("按下快捷键即可在任意应用中触发对应的截图模式。高级窗口截图截完后会进入编辑器。")
+                Text("settings.section.general.footer")
             }
 
             // MARK: 存储
             Section {
-                Toggle("保存截图到文件", isOn: $capture.saveToFile)
+                Toggle("settings.save_to_file", isOn: $capture.saveToFile)
 
                 Button {
                     selectSaveFolder()
                 } label: {
                     HStack {
-                        Text("保存到")
+                        Text("settings.save_to")
                             .foregroundStyle(.primary)
                         Spacer()
                         Text(folderDisplayName)
@@ -64,9 +64,9 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             } header: {
-                Text("存储")
+                Text("settings.section.storage")
             } footer: {
-                Text("关闭「保存截图到文件」后，截图仅复制到剪切板，不写入磁盘。")
+                Text("settings.section.storage.footer")
             }
 
             // MARK: 关于
@@ -75,7 +75,7 @@ struct SettingsView: View {
                     showOnboarding()
                 } label: {
                     HStack {
-                        Text("查看入门指引")
+                        Text("settings.view_onboarding")
                         Spacer()
                         Image(systemName: "chevron.right")
                             .foregroundStyle(.secondary)
@@ -85,7 +85,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
 
-                LabeledContent("版本") {
+                LabeledContent("settings.version") {
                     Text(versionString)
                         .foregroundStyle(.secondary)
                 }
@@ -96,7 +96,7 @@ struct SettingsView: View {
                     }
                 } label: {
                     HStack {
-                        Text("项目主页")
+                        Text("settings.project_homepage")
                         Spacer()
                         Image(systemName: "arrow.up.forward.app")
                             .foregroundStyle(.secondary)
@@ -111,7 +111,7 @@ struct SettingsView: View {
                     }
                 } label: {
                     HStack {
-                        Text("隐私政策")
+                        Text("settings.privacy_policy")
                         Spacer()
                         Image(systemName: "arrow.up.forward.app")
                             .foregroundStyle(.secondary)
@@ -120,7 +120,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             } header: {
-                Text("关于")
+                Text("settings.section.about")
             }
         }
         .formStyle(.grouped)
@@ -168,17 +168,17 @@ struct HotKeyRecorderView: View {
     var body: some View {
         HStack(spacing: 8) {
             if isRecording {
-                Text("请按下快捷键…")
+                Text("settings.hotkey.press_prompt")
                     .foregroundStyle(.secondary)
             } else if hotkey.isUnset {
-                Text("未设置")
+                Text("settings.hotkey.unset")
                     .foregroundStyle(.secondary)
             } else {
                 Text(hotkey.symbolDisplayString)
                     .font(.body.monospaced())
             }
 
-            Button(isRecording ? "取消" : "更改") {
+            Button(isRecording ? LocalizedStringKey("common.cancel") : LocalizedStringKey("common.change")) {
                 if isRecording {
                     stopRecording()
                 } else {
@@ -202,7 +202,7 @@ struct HotKeyRecorderView: View {
             .controlSize(.small)
             .opacity(hotkey.isUnset || isRecording ? 0 : 1)
             .disabled(hotkey.isUnset || isRecording)
-            .help("清除快捷键")
+            .help("settings.hotkey.clear")
         }
         .onDisappear {
             stopRecording()
