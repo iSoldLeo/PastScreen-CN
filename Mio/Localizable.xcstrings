@@ -1,6 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld" : {
+
+    },
+    "A" : {
+
+    },
     "common.cancel" : {
       "comment" : "Common Actions",
       "extractionState" : "stale",
@@ -1109,6 +1115,40 @@
         }
       }
     },
+    "menu.capture_advanced" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erweiterte Fensteraufnahme"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced Window Capture"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture de fenêtre avancée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高度なウィンドウキャプチャ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级窗口截图"
+          }
+        }
+      }
+    },
     "menu.capture_area" : {
       "comment" : "Menu Items",
       "localizations" : {
@@ -1179,6 +1219,7 @@
       }
     },
     "menu.destination" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2616,6 +2657,9 @@
         }
       }
     },
+    "使用刚才取到的颜色" : {
+
+    },
     "保存到" : {
 
     },
@@ -2637,10 +2681,22 @@
     "存储" : {
 
     },
+    "完成" : {
+
+    },
+    "尚未取色" : {
+
+    },
+    "屏幕取色" : {
+
+    },
     "屏幕录制权限被拒绝。请前往\"系统设置 → 隐私与安全性 → 屏幕录制\"开启。" : {
 
     },
     "开机启动" : {
+
+    },
+    "恢复" : {
 
     },
     "截图被系统中断" : {
@@ -2649,7 +2705,10 @@
     "截图音效" : {
 
     },
-    "按下快捷键即可在任意应用中触发对应的截图模式。" : {
+    "按下快捷键即可在任意应用中触发对应的截图模式。高级窗口截图截完后会进入编辑器。" : {
+
+    },
+    "撤销" : {
 
     },
     "更改" : {
@@ -2680,6 +2739,9 @@
 
     },
     "项目主页" : {
+
+    },
+    "高级窗口截图" : {
 
     }
   },

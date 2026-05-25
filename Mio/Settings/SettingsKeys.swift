@@ -18,6 +18,7 @@ nonisolated enum SettingsKeys {
 
     /// HotKeySettings.
     static let windowCaptureHotkey = "windowCaptureHotkey"
+    static let advancedWindowCaptureHotkey = "advancedWindowCaptureHotkey"
     static let fullScreenHotkey = "fullScreenHotkey"
 
     /// Legacy key — present in pre-2 hotkey users' UserDefaults. Migrated

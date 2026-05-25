@@ -45,11 +45,13 @@ final class HotKeyManager {
     enum Match: Sendable {
         case windowCapture
         case fullScreen
+        case advancedWindowCapture
 
         var carbonId: UInt32 {
             switch self {
             case .windowCapture: return 1
             case .fullScreen: return 2
+            case .advancedWindowCapture: return 3
             }
         }
 
@@ -57,6 +59,7 @@ final class HotKeyManager {
             switch carbonId {
             case Match.windowCapture.carbonId: self = .windowCapture
             case Match.fullScreen.carbonId: self = .fullScreen
+            case Match.advancedWindowCapture.carbonId: self = .advancedWindowCapture
             default: return nil
             }
         }
@@ -79,6 +82,7 @@ final class HotKeyManager {
     private var carbonEventHandler: EventHandlerRef?
     private var windowHotkeyObserver: AnyCancellable?
     private var fullScreenHotkeyObserver: AnyCancellable?
+    private var advancedWindowHotkeyObserver: AnyCancellable?
     private var onHotKey: (@MainActor (Match) -> Void)?
 
     private let hotKeySettings = AppSettings.shared.hotkey
@@ -94,6 +98,7 @@ final class HotKeyManager {
         }
         windowHotkeyObserver?.cancel()
         fullScreenHotkeyObserver?.cancel()
+        advancedWindowHotkeyObserver?.cancel()
     }
 
     // MARK: - Public API
@@ -113,6 +118,13 @@ final class HotKeyManager {
         }
         if fullScreenHotkeyObserver == nil {
             fullScreenHotkeyObserver = hotKeySettings.$fullScreenHotkey.sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.reinstallHotKeys()
+                }
+            }
+        }
+        if advancedWindowHotkeyObserver == nil {
+            advancedWindowHotkeyObserver = hotKeySettings.$advancedWindowCaptureHotkey.sink { [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.reinstallHotKeys()
                 }
@@ -204,6 +216,7 @@ final class HotKeyManager {
 
         registerHotKey(hotKeySettings.windowCaptureHotkey, match: .windowCapture)
         registerHotKey(hotKeySettings.fullScreenHotkey, match: .fullScreen)
+        registerHotKey(hotKeySettings.advancedWindowCaptureHotkey, match: .advancedWindowCapture)
     }
 
     private func registerHotKey(_ hotkey: HotKey, match: Match) {

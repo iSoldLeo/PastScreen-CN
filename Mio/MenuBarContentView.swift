@@ -19,6 +19,11 @@ struct MenuBarContentView: View {
             }
             .applyHotkey(keyboardShortcut(for: hotkey.windowCaptureHotkey))
 
+            Button(NSLocalizedString("menu.capture_advanced", comment: "")) {
+                app.takeAdvancedScreenshot()
+            }
+            .applyHotkey(keyboardShortcut(for: hotkey.advancedWindowCaptureHotkey))
+
             Button(NSLocalizedString("menu.capture_fullscreen", comment: "")) {
                 app.captureFullScreen()
             }
@@ -28,9 +33,6 @@ struct MenuBarContentView: View {
 
     private var utilitySection: some View {
         Group {
-            Button(NSLocalizedString("menu.destination", comment: "")) {
-                app.changeDestinationFolder()
-            }
             Button(NSLocalizedString("menu.preferences", comment: "")) {
                 // Use SwiftUI's settings action to ensure the Settings scene opens reliably (macOS 14+)
                 NSApp.activate(ignoringOtherApps: true)

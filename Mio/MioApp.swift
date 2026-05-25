@@ -46,12 +46,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // flow, not here.
         permissionManager.checkAllPermissions()
 
+        // PRODUCT v5 §5.1: SCK 启动预热——派一次极小尺寸 dummy 抓图，把
+        // ScreenCaptureKit XPC 链路、IOSurface 资源池、权限校验缓存全部
+        // 初始化到位，消除首次按键的 ~300ms 进程级冷启动。失败静默忽略。
+        Task.detached(priority: .utility) {
+            await DisplayCaptureService().prewarm()
+        }
+
         HotKeyManager.shared.start { [weak self] match in
             switch match {
             case .windowCapture:
                 self?.handleWindowHotKey()
             case .fullScreen:
                 self?.handleFullScreenHotKey()
+            case .advancedWindowCapture:
+                self?.handleAdvancedWindowHotKey()
             }
         }
 
@@ -79,6 +88,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
     }
 
+    private func handleAdvancedWindowHotKey() {
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.coordinator.startAdvancedAreaCapture()
+            }
+        }
+    }
+
     // MARK: - Menu actions
 
     @objc func takeScreenshot() {
@@ -95,6 +113,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             guard let self else { return }
             if await self.ensureScreenRecordingGranted() {
                 self.coordinator.startFullScreenCapture()
+            }
+        }
+    }
+
+    @objc func takeAdvancedScreenshot() {
+        Task { [weak self] in
+            guard let self else { return }
+            if await self.ensureScreenRecordingGranted() {
+                self.coordinator.startAdvancedAreaCapture()
             }
         }
     }

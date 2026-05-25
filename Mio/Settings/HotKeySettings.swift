@@ -27,6 +27,12 @@ final class HotKeySettings: ObservableObject {
         }
     }
 
+    @Published var advancedWindowCaptureHotkey: HotKey {
+        didSet {
+            persist(advancedWindowCaptureHotkey, forKey: SettingsKeys.advancedWindowCaptureHotkey)
+        }
+    }
+
     @Published var fullScreenHotkey: HotKey {
         didSet {
             persist(fullScreenHotkey, forKey: SettingsKeys.fullScreenHotkey)
@@ -55,6 +61,8 @@ final class HotKeySettings: ObservableObject {
 
         self.windowCaptureHotkey = Self.load(forKey: SettingsKeys.windowCaptureHotkey)
             ?? .defaultWindowCapture
+        self.advancedWindowCaptureHotkey = Self.load(forKey: SettingsKeys.advancedWindowCaptureHotkey)
+            ?? .defaultAdvancedWindow
         self.fullScreenHotkey = Self.load(forKey: SettingsKeys.fullScreenHotkey)
             ?? .defaultFullScreen
     }

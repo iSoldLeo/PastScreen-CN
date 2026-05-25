@@ -34,6 +34,10 @@ nonisolated public struct HotKey: Codable, Equatable, Sendable {
         characters: "s"
     )
 
+    /// Default for the advanced window capture (路径 D, opens editor).
+    /// Currently `unset` pending user-confirmed default key choice.
+    public static let defaultAdvancedWindow = HotKey.unset
+
     public init(keyCode: UInt16, modifiers: UInt, characters: String?) {
         self.keyCode = keyCode
         self.modifiers = modifiers

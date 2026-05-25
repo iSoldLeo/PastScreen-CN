@@ -116,6 +116,24 @@ nonisolated public enum CaptureEvent: Sendable {
     case copiedToClipboard
 }
 
+/// 按键瞬间冻结的全部资产：屏幕级冻结底图 + 候选窗口圆角透明图。
+///
+/// PRODUCT v5 §2.3：`screens` 是 hover/拖框 UI 的稳定底图（必有），
+/// `windows` 是窗口点选路径的高保真输出来源（按 z-order 前 N 个，
+/// 受 150ms 时间预算约束，可能少于实际可见窗口数）。
+nonisolated public struct FrozenAssets: Sendable {
+    public let screens: [CGDirectDisplayID: CaptureImage]
+    public let windows: [CGWindowID: CaptureImage]
+
+    public init(
+        screens: [CGDirectDisplayID: CaptureImage],
+        windows: [CGWindowID: CaptureImage]
+    ) {
+        self.screens = screens
+        self.windows = windows
+    }
+}
+
 /// Quartz window hit-test result DTO.
 nonisolated public struct WindowHitTestResult: Sendable {
     public let windowID: CGWindowID
@@ -149,6 +167,61 @@ nonisolated public enum WindowCaptureError: LocalizedError, Sendable {
         case .mouseLocationUnavailable: return "无法获取鼠标位置"
         case .noWindowAtPoint: return "鼠标下方未找到可截取的窗口"
         }
+    }
+}
+
+// MARK: - Window visibility helpers
+
+/// 矩形减法 + 可见性判定。
+///
+/// SCShareableContent.windows 默认按 z-order 前→后给窗口；逐个累加 occluder
+/// 后用矩形减法判断当前窗口是否仍剩余可见区域。与 probe 一致，便于回归对照。
+nonisolated public enum WindowVisibility {
+    /// rect 减去单个 occluder 后的不重叠子矩形列表。完全被覆盖时返回空数组。
+    public static func subtract(_ rect: CGRect, by other: CGRect) -> [CGRect] {
+        let inter = rect.intersection(other)
+        if inter.isNull || inter.isEmpty { return [rect] }
+        if inter == rect { return [] }
+        var pieces: [CGRect] = []
+        // top
+        if inter.minY > rect.minY {
+            pieces.append(CGRect(x: rect.minX, y: rect.minY,
+                                 width: rect.width,
+                                 height: inter.minY - rect.minY))
+        }
+        // bottom
+        if inter.maxY < rect.maxY {
+            pieces.append(CGRect(x: rect.minX, y: inter.maxY,
+                                 width: rect.width,
+                                 height: rect.maxY - inter.maxY))
+        }
+        // left
+        if inter.minX > rect.minX {
+            pieces.append(CGRect(x: rect.minX, y: inter.minY,
+                                 width: inter.minX - rect.minX,
+                                 height: inter.height))
+        }
+        // right
+        if inter.maxX < rect.maxX {
+            pieces.append(CGRect(x: inter.maxX, y: inter.minY,
+                                 width: rect.maxX - inter.maxX,
+                                 height: inter.height))
+        }
+        return pieces
+    }
+
+    /// rect 减去多个 occluder 后是否仍剩余可见区域。
+    public static func hasVisibleArea(rect: CGRect, occluders: [CGRect]) -> Bool {
+        var pieces: [CGRect] = [rect]
+        for occ in occluders {
+            var next: [CGRect] = []
+            for p in pieces {
+                next.append(contentsOf: subtract(p, by: occ))
+            }
+            pieces = next
+            if pieces.isEmpty { return false }
+        }
+        return !pieces.isEmpty
     }
 }
 
@@ -468,6 +541,77 @@ public actor DisplayCaptureService {
             throw CaptureError("全屏截图失败:\(error.localizedDescription)")
         }
     }
+
+    /// 单窗口截图（圆角透明）。
+    ///
+    /// PRODUCT v5 §2.3 例外：用 `SCContentFilter(desktopIndependentWindow:)` +
+    /// `shouldBeOpaque = false` 让系统按窗口真实形状（含圆角 + 阴影 mask）输出
+    /// 带 alpha 的 CGImage——圆角外为透明，与系统截屏（Cmd+Shift+4+Space）行为
+    /// 一致。
+    ///
+    /// 使用 SCWindow 引用而非 windowID，是因为 SCWindow 实例携带了 SCK 已经做
+    /// 过的窗口校验信息（owningApplication / frame / windowLayer），重新按 ID
+    /// 查询会增加一次 SCShareableContent 调用。
+    ///
+    /// - Returns: CaptureImage，size 用 SCWindow.frame（point 坐标），
+    ///   scale 取 NSScreen.main.backingScaleFactor 兜底（窗口跨屏时无完美值）。
+    public func captureWindow(_ window: SCWindow) async throws -> CaptureImage {
+        let backingScale: CGFloat = await MainActor.run {
+            NSScreen.main?.backingScaleFactor ?? 2.0
+        }
+
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+
+        let config = SCStreamConfiguration()
+        config.width = max(2, Int(window.frame.width * backingScale))
+        config.height = max(2, Int(window.frame.height * backingScale))
+        config.captureResolution = .best
+        config.showsCursor = false
+        config.scalesToFit = true
+        // 圆角透明的关键：要求带 alpha 的输出，且背景透明。
+        config.pixelFormat = kCVPixelFormatType_32BGRA   // 显式 BGRA 保 alpha 通道
+        config.backgroundColor = .clear
+        if #available(macOS 14.0, *) {
+            config.ignoreShadowsSingleWindow = false
+        }
+
+        let cgImage = try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: config
+        )
+        return CaptureImage(
+            cgImage: cgImage,
+            scale: backingScale,
+            size: window.frame.size
+        )
+    }
+
+    /// 启动预热：派一次 2×2 像素的 dummy 抓图，把 ScreenCaptureKit XPC 链路、
+    /// IOSurface 资源池、权限校验缓存全部初始化到位，消除首次按键的进程级
+    /// 冷启动延迟（实测裸冷启动 ~300ms，预热后稳态 ~50-150ms）。
+    ///
+    /// 失败静默忽略——预热失败仅意味着首次按键仍走冷路径，不应阻塞应用启动。
+    public func prewarm() async {
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.current
+        } catch {
+            return
+        }
+        guard let display = content.displays.first else { return }
+
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let config = SCStreamConfiguration()
+        config.width = 2
+        config.height = 2
+        config.showsCursor = false
+        config.scalesToFit = true
+
+        _ = try? await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: config
+        )
+    }
 }
 
 // MARK: - File output (PNG sequence)
@@ -677,6 +821,115 @@ public actor CapturePipeline {
         return result
     }
 
+    /// PRODUCT v5 §2.3：按键瞬间并发抓取屏幕级冻结 + 候选窗口 burst（圆角透明）。
+    ///
+    /// 双路径并行：
+    /// - 屏幕级冻结：与 `captureFrozenScreens()` 同语义，全屏 batchSize=3，
+    ///   失败语义严（任一屏失败整批失败）。
+    /// - 窗口级 burst：z-order 前→后的可见窗口，并发抓取前 8 个（不足则有几个
+    ///   抓几个）。失败语义宽（单窗口失败丢弃，不阻断整体）。
+    ///
+    /// 8 个窗口实测线性 ~12-15ms/窗口，并发 wall-clock ≈ 最慢窗口 ~150ms，
+    /// 与 PRODUCT.md §5.1 的 150ms 时间预算贴合。
+    ///
+    /// 注：曾尝试顶层只拉一次 SCShareableContent 注入两路，但 SCShareableContent
+    /// 非 Sendable，跨 async let 边界传递触发 strict-concurrency 报错。当前
+    /// 实现接受两条路径各自拉 content（XPC 30-50ms × 2，并行不阻塞），未来
+    /// SCShareableContent 标 Sendable 后可优化。
+    public func captureFrozenAssets() async throws -> FrozenAssets {
+        async let screensTask: [CGDirectDisplayID: CaptureImage] = captureFrozenScreens()
+        async let windowsTask: [CGWindowID: CaptureImage] = captureCandidateWindows(batchSize: 8)
+
+        let screens = try await screensTask
+        let windows = await windowsTask  // 不抛错，单窗口失败已在内部丢弃
+        return FrozenAssets(screens: screens, windows: windows)
+    }
+
+    /// 窗口 burst：并发抓取 z-order 前→后的前 N 个可见窗口。
+    ///
+    /// 始终从 z-order 前→后取窗口（SCK 默认顺序）。可见性判定基于 z-order 累
+    /// 加遮挡：被前面窗口完全覆盖的窗口直接跳过。
+    ///
+    /// 单窗口失败不抛错，仅在结果字典里缺失对应 windowID。
+    private func captureCandidateWindows(batchSize: Int) async -> [CGWindowID: CaptureImage] {
+        guard let visibleWindows = await loadVisibleWindowsOrderedByZ() else {
+            return [:]
+        }
+        guard !visibleWindows.isEmpty else { return [:] }
+
+        let batch = Array(visibleWindows.prefix(batchSize))
+        let results = await burstCaptureWindows(batch)
+
+        var dict: [CGWindowID: CaptureImage] = [:]
+        for (id, img) in results {
+            dict[id] = img
+        }
+        return dict
+    }
+
+    /// 并发抓取一组窗口，失败的窗口静默丢弃，返回成功结果。
+    private func burstCaptureWindows(
+        _ windows: [SCWindow]
+    ) async -> [(CGWindowID, CaptureImage)] {
+        await withTaskGroup(of: (CGWindowID, CaptureImage)?.self) { group in
+            for window in windows {
+                let id = window.windowID
+                group.addTask {
+                    guard let img = try? await self.displayCapture.captureWindow(window) else {
+                        return nil
+                    }
+                    return (id, img)
+                }
+            }
+            var collected: [(CGWindowID, CaptureImage)] = []
+            for await item in group {
+                if let item { collected.append(item) }
+            }
+            return collected
+        }
+    }
+
+    /// 枚举当前所有屏上**可见**（至少有一个像素未被前面窗口覆盖）的窗口，
+    /// 按 z-order 前→后返回。
+    ///
+    /// 实现思路与 `scripts/sck_burst_probe/main.swift` 一致：SCShareableContent
+    /// 默认按 z-order front→back 给窗口；逐个累加 occluder rect 列表，对当前窗口
+    /// 做 rect 减法判断是否仍有可见区域。
+    private func loadVisibleWindowsOrderedByZ() async -> [SCWindow]? {
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+        } catch {
+            return nil
+        }
+
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+        let bundleID = Bundle.main.bundleIdentifier
+
+        // 与 probe 对齐的过滤规则：跳过自己、过小、非 normal layer。
+        let candidates = content.windows.filter { w in
+            if let app = w.owningApplication, Int32(app.processID) == selfPID { return false }
+            if let app = w.owningApplication, app.bundleIdentifier == bundleID { return false }
+            if w.frame.width * w.frame.height < 40_000 { return false }
+            if w.windowLayer != 0 { return false }
+            return true
+        }
+
+        // 可见性过滤：z-order 前→后逐个累加 occluder。
+        var occluders: [CGRect] = []
+        var visible: [SCWindow] = []
+        for w in candidates {
+            if WindowVisibility.hasVisibleArea(rect: w.frame, occluders: occluders) {
+                visible.append(w)
+            }
+            occluders.append(w.frame)
+        }
+        return visible
+    }
+
     /// Crop a sub-rect out of a frozen full-screen image.
     ///
     /// - `frozen` is the full-screen CaptureImage produced by
@@ -747,7 +1000,16 @@ public actor CapturePipeline {
     /// Output tail: file write (when enabled) → clipboard → optional sound →
     /// success events. Shared by every capture entry point — area / window /
     /// fullscreen all funnel into this single output stage.
-    public func finishOutput(image: CaptureImage, config: CaptureConfiguration) async throws {
+    ///
+    /// - Parameter playSound: 是否在 finishOutput 内播音效。默认 true（路径
+    ///   A/B 直出场景：finishOutput 是采集瞬间）。路径 D（编辑器）传 false：
+    ///   音效已经在采集瞬间（SelectionWindow 选定时）由 coordinator 播过；
+    ///   编辑完点完成是「保存」语义，不该再响。
+    public func finishOutput(
+        image: CaptureImage,
+        config: CaptureConfiguration,
+        playSound: Bool = true
+    ) async throws {
         // File output (must happen before clipboard for the saved-path event).
         // The file output service owns the on-disk sequence counter internally.
         // Skipped entirely when the user toggles `saveToFile` off — clipboard
@@ -763,7 +1025,7 @@ public actor CapturePipeline {
 
         // Play screenshot sound. The player retains its NSSound reference
         // so playback isn't truncated when this Task returns.
-        if config.playSoundOnCapture {
+        if playSound && config.playSoundOnCapture {
             await MainActor.run {
                 CaptureSoundPlayer.shared.play()
             }
@@ -791,6 +1053,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
     private var selectionWindow: SelectionWindow?
     private var screenChooserWindow: ScreenChooserWindow?
     private var frozenScreens: [CGDirectDisplayID: CaptureImage]?
+    private var frozenWindows: [CGWindowID: CaptureImage] = [:]
     private var screenFrames: [CGDirectDisplayID: CGRect]?
     private var isStartingFlow: Bool = false
     /// Monotonic counter incremented at every flow start. Async output Tasks
@@ -799,7 +1062,19 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
     /// still current. This prevents a stale Task from clobbering the state
     /// of a flow that the user has cancelled and restarted in the meantime.
     private var flowGeneration: UInt64 = 0
+    /// Distinguishes routing of a SelectionWindow result.
+    /// `.directOutput` → finishOutput (paths A & current behaviour)
+    /// `.intoEditor`   → open editor window (path D, advanced window capture)
+    private var areaFlowKind: AreaFlowKind = .directOutput
     private var eventTask: Task<Void, Never>?
+
+    /// Per-flow routing decision. Set when an entry method is called;
+    /// read by handleSelectedRect / didSelectWindow to decide whether
+    /// the cropped image is sent to finishOutput or to the editor.
+    private enum AreaFlowKind {
+        case directOutput
+        case intoEditor
+    }
 
     public init() {
         let eventBus = CaptureEventBus()
@@ -824,6 +1099,16 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
     /// is a no-op, otherwise two concurrent freeze flows would compete for
     /// SCK resources and double the CPU spike (violating PRODUCT.md §5).
     public func startAreaCapture() {
+        beginAreaCapture(kind: .directOutput)
+    }
+
+    /// Path D · 高级窗口截图 — 与 startAreaCapture 完全相同的冻结 + 覆盖层 +
+    /// 区域提取流程，区别仅在区域确定后路由到编辑器窗口而非 finishOutput。
+    public func startAdvancedAreaCapture() {
+        beginAreaCapture(kind: .intoEditor)
+    }
+
+    private func beginAreaCapture(kind: AreaFlowKind) {
         guard !isStartingFlow else { return }
         // Hide any stale window then clear leftover state, *before* arming
         // the new flow generation. Otherwise the cleanup call would reset
@@ -831,6 +1116,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         cleanupExistingWindows()
         isStartingFlow = true
         flowGeneration &+= 1
+        areaFlowKind = kind
         let myGeneration = flowGeneration
 
         Task { [weak self] in
@@ -839,20 +1125,21 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             // and self.frozenScreens writes below are MainActor-safe.
             guard let self else { return }
             do {
-                let frozen = try await pipeline.captureFrozenScreens()
+                let assets = try await pipeline.captureFrozenAssets()
                 // If the user has already cancelled (or started a new flow)
-                // while captureFrozenScreens was in flight, drop the result.
+                // while captureFrozenAssets was in flight, drop the result.
                 guard self.flowGeneration == myGeneration else { return }
                 let frames = NSScreen.screens.reduce(into: [CGDirectDisplayID: CGRect]()) {
                     if let id = $1.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
                         $0[id] = $1.frame
                     }
                 }
-                self.frozenScreens = frozen
+                self.frozenScreens = assets.screens
+                self.frozenWindows = assets.windows
                 self.screenFrames = frames
 
                 let window = SelectionWindow(
-                    frozenScreens: frozen,
+                    frozenScreens: assets.screens,
                     overlayConfiguration: .screenshot
                 )
                 window.selectionDelegate = self
@@ -879,6 +1166,8 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         cleanupExistingWindows()
         isStartingFlow = true
         flowGeneration &+= 1
+        // 路径 B 全屏截图不走 SelectionWindow，因此 areaFlowKind 在此 flow
+        // 中不会被读取——无需赋值。
         let myGeneration = flowGeneration
 
         Task { [weak self] in
@@ -944,7 +1233,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
     }
 
     func selectionWindow(_ window: SelectionWindow, didSelectWindow windowResult: WindowHitTestResult) {
-        handleSelectedRect(windowResult.bounds)
+        handleSelectedWindow(windowResult)
     }
 
     func selectionWindowDidCancel(_ window: SelectionWindow) {
@@ -1018,9 +1307,11 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             return
         }
         let screenFrame = match.value
+        let displayID = match.key
 
         let config = makeCaptureConfiguration()
         let myGeneration = flowGeneration
+        let kind = areaFlowKind
         Task { [weak self] in
             // Task inherits @MainActor; pipeline calls hop into the actor.
             guard let self else { return }
@@ -1030,7 +1321,30 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                     screenFrame: screenFrame,
                     rect: rect
                 )
-                try await pipeline.finishOutput(image: cropped, config: config)
+                switch kind {
+                case .directOutput:
+                    try await pipeline.finishOutput(image: cropped, config: config)
+                case .intoEditor:
+                    // 路径 D：跳过 finishOutput，把裁好的图交给编辑器窗口。
+                    // 编辑器窗口生命周期独立于本 flow；当前 flow 在窗口
+                    // 打开后即可清理。
+                    if self.flowGeneration == myGeneration {
+                        // 截图发生那一刻播音效（与路径 A/B 行为一致），
+                        // 不等用户在编辑器里点完成。MainActor.run 因为
+                        // CaptureSoundPlayer 是 @MainActor。
+                        if config.playSoundOnCapture {
+                            await MainActor.run {
+                                CaptureSoundPlayer.shared.play()
+                            }
+                        }
+                        EditorWindowRegistry.shared.open(
+                            image: cropped,
+                            displayID: displayID,
+                            config: config,
+                            pipeline: self.pipeline
+                        )
+                    }
+                }
             } catch {
                 if self.flowGeneration == myGeneration {
                     self.showCaptureError(error)
@@ -1039,6 +1353,65 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             // Only clean up if we still own the active flow. If the user
             // pressed ESC or restarted, a new generation has been armed and
             // owns the state — don't clobber it.
+            if self.flowGeneration == myGeneration {
+                self.cleanupFlow()
+            }
+        }
+    }
+
+    /// 窗口点选处理（PRODUCT v5 §2.3）：优先用按键瞬间 burst 抓的圆角透明窗口图。
+    /// 命中时直接走该图；未命中（窗口在 z-order 较深或 burst 超时未抓到）时
+    /// fallback 到 handleSelectedRect 的全屏矩形裁剪路径，保留矩形截图能力
+    /// （仅圆角外为壁纸而非透明）。
+    private func handleSelectedWindow(_ result: WindowHitTestResult) {
+        guard let windowImage = frozenWindows[result.windowID] else {
+            // Fallback：未抓到该窗口的 burst 图，用全屏矩形裁剪保留可用性。
+            handleSelectedRect(result.bounds)
+            return
+        }
+        selectionWindow?.hide()
+
+        // 按窗口 bounds 中心点匹配窗口所在屏（与 handleSelectedRect 一致）。
+        let center = CGPoint(x: result.bounds.midX, y: result.bounds.midY)
+        let matchedDisplayID: CGDirectDisplayID
+        if let frames = screenFrames,
+           let match = frames.first(where: { $0.value.contains(center) }) {
+            matchedDisplayID = match.key
+        } else {
+            // 极端情况兜底：拿主显示器的 displayID 给编辑器窗口算尺寸。
+            matchedDisplayID = CGMainDisplayID()
+        }
+
+        let config = makeCaptureConfiguration()
+        let myGeneration = flowGeneration
+        let kind = areaFlowKind
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                switch kind {
+                case .directOutput:
+                    try await pipeline.finishOutput(image: windowImage, config: config)
+                case .intoEditor:
+                    if self.flowGeneration == myGeneration {
+                        // 截图发生那一刻播音效（与路径 A/B 行为一致）。
+                        if config.playSoundOnCapture {
+                            await MainActor.run {
+                                CaptureSoundPlayer.shared.play()
+                            }
+                        }
+                        EditorWindowRegistry.shared.open(
+                            image: windowImage,
+                            displayID: matchedDisplayID,
+                            config: config,
+                            pipeline: self.pipeline
+                        )
+                    }
+                }
+            } catch {
+                if self.flowGeneration == myGeneration {
+                    self.showCaptureError(error)
+                }
+            }
             if self.flowGeneration == myGeneration {
                 self.cleanupFlow()
             }
@@ -1065,6 +1438,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         selectionWindow = nil
         screenChooserWindow = nil
         frozenScreens = nil
+        frozenWindows = [:]
         screenFrames = nil
         isStartingFlow = false
     }

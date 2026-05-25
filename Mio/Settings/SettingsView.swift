@@ -32,6 +32,9 @@ struct SettingsView: View {
                 LabeledContent("窗口截图") {
                     HotKeyRecorderView(hotkey: $hotkey.windowCaptureHotkey)
                 }
+                LabeledContent("高级窗口截图") {
+                    HotKeyRecorderView(hotkey: $hotkey.advancedWindowCaptureHotkey)
+                }
                 LabeledContent("全屏截图") {
                     HotKeyRecorderView(hotkey: $hotkey.fullScreenHotkey)
                 }
@@ -40,7 +43,7 @@ struct SettingsView: View {
             } header: {
                 Text("通用")
             } footer: {
-                Text("按下快捷键即可在任意应用中触发对应的截图模式。")
+                Text("按下快捷键即可在任意应用中触发对应的截图模式。高级窗口截图截完后会进入编辑器。")
             }
 
             // MARK: 存储
