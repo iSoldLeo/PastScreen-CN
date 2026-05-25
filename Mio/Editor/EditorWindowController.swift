@@ -47,14 +47,14 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         let view = EditorView(
             image: image,
             onCancel: { [weak self] in self?.cancel() },
-            onFinish: { [weak self] in self?.finish() }
+            onFinish: { [weak self] composed in self?.finish(composed: composed) }
         )
         let host = NSHostingController(rootView: view)
         // 让 hosting controller 把 SwiftUI 视图的 fitting size 自动同步到
-        // NSWindow.contentMinSize / contentMaxSize / preferredContentSize。
-        // 这是官方推荐的 SwiftUI ↔ NSWindow 尺寸桥接方式（macOS 13+）。
-        // 同步推送在同一事件循环完成，避免手动设 minSize / contentMinSize 时
-        // 与 SwiftUI 在临界值的协调抖动。
+        // NSWindow.contentMinSize。SwiftUI EditorView 自己有 .frame(minWidth: 760,
+        // minHeight: 760) 兜底，所以 fitting size 在 TextField 进出编辑时恒定，
+        // 不会触发 contentMinSize 抖动。单一来源（SwiftUI .frame → fitting →
+        // contentMinSize），无双层冲突。
         host.sizingOptions = [.minSize]
         window.contentViewController = host
 
@@ -67,21 +67,24 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - User actions
 
-    /// 完成：合成（CH-E3 起接入命令栈渲染）→ finishOutput → 关窗。
-    /// 当前阶段无编辑能力，直接拿原图走 finishOutput。
-    /// 输出失败时**保留窗口**让用户重试或调整 saveToFile 设置后再试，
-    /// 而不是静默丢弃用户的编辑成果。
-    func finish() {
-        let original = image
+    /// 完成：EditorView 已经合成好最终 CGImage 传过来，包成 CaptureImage 后
+    /// 走 finishOutput → 关窗。
+    /// 编辑器路径不响截图音效（playSound: false） — 音效已在 SelectionWindow
+    /// 选定时由 coordinator 播过；这里走的是「保存」语义。
+    /// 输出失败时**保留窗口**让用户重试或调整 saveToFile 设置后再试。
+    func finish(composed: CGImage) {
+        let composedImage = CaptureImage(
+            cgImage: composed,
+            scale: image.scale,
+            size: image.size
+        )
         let config = captureConfig
         let pipeline = self.pipeline
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                // 编辑器路径：音效已在采集瞬间（SelectionWindow 选定时）播过，
-                // 这里走的是「保存」语义，不该再响。
                 try await pipeline.finishOutput(
-                    image: original,
+                    image: composedImage,
                     config: config,
                     playSound: false
                 )
@@ -92,7 +95,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
                     duration: 3.0,
                     style: .failure
                 )
-                // 不 close — 让用户决定下一步（继续编辑 / 改设置后重试 / 主动取消）
+                // 不 close — 让用户决定下一步
             }
         }
     }

@@ -2,16 +2,23 @@
 //  EditorState.swift
 //  Mio
 //
-//  编辑器跨工具共享的 UI 状态 + 工具集 / 颜色集模型。
+//  编辑器状态 + 工具集 + 颜色集 + 命令栈 + DraftSnapshot。
 //
-//  当前阶段（CH-E2）只承载工具栏 UI 状态；CH-E3 起扩展为完整的命令栈
-//  + 矢量文字层 + baseline cache（spec §4/§5）。
+//  全矢量方案（spec §4-§5）：
+//  - 撤销栈只存命令描述（DrawCommand），不存 CGImage 副本
+//  - 不维护 baseline cache，原图作为静态背景，所有命令每帧重画
+//  - 撤销 / 重做 = O(1) 数组操作
+//  - 马赛克粒度固定，进编辑器时一次性预生成 fullPixelated CGImage
 //
 
 import Foundation
 import SwiftUI
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
-/// 编辑器工具集（PRODUCT v4 §3.4 锁定，6 项不可扩展）。
+// MARK: - Tools
+
+/// 编辑器工具集（PRODUCT v5 §3.4 锁定，6 项不可扩展）。
 enum EditorTool: String, CaseIterable, Identifiable, Sendable {
     case rectangle, ellipse, arrow, pencil, mosaic, text
     var id: String { rawValue }
@@ -29,17 +36,19 @@ enum EditorTool: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .rectangle: "矩形"
-        case .ellipse:   "椭圆"
-        case .arrow:     "箭头"
-        case .pencil:    "画笔"
-        case .mosaic:    "马赛克"
-        case .text:      "文字"
+        case .rectangle: return String(localized: "editor.tool.rectangle", defaultValue: "矩形")
+        case .ellipse:   return String(localized: "editor.tool.ellipse", defaultValue: "椭圆")
+        case .arrow:     return String(localized: "editor.tool.arrow", defaultValue: "箭头")
+        case .pencil:    return String(localized: "editor.tool.pencil", defaultValue: "画笔")
+        case .mosaic:    return String(localized: "editor.tool.mosaic", defaultValue: "马赛克")
+        case .text:      return String(localized: "editor.tool.text", defaultValue: "文字")
         }
     }
 }
 
-/// 编辑器 7 色预设（PRODUCT v4 §3.4 锁定）。
+// MARK: - Color presets
+
+/// 编辑器 7 色预设（PRODUCT v5 §3.4 锁定）。
 let editorPresetColors: [(name: String, color: Color)] = [
     ("red",    Color(red: 0.92, green: 0.20, blue: 0.18)),
     ("orange", Color(red: 0.98, green: 0.65, blue: 0.16)),
@@ -50,20 +59,207 @@ let editorPresetColors: [(name: String, color: Color)] = [
     ("black",  .black),
 ]
 
+/// Sendable 颜色引用：要么是 7 色预设的 index，要么是「最近取色」的 RGBA 拷贝。
+/// 不直接存 SwiftUI Color（非 Sendable）。
+enum ColorRef: Equatable, Sendable {
+    case preset(Int)
+    case sampled(red: Double, green: Double, blue: Double, alpha: Double)
+}
+
+// MARK: - Thickness
+
+/// 3 档粗细对应的实际线宽（point）。形态在 Toolbar 内根据工具切换。
+enum Thickness {
+    /// 矩形 / 椭圆 / 箭头：线条粗细
+    static func strokeWidth(_ index: Int) -> CGFloat { [2, 4, 7][index] }
+    /// 画笔:笔触粗细（首尾圆头）
+    static func pencilWidth(_ index: Int) -> CGFloat { [3, 6, 11][index] }
+    /// 马赛克：方头画笔粗细（不影响粒度）
+    static func mosaicWidth(_ index: Int) -> CGFloat { [8, 16, 28][index] }
+    /// 文字：三档字号（源图 point 空间）
+    static func textFontSize(_ index: Int) -> CGFloat { [14, 18, 24][index] }
+    /// 箭头尖部长度（与 lineWidth 弱关联）
+    static func arrowheadLength(_ index: Int) -> CGFloat {
+        max(strokeWidth(index) * 4.5, 12)
+    }
+}
+
+// MARK: - DrawCommand
+
+/// 已落地的绘制命令。CGPath 预构造（不存 [CGPoint]），多次 stroke 同一 path
+/// GPU 缓存友好，避免每帧重新构造路径。
+///
+/// 不 Sendable（CGPath 非 Sendable），但命令栈在 @MainActor EditorState 内
+/// 不跨 actor，无需声明 Sendable。
+enum DrawCommand: Identifiable {
+    case rectangle(id: UUID, rect: CGRect, color: ColorRef, thickness: Int)
+    case ellipse(id: UUID, rect: CGRect, color: ColorRef, thickness: Int)
+    case arrow(id: UUID, from: CGPoint, to: CGPoint, color: ColorRef, thickness: Int)
+    case pencil(id: UUID, path: CGPath, color: ColorRef, thickness: Int)
+    case mosaic(id: UUID, path: CGPath, thickness: Int)
+
+    var id: UUID {
+        switch self {
+        case .rectangle(let id, _, _, _),
+             .ellipse(let id, _, _, _),
+             .arrow(let id, _, _, _, _),
+             .pencil(let id, _, _, _),
+             .mosaic(let id, _, _):
+            return id
+        }
+    }
+}
+
+// MARK: - Drafting (实时拖动期临时形状)
+
+/// 用户手指还按着时的临时形状。松开手指时变成 DrawCommand 入栈。
+/// 与 DrawCommand 共用渲染路径，只是不进 commands 数组。
+enum DraftSnapshot {
+    case rectangle(rect: CGRect, color: ColorRef, thickness: Int)
+    case ellipse(rect: CGRect, color: ColorRef, thickness: Int)
+    case arrow(from: CGPoint, to: CGPoint, color: ColorRef, thickness: Int)
+    /// 画笔 / 马赛克：实时累积的点序列。每个 onChanged 增量 addLine 到 mutablePath。
+    case pencil(mutablePath: CGMutablePath, color: ColorRef, thickness: Int)
+    case mosaic(mutablePath: CGMutablePath, thickness: Int)
+}
+
+// MARK: - EditorState
+
 @Observable @MainActor
 final class EditorState {
-    var tool: EditorTool = .rectangle
+    let original: CaptureImage
+    /// 进编辑器时一次性生成的整张图 pixellate 版本。马赛克命令用 path 作为
+    /// clip mask 把对应区域画到画布。生成成本集中在打开瞬间（4K ~30ms）。
+    let fullPixelated: CGImage
+
+    var commands: [DrawCommand] = []
+    var redoQueue: [DrawCommand] = []
+    var textAnnotations: [TextAnnotation] = []
+    /// 当前正在编辑的文字 ID（编辑态时显示带边框 TextField）。nil = 无编辑中文字。
+    var editingTextID: UUID?
+
+    /// 拖动期临时形状（drafting）。@Observable 让 Canvas closure 在它变化时
+    /// 重新执行；不在则只显示 commands 数组。
+    var drafting: DraftSnapshot?
+
+    // 跨工具共享的 UI 状态（切换工具时不重置）
+    var tool: EditorTool = .rectangle {
+        didSet {
+            // 切到非文字工具时自动结束编辑（避免状态错乱）
+            if oldValue == .text && tool != .text {
+                endEditing()
+            }
+        }
+    }
     var colorIndex: Int = 0
-    var thickness: Int = 1   // 0=细 1=中 2=粗
-
-    /// 撤销 / 恢复按钮的可用性。当前阶段无命令栈，恒为 false；
-    /// CH-E3 起接入命令栈后改为派生自 commands.isEmpty / redoQueue.isEmpty。
-    var canUndo: Bool = false
-    var canRedo: Bool = false
-
-    /// 最近一次屏幕取色结果。nil 表示尚未取色。
-    /// CH-E5/6 起接入 NSColorSampler 真 API；当前阶段保留 mockup 的随机模拟。
-    var sampledColor: Color? = nil
-    /// 当前激活色：true = 用最近取色，false = 用预设第 colorIndex
+    var sampledColor: ColorRef?
     var usingSampled: Bool = false
+    var thicknessIndex: Int = 1
+
+    var canUndo: Bool { !commands.isEmpty }
+    var canRedo: Bool { !redoQueue.isEmpty }
+
+    var activeColor: ColorRef {
+        usingSampled ? (sampledColor ?? .preset(colorIndex)) : .preset(colorIndex)
+    }
+
+    init(image: CaptureImage) {
+        self.original = image
+        self.fullPixelated = Self.makePixellated(image.cgImage)
+    }
+
+    func commit(_ cmd: DrawCommand) {
+        commands.append(cmd)
+        redoQueue.removeAll()  // 编辑后 redo 失效（标准撤销栈语义）
+    }
+
+    func undo() {
+        guard let last = commands.popLast() else { return }
+        redoQueue.append(last)
+    }
+
+    func redo() {
+        guard let cmd = redoQueue.popLast() else { return }
+        commands.append(cmd)
+    }
+
+    // MARK: - Text annotation operations
+
+    /// 在画布点 P 处创建一条新文字，并立即进入编辑态。
+    /// 若已有编辑中的文字，先 endEditing（自动清理空文字）。
+    @discardableResult
+    func startNewText(at point: CGPoint) -> UUID {
+        endEditing()
+        let id = UUID()
+        textAnnotations.append(TextAnnotation(
+            id: id,
+            origin: point,
+            text: "",
+            color: activeColor,
+            fontSize: Thickness.textFontSize(thicknessIndex)
+        ))
+        editingTextID = id
+        return id
+    }
+
+    func updateText(id: UUID, text: String) {
+        guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
+        textAnnotations[idx].text = text
+    }
+
+    func moveText(id: UUID, to point: CGPoint) {
+        guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
+        textAnnotations[idx].origin = point
+    }
+
+    func enterEditing(id: UUID) {
+        // 切换编辑态前先 end 之前的（若有），保证同时只有一条编辑中
+        endEditing()
+        editingTextID = id
+    }
+
+    /// 结束当前编辑：若文字内容为空则丢弃整条标注（用户单击但未输入）。
+    func endEditing() {
+        guard let id = editingTextID else { return }
+        editingTextID = nil
+        if let idx = textAnnotations.firstIndex(where: { $0.id == id }),
+           textAnnotations[idx].text.isEmpty {
+            textAnnotations.remove(at: idx)
+        }
+    }
+
+    // MARK: - Pixellate baseline
+
+    private static let pixellateScale: Double = 16
+
+    private static func makePixellated(_ source: CGImage) -> CGImage {
+        let ciImage = CIImage(cgImage: source)
+        let filter = CIFilter.pixellate()
+        filter.inputImage = ciImage
+        filter.scale = Float(pixellateScale)
+        filter.center = CGPoint(x: source.width / 2, y: source.height / 2)
+        let context = CIContext(options: nil)
+        guard let output = filter.outputImage,
+              let cg = context.createCGImage(output, from: ciImage.extent) else {
+            return source  // 回退：fallback 用原图（视觉退化但不崩）
+        }
+        return cg
+    }
+}
+
+// MARK: - TextAnnotation (CH-E5)
+
+/// 文字标注（矢量对象，可拖可改）。坐标系是源图 point 空间，与 DrawCommand 一致。
+///
+/// origin = 文字框「左边中线」对应的点（spec §6.6）：
+/// - 用户单击点 P 处创建文字时，P 直接成为 origin
+/// - 编辑态时显示带边框输入框，左边中线对齐 origin
+/// - 非编辑态时仅显示文字本身，无边框；单击可拖动改 origin、双击重新进入编辑
+struct TextAnnotation: Identifiable {
+    let id: UUID
+    var origin: CGPoint
+    var text: String
+    var color: ColorRef
+    /// 源图 point 空间字号（合成时用）。display 时需乘 scaleFactor。
+    var fontSize: CGFloat
 }

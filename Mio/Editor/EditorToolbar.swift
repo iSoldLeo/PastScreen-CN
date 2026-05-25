@@ -2,14 +2,12 @@
 //  EditorToolbar.swift
 //  Mio
 //
-//  编辑器单行工具栏（A1 仿 QQ 布局）。视觉与 EditorToolbarMockup 完全一致，
-//  只是把 Mock 模型换成产品的 EditorState / EditorTool。
+//  编辑器单行工具栏。视觉布局与 EditorToolbarMockup 一致：
 //
-//  布局（左 → 右）：
 //    粗细 | 7 色 | 取色器 + 取色结果圆 |  spacer  | 6 工具 | 撤销 / 恢复
 //
-//  最窄约 743pt（spacer 收成 0），自然下限 760pt。
-//  详见 docs/editor.md §15 粗细选择器形态切换 + §14 工具按钮的视觉特例。
+//  CH-E3 接入：撤销 / 恢复按钮调 state.undo() / state.redo()；
+//             ColorRef 替代旧的 SwiftUI Color sampledColor。
 //
 
 import SwiftUI
@@ -26,49 +24,15 @@ struct EditorToolbar: View {
                     ThicknessSelector(
                         tool: state.tool,
                         level: level,
-                        isSelected: state.thickness == level
-                    ) { state.thickness = level }
+                        isSelected: state.thicknessIndex == level
+                    ) { state.thicknessIndex = level }
                 }
             }
 
-            Divider().frame(height: 22)
-
-            // 7 色预设
-            HStack(spacing: 2) {
-                ForEach(Array(editorPresetColors.enumerated()), id: \.offset) { index, item in
-                    ColorSwatch(
-                        color: item.color,
-                        isSelected: !state.usingSampled && state.colorIndex == index
-                    ) {
-                        state.colorIndex = index
-                        state.usingSampled = false
-                    }
-                }
-            }
-
-            Divider().frame(height: 22)
-
-            // 取色器 + 取色结果
-            HStack(spacing: 4) {
-                EyedropperButton {
-                    // CH-E6 起接入 NSColorSampler 真 API。当前阶段
-                    // 临时用随机色模拟（mockup 行为），让 UI 流转可见。
-                    state.sampledColor = Color(
-                        red: .random(in: 0...1),
-                        green: .random(in: 0...1),
-                        blue: .random(in: 0...1)
-                    )
-                    state.usingSampled = true
-                }
-                SampledColorDot(
-                    color: state.sampledColor,
-                    isSelected: state.usingSampled
-                ) {
-                    if state.sampledColor != nil {
-                        state.usingSampled = true
-                    }
-                }
-            }
+            // 颜色 + 取色组：马赛克时整组滑左隐藏。
+            // 用 .mask 限定可见区域到分隔线右侧—粗细按钮所在区域不会被颜色组
+            // 滑动时穿过。.transition(.move(edge: .leading)) 让进出从左缘开始。
+            ColorGroup(state: state)
 
             Spacer(minLength: 16)
 
@@ -87,7 +51,7 @@ struct EditorToolbar: View {
             // 撤销 / 恢复
             HStack(spacing: 4) {
                 Button {
-                    // CH-E3 起接入命令栈 undo()
+                    state.undo()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 14, weight: .medium))
@@ -95,10 +59,11 @@ struct EditorToolbar: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!state.canUndo)
-                .help("撤销")
+                .help("common.undo")
+                .keyboardShortcut("z", modifiers: [.command])
 
                 Button {
-                    // CH-E3 起接入命令栈 redo()
+                    state.redo()
                 } label: {
                     Image(systemName: "arrow.uturn.forward")
                         .font(.system(size: 14, weight: .medium))
@@ -106,7 +71,8 @@ struct EditorToolbar: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(!state.canRedo)
-                .help("恢复")
+                .help("common.redo")
+                .keyboardShortcut("z", modifiers: [.command, .shift])
             }
         }
         .padding(.horizontal, 16)
@@ -114,6 +80,79 @@ struct EditorToolbar: View {
         .background(.thinMaterial)
         .overlay(alignment: .bottom) {
             Divider()
+        }
+        // 工具切换时给颜色组做 slide 动画
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state.tool == .mosaic)
+    }
+
+    private func sampledSwiftUIColor(_ ref: ColorRef?) -> Color? {
+        switch ref {
+        case .sampled(let r, let g, let b, let a):
+            return Color(red: r, green: g, blue: b, opacity: a)
+        case .preset, nil:
+            return nil
+        }
+    }
+}
+
+// MARK: - 颜色 + 取色组
+
+/// 颜色 + 取色器整组。马赛克工具时整体向左滑出隐藏；其他工具时滑入。
+/// 用独立容器 + .clipped 限定动画范围在自己边界内，避免向左滑动时
+/// 越过分隔线侵入粗细按钮区域。
+private struct ColorGroup: View {
+    @Bindable var state: EditorState
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if state.tool != .mosaic {
+                Divider().frame(height: 22)
+
+                HStack(spacing: 2) {
+                    ForEach(Array(editorPresetColors.enumerated()), id: \.offset) { index, item in
+                        ColorSwatch(
+                            color: item.color,
+                            isSelected: !state.usingSampled && state.colorIndex == index
+                        ) {
+                            state.colorIndex = index
+                            state.usingSampled = false
+                        }
+                    }
+                }
+
+                Divider().frame(height: 22)
+
+                HStack(spacing: 4) {
+                    EyedropperButton {
+                        Task {
+                            if let picked = await EyedropperService.pickColor() {
+                                state.sampledColor = picked
+                                state.usingSampled = true
+                            }
+                        }
+                    }
+                    SampledColorDot(
+                        color: sampledSwiftUIColor(state.sampledColor),
+                        isSelected: state.usingSampled
+                    ) {
+                        if state.sampledColor != nil {
+                            state.usingSampled = true
+                        }
+                    }
+                }
+            }
+        }
+        // clipped 把动画约束在容器自己的水平范围内，向左滑出时不会穿过左侧
+        // 的粗细按钮区域。马赛克时容器空 → HStack 自然宽度为 0，不占位。
+        .clipped()
+    }
+
+    private func sampledSwiftUIColor(_ ref: ColorRef?) -> Color? {
+        switch ref {
+        case .sampled(let r, let g, let b, let a):
+            return Color(red: r, green: g, blue: b, opacity: a)
+        case .preset, nil:
+            return nil
         }
     }
 }
@@ -129,8 +168,6 @@ private struct ToolButton: View {
         Button(action: action) {
             Group {
                 if tool == .text {
-                    // 直接渲染拉丁字母 A（无衬线，跟 SF Symbol 风格统一），
-                    // 避免 SF Symbol "character" 在中文 locale 显示成"字"
                     Text("A")
                         .font(.system(size: 17, weight: .semibold))
                 } else {
@@ -192,6 +229,7 @@ private struct ThicknessSelector: View {
         Button(action: action) {
             content
                 .frame(width: 26, height: 26)
+                .contentShape(Rectangle())  // 整个 26×26 区域都可点，不限于内部图标
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
@@ -231,12 +269,10 @@ private struct EyedropperButton: View {
                 .frame(width: 28, height: 28)
         }
         .buttonStyle(.borderless)
-        .help("屏幕取色")
+        .help("editor.eyedropper.help")
     }
 }
 
-/// 显示最近一次屏幕取色结果。未取色时灰色虚边占位；取色后填入颜色。
-/// 单击此圆 = 把当前激活色切换为最近取色（与预设 7 色互斥）。
 private struct SampledColorDot: View {
     let color: Color?
     let isSelected: Bool
@@ -269,6 +305,6 @@ private struct SampledColorDot: View {
         }
         .buttonStyle(.plain)
         .disabled(color == nil)
-        .help(color == nil ? "尚未取色" : "使用刚才取到的颜色")
+        .help(color == nil ? LocalizedStringKey("editor.sampled_color.empty") : LocalizedStringKey("editor.sampled_color.use"))
     }
 }
