@@ -542,18 +542,18 @@ public actor DisplayCaptureService {
         }
     }
 
-    /// 单窗口截图（圆角透明）。
+    /// 单窗口截图（无阴影、无外边距）。
     ///
     /// PRODUCT v5 §2.3 例外：用 `SCContentFilter(desktopIndependentWindow:)` +
-    /// `shouldBeOpaque = false` 让系统按窗口真实形状（含圆角 + 阴影 mask）输出
-    /// 带 alpha 的 CGImage——圆角外为透明，与系统截屏（Cmd+Shift+4+Space）行为
-    /// 一致。
+    /// `shouldBeOpaque = false` 让系统按窗口真实形状输出带 alpha 的 CGImage；
+    /// 同时启用 `ignoreShadowsSingleWindow`，让单窗口截图完全不包含阴影和
+    /// 外部透明 padding，圆角外保持透明。
     ///
     /// 使用 SCWindow 引用而非 windowID，是因为 SCWindow 实例携带了 SCK 已经做
     /// 过的窗口校验信息（owningApplication / frame / windowLayer），重新按 ID
     /// 查询会增加一次 SCShareableContent 调用。
     ///
-    /// - Returns: CaptureImage，size 用 SCWindow.frame（point 坐标），
+    /// - Returns: CaptureImage，size 按实际 CGImage 像素 / backingScale 换算，
     ///   scale 取 NSScreen.main.backingScaleFactor 兜底（窗口跨屏时无完美值）。
     public func captureWindow(_ window: SCWindow) async throws -> CaptureImage {
         let backingScale: CGFloat = await MainActor.run {
@@ -572,7 +572,7 @@ public actor DisplayCaptureService {
         config.pixelFormat = kCVPixelFormatType_32BGRA   // 显式 BGRA 保 alpha 通道
         config.backgroundColor = .clear
         if #available(macOS 14.0, *) {
-            config.ignoreShadowsSingleWindow = false
+            config.ignoreShadowsSingleWindow = true
         }
 
         let cgImage = try await SCScreenshotManager.captureImage(
@@ -582,7 +582,10 @@ public actor DisplayCaptureService {
         return CaptureImage(
             cgImage: cgImage,
             scale: backingScale,
-            size: window.frame.size
+            size: CGSize(
+                width: CGFloat(cgImage.width) / backingScale,
+                height: CGFloat(cgImage.height) / backingScale
+            )
         )
     }
 
@@ -667,7 +670,7 @@ public actor FileOutputService {
         try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
         // Atomic write: write to temp, then replace
-        let tempURL = folderURL.appendingPathComponent(".pastscreen_\(UUID().uuidString).tmp")
+        let tempURL = folderURL.appendingPathComponent(".mio_\(UUID().uuidString).tmp")
         do {
             try data.write(to: tempURL)
             _ = try fileManager.replaceItemAt(saveURL, withItemAt: tempURL)
@@ -843,6 +846,42 @@ public actor CapturePipeline {
         let screens = try await screensTask
         let windows = await windowsTask  // 不抛错，单窗口失败已在内部丢弃
         return FrozenAssets(screens: screens, windows: windows)
+    }
+
+    /// 按需补抓单窗口的圆角透明图。**用户点击命中但 burst 未抓到时使用**——
+    /// 重新拉 SCShareableContent 找到对应 SCWindow，调 `captureWindow`。
+    ///
+    /// 与 burst 路径同语义：用 `desktopIndependentWindow` filter + `clear`
+    /// 背景 + `ignoreShadowsSingleWindow`，输出带 alpha 的真窗口图。
+    ///
+    /// 失败时**抛错**——调用方（CaptureCoordinator）应展示错误而不是 fallback
+    /// 到矩形 crop。fallback 会让用户拿到圆角外是壁纸的直角图，违反产品契约
+    /// "宁可多等也不要 fallback"。
+    ///
+    /// 性能：~30–80ms（一次 SCShareableContent + 一次 captureImage）。这个延迟
+    /// 仅在 burst 缓存 miss 时发生（z-order 较深、burst 超时、用户点了 burst
+    /// 没覆盖到的小窗口）；命中缓存的快路径不受影响。
+    public func captureWindowOnDemand(windowID: CGWindowID) async throws -> CaptureImage {
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+        } catch {
+            throw CaptureError(
+                NSLocalizedString("无法访问窗口列表，请检查屏幕录制权限。", comment: ""),
+                underlyingDescription: error.localizedDescription
+            )
+        }
+
+        guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
+            throw CaptureError(
+                NSLocalizedString("目标窗口已关闭或不在屏幕上。", comment: "")
+            )
+        }
+
+        return try await displayCapture.captureWindow(scWindow)
     }
 
     /// 窗口 burst：并发抓取 z-order 前→后的前 N 个可见窗口。
@@ -1310,6 +1349,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         let displayID = match.key
 
         let config = makeCaptureConfiguration()
+        let frameConfig = makeFrameConfiguration()
         let myGeneration = flowGeneration
         let kind = areaFlowKind
         Task { [weak self] in
@@ -1323,7 +1363,9 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                 )
                 switch kind {
                 case .directOutput:
-                    try await pipeline.finishOutput(image: cropped, config: config)
+                    // 路径 A 直出：crop 后贴画框（如启用），再走输出尾段。
+                    let framed = FrameRenderer.compose(image: cropped, config: frameConfig)
+                    try await pipeline.finishOutput(image: framed, config: config)
                 case .intoEditor:
                     // 路径 D：跳过 finishOutput，把裁好的图交给编辑器窗口。
                     // 编辑器窗口生命周期独立于本 flow；当前 flow 在窗口
@@ -1341,6 +1383,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                             image: cropped,
                             displayID: displayID,
                             config: config,
+                            frameConfig: frameConfig,
                             pipeline: self.pipeline
                         )
                     }
@@ -1360,15 +1403,13 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
     }
 
     /// 窗口点选处理（PRODUCT v5 §2.3）：优先用按键瞬间 burst 抓的圆角透明窗口图。
-    /// 命中时直接走该图；未命中（窗口在 z-order 较深或 burst 超时未抓到）时
-    /// fallback 到 handleSelectedRect 的全屏矩形裁剪路径，保留矩形截图能力
-    /// （仅圆角外为壁纸而非透明）。
+    ///
+    /// 缓存命中：直接用 burst 图，瞬时输出。
+    /// 缓存未命中（z-order 较深 / burst 超时 / burst 失败 / 用户点了 burst 没覆盖
+    /// 的小窗口）：**同步按需补抓**——重新调 SCK 拿一张真窗口图，~30–80ms 延迟。
+    /// **不 fallback 到矩形裁剪**——用户点击窗口期望的是带 alpha 的真窗口图，
+    /// 拿到圆角外是壁纸的直角图违反产品契约。"宁可多等也不要 fallback。"
     private func handleSelectedWindow(_ result: WindowHitTestResult) {
-        guard let windowImage = frozenWindows[result.windowID] else {
-            // Fallback：未抓到该窗口的 burst 图，用全屏矩形裁剪保留可用性。
-            handleSelectedRect(result.bounds)
-            return
-        }
         selectionWindow?.hide()
 
         // 按窗口 bounds 中心点匹配窗口所在屏（与 handleSelectedRect 一致）。
@@ -1382,15 +1423,32 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             matchedDisplayID = CGMainDisplayID()
         }
 
+        let cached = frozenWindows[result.windowID]
+        let windowID = result.windowID
         let config = makeCaptureConfiguration()
+        let frameConfig = makeFrameConfiguration()
         let myGeneration = flowGeneration
         let kind = areaFlowKind
+
         Task { [weak self] in
             guard let self else { return }
             do {
+                // 缓存命中走快路径；未命中按需补抓
+                let windowImage: CaptureImage
+                if let cached {
+                    windowImage = cached
+                } else {
+                    windowImage = try await pipeline.captureWindowOnDemand(windowID: windowID)
+                }
+
+                // 异步路径完成后必须 re-check generation：用户可能 ESC + 重启 flow
+                guard self.flowGeneration == myGeneration else { return }
+
                 switch kind {
                 case .directOutput:
-                    try await pipeline.finishOutput(image: windowImage, config: config)
+                    // 路径 A 窗口点选直出：贴画框（如启用），再走输出尾段。
+                    let framed = FrameRenderer.compose(image: windowImage, config: frameConfig)
+                    try await pipeline.finishOutput(image: framed, config: config)
                 case .intoEditor:
                     if self.flowGeneration == myGeneration {
                         // 截图发生那一刻播音效（与路径 A/B 行为一致）。
@@ -1403,6 +1461,7 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                             image: windowImage,
                             displayID: matchedDisplayID,
                             config: config,
+                            frameConfig: frameConfig,
                             pipeline: self.pipeline
                         )
                     }
@@ -1425,6 +1484,27 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             hasValidSaveFolder: capture.hasValidSaveFolder,
             playSoundOnCapture: capture.playSoundOnCapture,
             saveToFile: capture.saveToFile
+        )
+    }
+
+    /// 构造画框配置（capture-frame-spec.md §5.1）。
+    /// 在 @MainActor 上下文调用，因为需要读 `NSApp.effectiveAppearance` 解析
+    /// `.auto` 主题；解析后传给 nonisolated FrameRenderer，与 NSAppearance 解耦。
+    fileprivate func makeFrameConfiguration() -> FrameRenderer.Configuration {
+        let s = AppSettings.shared.capture
+        let resolved: FrameRenderer.Configuration.ResolvedTheme = {
+            switch s.captureFrameTheme {
+            case .alwaysLight: return .light
+            case .alwaysDark:  return .dark
+            case .auto:
+                let match = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+                return match == .darkAqua ? .dark : .light
+            }
+        }()
+        return FrameRenderer.Configuration(
+            enabled: s.captureFrameEnabled,
+            customText: s.captureFrameCustomText,
+            resolvedTheme: resolved
         )
     }
 

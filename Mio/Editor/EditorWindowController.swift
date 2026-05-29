@@ -18,17 +18,20 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private let image: CaptureImage
     private let displayID: CGDirectDisplayID
     private let captureConfig: CaptureConfiguration
+    private let frameConfig: FrameRenderer.Configuration
     private let pipeline: CapturePipeline
 
     init(
         image: CaptureImage,
         displayID: CGDirectDisplayID,
         config: CaptureConfiguration,
+        frameConfig: FrameRenderer.Configuration,
         pipeline: CapturePipeline
     ) {
         self.image = image
         self.displayID = displayID
         self.captureConfig = config
+        self.frameConfig = frameConfig
         self.pipeline = pipeline
 
         let window = NSWindow(
@@ -68,7 +71,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - User actions
 
     /// 完成：EditorView 已经合成好最终 CGImage 传过来，包成 CaptureImage 后
-    /// 走 finishOutput → 关窗。
+    /// 经画框装饰（如启用）→ finishOutput → 关窗。
     /// 编辑器路径不响截图音效（playSound: false） — 音效已在 SelectionWindow
     /// 选定时由 coordinator 播过；这里走的是「保存」语义。
     /// 输出失败时**保留窗口**让用户重试或调整 saveToFile 设置后再试。
@@ -78,13 +81,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             scale: image.scale,
             size: image.size
         )
+        // 路径 D：编辑后的成品贴画框（如启用），与路径 A 直出路径行为对齐。
+        // 编辑器内部始终看原始图，画框只在最终输出阶段加上。
+        let framedImage = FrameRenderer.compose(image: composedImage, config: frameConfig)
         let config = captureConfig
         let pipeline = self.pipeline
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 try await pipeline.finishOutput(
-                    image: composedImage,
+                    image: framedImage,
                     config: config,
                     playSound: false
                 )

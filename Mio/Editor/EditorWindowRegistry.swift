@@ -24,17 +24,20 @@ final class EditorWindowRegistry {
     private init() {}
 
     /// 入参提供 displayID 用于按截图所在屏计算 70% 默认尺寸；
-    /// config 提供 saveToFile / 剪贴板等输出策略，与路径 A/B 一致。
+    /// config 提供 saveToFile / 剪贴板等输出策略，与路径 A/B 一致；
+    /// frameConfig 控制路径 D finish 时是否贴画框（capture-frame-spec.md §5）。
     func open(
         image: CaptureImage,
         displayID: CGDirectDisplayID,
         config: CaptureConfiguration,
+        frameConfig: FrameRenderer.Configuration,
         pipeline: CapturePipeline
     ) {
         let controller = EditorWindowController(
             image: image,
             displayID: displayID,
             config: config,
+            frameConfig: frameConfig,
             pipeline: pipeline
         )
         controllers[ObjectIdentifier(controller)] = controller

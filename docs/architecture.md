@@ -1,6 +1,6 @@
 # Mio 架构文档
 
-> 当前基线：Swift 6.3.x strict concurrency · macOS 14.6+ · Xcode 26
+> 当前基线：Swift 6.3.x strict concurrency · macOS 26.0+ · Xcode 26
 > 代码规模：45 个 Swift 文件，约 4,400 行
 > 第三方依赖：无（仅系统框架）
 
@@ -177,7 +177,7 @@ AppSettings.shared
 |---|---|
 | Bundle ID | `com.iSoldLeo.Mio` |
 | Module Name | `Mio` |
-| Deployment Target | macOS 14.6 |
+| Deployment Target | macOS 26.0 |
 | Swift Language | 6.0（with strict concurrency complete） |
 | Architecture | arm64（仅 Apple Silicon） |
 | Code Signing | Automatic（开发期 ad-hoc） |
