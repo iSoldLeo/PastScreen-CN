@@ -9,19 +9,23 @@
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>Offline</b> &nbsp;·&nbsp; <b>~5&nbsp;MB</b> &nbsp;·&nbsp; <b>EN&nbsp;/&nbsp;中&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 
-<p align="center">
-  <img src="docs/screenshot-onboarding-frame.png" width="32%" alt="Framed screenshots">
-  <img src="docs/screenshot-onboarding-storage.png" width="32%" alt="Storage setup">
-  <img src="docs/screenshot-framed-readme.png" width="32%" alt="Mio output">
-</p>
-
-<br>
-
 ## A screenshot tool that gets out of your way.
 
 Press the hotkey. Every screen freezes on that exact frame in under 200&nbsp;ms, and you take your time picking what you want — a window, a region, or a whole display. Window captures come out with transparent rounded corners. Region captures hand off to a built-in editor when you want one. Everything stays on your Mac.
 
 Mio lives in the menu bar. No Dock icon. No login. No network.
+
+<br>
+
+<p align="center">
+  <img src="docs/screenshot-framed-readme.png" width="70%" alt="Mio output">
+</p>
+<p align="center">
+  <img src="docs/screenshot-onboarding-frame.png" width="70%" alt="Framed screenshots">
+</p>
+<p align="center">
+  <img src="docs/screenshot-onboarding-storage.png" width="70%" alt="Storage setup">
+</p>
 
 <br>
 

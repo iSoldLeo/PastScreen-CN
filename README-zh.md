@@ -9,19 +9,23 @@
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>离线运行</b> &nbsp;·&nbsp; <b>约 5&nbsp;MB</b> &nbsp;·&nbsp; <b>中&nbsp;/&nbsp;EN&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 
-<p align="center">
-  <img src="docs/screenshot-onboarding-frame.png" width="32%" alt="画框截图">
-  <img src="docs/screenshot-onboarding-storage.png" width="32%" alt="保存设置">
-  <img src="docs/screenshot-framed-readme.png" width="32%" alt="Mio 输出样张">
-</p>
-
-<br>
-
 ## 一个不打扰你的截图工具。
 
 按下快捷键，所有屏幕在 200&nbsp;ms 内定格在那一帧，你慢慢从静止画面里挑要的东西 — 一个窗口、一块区域，或者整张屏幕。窗口截图自带透明圆角。需要标注时，区域截图会交给内置编辑器。一切都留在你的 Mac 上。
 
 Mio 只在菜单栏。不占 Dock。不需要登录。不联网。
+
+<br>
+
+<p align="center">
+  <img src="docs/screenshot-framed-readme.png" width="70%" alt="Mio 输出样张">
+</p>
+<p align="center">
+  <img src="docs/screenshot-onboarding-frame.png" width="70%" alt="画框截图">
+</p>
+<p align="center">
+  <img src="docs/screenshot-onboarding-storage.png" width="70%" alt="保存设置">
+</p>
 
 <br>
 
