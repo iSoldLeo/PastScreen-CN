@@ -24,7 +24,6 @@ struct SettingsView: View {
     @EnvironmentObject var general: GeneralSettings
     @EnvironmentObject var hotkey: HotKeySettings
     @EnvironmentObject var capture: CaptureSettings
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -179,7 +178,7 @@ struct SettingsView: View {
 
     private func showOnboarding() {
         NSApp.activate(ignoringOtherApps: true)
-        openWindow(id: "onboarding")
+        OnboardingPresenter.shared.show()
     }
 
     // MARK: Derived

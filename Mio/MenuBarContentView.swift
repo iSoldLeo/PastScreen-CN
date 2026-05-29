@@ -3,7 +3,6 @@ import AppKit
 
 struct MenuBarContentView: View {
     @Environment(\.openSettings) private var openSettings
-    @Environment(\.openWindow) private var openWindow
     @ObservedObject private var hotkey = AppSettings.shared.hotkey
     @ObservedObject var app: AppDelegate
 
@@ -38,12 +37,6 @@ struct MenuBarContentView: View {
                 // Use SwiftUI's settings action to ensure the Settings scene opens reliably (macOS 14+)
                 NSApp.activate(ignoringOtherApps: true)
                 openSettings()
-            }
-            // 临时入口：onboarding 还在开发，正式版前从设置→项目指引进入。
-            // 现在直接挂菜单栏方便迭代时调试。落地完成后删掉这一项。
-            Button("项目指引（开发预览）") {
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "onboarding")
             }
             Button(NSLocalizedString("menu.quit", comment: "")) {
                 app.quit()
