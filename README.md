@@ -11,7 +11,7 @@
 
 ## A screenshot tool that gets out of your way.
 
-Press the hotkey. Every screen freezes on that exact frame in under 200&nbsp;ms, and you take your time picking what you want — a window, a region, or a whole display. Window captures come out with transparent rounded corners. Region captures hand off to a built-in editor when you want one. Everything stays on your Mac.
+Press the hotkey. Every screen freezes on that exact frame in under 80&nbsp;ms, and you take your time picking what you want — a window, a region, or a whole display. Window captures come out with transparent rounded corners. Region captures hand off to a built-in editor when you want one. Everything stays on your Mac.
 
 Mio lives in the menu bar. No Dock icon. No login. No network.
 
@@ -40,7 +40,7 @@ Mio lives in the menu bar. No Dock icon. No login. No network.
 ## Highlights
 
 **Capture**
-- Per-screen freeze in under 200&nbsp;ms — pick from still images, not a moving target
+- Per-screen freeze in under 80&nbsp;ms — pick from still images, not a moving target
 - Window-aware hover; click for a clean cut, drag for a region
 - Multi-display picker for full screen capture
 
