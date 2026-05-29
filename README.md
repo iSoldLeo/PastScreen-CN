@@ -21,10 +21,10 @@ Mio lives in the menu bar. No Dock icon. No login. No network.
   <img src="docs/screenshot-framed-readme.png" width="70%" alt="Mio output">
 </p>
 <p align="center">
-  <img src="docs/screenshot-onboarding-frame.png" width="70%" alt="Framed screenshots">
+  <img src="docs/screenshot-onboarding-frame-en.png" width="70%" alt="Framed screenshots">
 </p>
 <p align="center">
-  <img src="docs/screenshot-onboarding-storage.png" width="70%" alt="Storage setup">
+  <img src="docs/screenshot-onboarding-storage-en.png" width="70%" alt="Storage setup">
 </p>
 
 <br>
