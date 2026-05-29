@@ -113,6 +113,10 @@ build_log*.txt
 # Claude Code local state
 .claude/
 
+# Codex / local agent workflow state
+.agents/
+.codex/
+
 # Internal development notes (research / refactor plans / audit reports)
 docs/*.md
 *-audit.md
