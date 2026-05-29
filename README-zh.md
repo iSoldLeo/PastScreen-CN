@@ -9,11 +9,10 @@
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>离线运行</b> &nbsp;·&nbsp; <b>约 5&nbsp;MB</b> &nbsp;·&nbsp; <b>中&nbsp;/&nbsp;EN&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 
-<!-- 待替换：三张真实截图，并排呈现，仿 App Store gallery -->
 <p align="center">
-  <img src="docs/screenshot-1-placeholder.png" width="32%" alt="截图">
-  <img src="docs/screenshot-2-placeholder.png" width="32%" alt="编辑器">
-  <img src="docs/screenshot-3-placeholder.png" width="32%" alt="设置">
+  <img src="docs/screenshot-onboarding-frame.png" width="32%" alt="画框截图">
+  <img src="docs/screenshot-onboarding-storage.png" width="32%" alt="保存设置">
+  <img src="docs/screenshot-framed-readme.png" width="32%" alt="Mio 输出样张">
 </p>
 
 <br>

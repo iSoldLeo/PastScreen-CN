@@ -9,11 +9,10 @@
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>Offline</b> &nbsp;·&nbsp; <b>~5&nbsp;MB</b> &nbsp;·&nbsp; <b>EN&nbsp;/&nbsp;中&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 
-<!-- Replace with three real screenshots side by side, App Store gallery style. -->
 <p align="center">
-  <img src="docs/screenshot-1-placeholder.png" width="32%" alt="Capture">
-  <img src="docs/screenshot-2-placeholder.png" width="32%" alt="Editor">
-  <img src="docs/screenshot-3-placeholder.png" width="32%" alt="Settings">
+  <img src="docs/screenshot-onboarding-frame.png" width="32%" alt="Framed screenshots">
+  <img src="docs/screenshot-onboarding-storage.png" width="32%" alt="Storage setup">
+  <img src="docs/screenshot-framed-readme.png" width="32%" alt="Mio output">
 </p>
 
 <br>
