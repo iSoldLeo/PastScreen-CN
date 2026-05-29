@@ -26,6 +26,45 @@ struct MioApp: App {
                 .environmentObject(AppSettings.shared.hotkey)
                 .environmentObject(AppSettings.shared.capture)
         }
+
+        // Onboarding 窗口：使用 macOS 26 原生 SwiftUI Window chrome。
+        //
+        // 不再走 .windowStyle(.plain)：plain 会创建无系统 chrome 的窗口，
+        // 需要自绘圆角/阴影/拖拽/焦点，反而绕开 Tahoe 原生窗口外观。
+        // 这里保留默认窗口样式，只移除标题文字和 toolbar 背板，让内容延展
+        // 到顶部；圆角、阴影、focus、拖拽与 Liquid Glass 背景全部交给系统。
+        Window("Mio", id: "onboarding") {
+            OnboardingView()
+                .environmentObject(AppSettings.shared.hotkey)
+                .environmentObject(AppSettings.shared.capture)
+                // Tahoe 的大窗口圆角由真实 toolbar chrome 触发；仅移除标题
+                // 会退回 titlebar-only 小圆角。放一个轻量帮助按钮作为
+                // 原生 toolbar item，让系统按 toolbar 窗口计算外轮廓。
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            // 预留帮助入口：当前 onboarding 先只用它触发 Tahoe
+                            // 原生 toolbar 大圆角，后续再接具体帮助动作。
+                        } label: {
+                            Image(systemName: "questionmark")
+                        }
+                        .help("帮助")
+                        .accessibilityLabel("帮助")
+                    }
+                }
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                .windowMinimizeBehavior(.disabled)
+                .windowResizeBehavior(.disabled)
+                .windowFullScreenBehavior(.disabled)
+        }
+        .windowResizability(.contentSize)
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowBackgroundDragBehavior(.enabled)
+        .defaultSize(width: OnboardingLayout.windowWidth, height: OnboardingLayout.windowHeight)
+        .defaultWindowPlacement { _, _ in
+            WindowPlacement(.center, width: OnboardingLayout.windowWidth, height: OnboardingLayout.windowHeight)
+        }
+        .restorationBehavior(.disabled)
     }
 }
 
@@ -66,6 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         // Menu bar app: no Dock icon, accessory activation policy.
         NSApp.setActivationPolicy(.accessory)
+
+        if OnboardingPresenter.shouldShowOnLaunch {
+            OnboardingPresenter.shared.show()
+        }
     }
 
     // MARK: - Hotkey
