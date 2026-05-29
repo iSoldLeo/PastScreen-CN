@@ -29,14 +29,20 @@ nonisolated public struct HotKey: Codable, Equatable, Sendable {
     )
 
     public static let defaultFullScreen = HotKey(
-        keyCode: 1,
-        modifiers: NSEvent.ModifierFlags([.option, .command, .shift]).rawValue,
-        characters: "s"
+        keyCode: 5,
+        modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
+        characters: "g"
     )
 
     /// Default for the advanced window capture (路径 D, opens editor).
-    /// Currently `unset` pending user-confirmed default key choice.
-    public static let defaultAdvancedWindow = HotKey.unset
+    /// `⌥⌘D` — "D" 字面来自 "Draw / Decorate"，与 windowCapture 的
+    /// `⌥⌘S`("Screenshot") 形成语义对。⌥⌘ 修饰组而非 ⌘ 单独，
+    /// 是为避开前台 app 占用的 ⌘D（书签）等保留键。
+    public static let defaultAdvancedWindow = HotKey(
+        keyCode: 2,
+        modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
+        characters: "d"
+    )
 
     public init(keyCode: UInt16, modifiers: UInt, characters: String?) {
         self.keyCode = keyCode

@@ -33,6 +33,11 @@ nonisolated enum SettingsKeys {
     static let playSoundOnCapture = "playSoundOnCapture"
     static let saveToFile = "saveToFile"
 
+    /// CaptureSettings — 画框输出（capture-frame-spec.md v2.1）
+    static let captureFrameEnabled = "captureFrameEnabled"
+    static let captureFrameCustomText = "captureFrameCustomText"
+    static let captureFrameTheme = "captureFrameTheme"
+
     /// SaveFolderBookmarkStore (paired with `saveFolderPath`).
     static let saveFolderBookmark = "saveFolderBookmark"
 

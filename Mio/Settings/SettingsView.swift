@@ -24,6 +24,7 @@ struct SettingsView: View {
     @EnvironmentObject var general: GeneralSettings
     @EnvironmentObject var hotkey: HotKeySettings
     @EnvironmentObject var capture: CaptureSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -44,6 +45,45 @@ struct SettingsView: View {
                 Text("settings.section.general")
             } footer: {
                 Text("settings.section.general.footer")
+            }
+
+            // MARK: 画框
+            Section {
+                Toggle("settings.frame.enabled", isOn: $capture.captureFrameEnabled)
+
+                LabeledContent("settings.frame.signature") {
+                    TextField(
+                        "",
+                        text: $capture.captureFrameCustomText,
+                        prompt: capture.captureFrameCustomText.isEmpty
+                            ? Text("settings.frame.signature.placeholder")
+                            : nil
+                    )
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.tint)
+                    .disabled(!capture.captureFrameEnabled)
+                    .onChange(of: capture.captureFrameCustomText) { _, newValue in
+                        // 40 字符上限（spec §3.5）。超出立即截断。
+                        if newValue.count > 40 {
+                            capture.captureFrameCustomText = String(newValue.prefix(40))
+                        }
+                    }
+                }
+
+                Picker(selection: $capture.captureFrameTheme) {
+                    ForEach(CaptureFrameTheme.allCases) { theme in
+                        Text(theme.localizedLabel).tag(theme)
+                    }
+                } label: {
+                    Text("settings.frame.theme")
+                }
+                .pickerStyle(.menu)
+                .disabled(!capture.captureFrameEnabled)
+            } header: {
+                Text("settings.section.frame")
+            } footer: {
+                Text("settings.section.frame.footer")
             }
 
             // MARK: 存储
@@ -124,7 +164,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 540)
+        .frame(width: 520, height: 660)
     }
 
     // MARK: Actions
@@ -138,9 +178,8 @@ struct SettingsView: View {
     }
 
     private func showOnboarding() {
-        // Placeholder until the onboarding subsystem lands in a later
-        // batch. Logging here keeps the row visibly clickable.
-        NSLog("[Mio] onboarding subsystem not implemented yet — placeholder")
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "onboarding")
     }
 
     // MARK: Derived
