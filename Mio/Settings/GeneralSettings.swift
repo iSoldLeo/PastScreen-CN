@@ -32,6 +32,6 @@ final class GeneralSettings: ObservableObject {
     }
 
     init() {
-        self.launchAtLogin = UserDefaults.standard.object(forKey: SettingsKeys.launchAtLogin) as? Bool ?? false
+        self.launchAtLogin = UserDefaults.standard.object(forKey: SettingsKeys.launchAtLogin) as? Bool ?? true
     }
 }
