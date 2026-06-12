@@ -35,13 +35,14 @@ nonisolated public struct HotKey: Codable, Equatable, Sendable {
     )
 
     /// Default for the advanced window capture (路径 D, opens editor).
-    /// `⌥⌘D` — "D" 字面来自 "Draw / Decorate"，与 windowCapture 的
-    /// `⌥⌘S`("Screenshot") 形成语义对。⌥⌘ 修饰组而非 ⌘ 单独，
-    /// 是为避开前台 app 占用的 ⌘D（书签）等保留键。
+    /// `⌥⌘E` — "E" 字面来自 "Edit"，与 windowCapture 的
+    /// `⌥⌘S`("Screenshot") 形成语义对，且与 `⌥⌘G`(Grab) 同构 ⌥⌘ 修饰组。
+    /// 早期默认是 `⌥⌘D`，但该组合是 macOS 系统级"自动隐藏 Dock"的保留快捷键，
+    /// 会与系统行为同时触发，因此换 E。
     public static let defaultAdvancedWindow = HotKey(
-        keyCode: 2,
+        keyCode: 14,
         modifiers: NSEvent.ModifierFlags([.option, .command]).rawValue,
-        characters: "d"
+        characters: "e"
     )
 
     public init(keyCode: UInt16, modifiers: UInt, characters: String?) {
