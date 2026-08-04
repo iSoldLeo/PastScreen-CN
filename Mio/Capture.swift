@@ -1043,9 +1043,23 @@ public actor CapturePipeline {
         return CaptureImage(cgImage: cropped, scale: scale, size: pointSize)
     }
 
-    /// Output tail: file write (when enabled) → clipboard → optional sound →
-    /// success events. Shared by every capture entry point — area / window /
-    /// fullscreen all funnel into this single output stage.
+    /// Output tail: frame composite (when enabled) → file write (when enabled) →
+    /// clipboard → optional sound → success events. Shared by every capture entry
+    /// point — area / window / fullscreen all funnel into this single output stage.
+    ///
+    /// - Parameter frameConfig: 画框配置，`nil` = 本路径不套画框。
+    ///
+    ///   合成放在 actor 内部而不是让调用方先 compose 再传图，有两个原因：
+    ///
+    ///   1. **性能**：`FrameRenderer.compose` 是 nonisolated **同步**函数。在
+    ///      `-default-isolation MainActor` 下，`@MainActor` 调用方（含它内部
+    ///      继承 MainActor 的 `Task`）同步调它 = 在主线程跑 alpha 通道圆角
+    ///      扫描 + 整张 CGContext 合成（~10–30ms，4K 更多）。挪进 actor 后
+    ///      走 cooperative pool，主线程不阻塞。
+    ///   2. **产品契约可见性**：PRODUCT.md §9.5 规定路径 B 全屏截图不套画框。
+    ///      以前这条规则靠"全屏分支的调用方没有调 compose"来实现——靠遗漏
+    ///      来保证正确，新增路径很容易漏掉。现在每个调用方都必须显式写出
+    ///      `frameConfig:`，`nil` 就是把契约写在调用点上。
     ///
     /// - Parameter playSound: 是否在 finishOutput 内播音效。默认 true（路径
     ///   A/B 直出场景：finishOutput 是采集瞬间）。路径 D（编辑器）传 false：
@@ -1054,8 +1068,14 @@ public actor CapturePipeline {
     public func finishOutput(
         image: CaptureImage,
         config: CaptureConfiguration,
+        frameConfig: FrameRenderer.Configuration?,
         playSound: Bool = true
     ) async throws {
+        // Frame composite runs here, on the actor's executor — never on MainActor.
+        // `compose` itself returns the input untouched when `enabled == false`,
+        // so the zero-cost path is preserved.
+        let image = frameConfig.map { FrameRenderer.compose(image: image, config: $0) } ?? image
+
         // File output (must happen before clipboard for the saved-path event).
         // The file output service owns the on-disk sequence counter internally.
         // Skipped entirely when the user toggles `saveToFile` off — clipboard
@@ -1228,7 +1248,13 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                 if frozen.count == 1, let onlyImage = frozen.values.first {
                     let config = makeCaptureConfiguration()
                     do {
-                        try await pipeline.finishOutput(image: onlyImage, config: config)
+                        // frameConfig: nil — PRODUCT.md §9.5 明确把路径 B 全屏
+                        // 截图排除在画框范围外（全屏图本身就大，再套框尺寸感失衡）。
+                        try await pipeline.finishOutput(
+                            image: onlyImage,
+                            config: config,
+                            frameConfig: nil
+                        )
                     } catch {
                         if self.flowGeneration == myGeneration {
                             self.showCaptureError(error)
@@ -1308,7 +1334,12 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await pipeline.finishOutput(image: frozen, config: config)
+                // frameConfig: nil — 同上，路径 B 多屏选屏分支也不套画框（PRODUCT.md §9.5）。
+                try await pipeline.finishOutput(
+                    image: frozen,
+                    config: config,
+                    frameConfig: nil
+                )
             } catch {
                 if self.flowGeneration == myGeneration {
                     self.showCaptureError(error)
@@ -1370,9 +1401,12 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
                 )
                 switch kind {
                 case .directOutput:
-                    // 路径 A 直出：crop 后贴画框（如启用），再走输出尾段。
-                    let framed = FrameRenderer.compose(image: cropped, config: frameConfig)
-                    try await pipeline.finishOutput(image: framed, config: config)
+                    // 路径 A 直出：crop 后交给输出尾段，画框在 actor 内合成。
+                    try await pipeline.finishOutput(
+                        image: cropped,
+                        config: config,
+                        frameConfig: frameConfig
+                    )
                 case .intoEditor:
                     // 路径 D：跳过 finishOutput，把裁好的图交给编辑器窗口。
                     // 编辑器窗口生命周期独立于本 flow；当前 flow 在窗口
@@ -1453,9 +1487,12 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
 
                 switch kind {
                 case .directOutput:
-                    // 路径 A 窗口点选直出：贴画框（如启用），再走输出尾段。
-                    let framed = FrameRenderer.compose(image: windowImage, config: frameConfig)
-                    try await pipeline.finishOutput(image: framed, config: config)
+                    // 路径 A 窗口点选直出：画框在 actor 内合成。
+                    try await pipeline.finishOutput(
+                        image: windowImage,
+                        config: config,
+                        frameConfig: frameConfig
+                    )
                 case .intoEditor:
                     if self.flowGeneration == myGeneration {
                         // 截图发生那一刻播音效（与路径 A/B 行为一致）。

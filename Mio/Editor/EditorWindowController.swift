@@ -75,23 +75,27 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     /// 编辑器路径不响截图音效（playSound: false） — 音效已在 SelectionWindow
     /// 选定时由 coordinator 播过；这里走的是「保存」语义。
     /// 输出失败时**保留窗口**让用户重试或调整 saveToFile 设置后再试。
+    ///
+    /// 画框合成交给 `finishOutput` 在 `CapturePipeline` actor 内做，不在这里
+    /// 同步调 `FrameRenderer.compose`——本方法是 `@MainActor`，同步 compose
+    /// 会紧接着 `FinalRenderer.render`（同样在主线程）再压 ~10–30ms 到同一次
+    /// 点击上。编辑器内部始终看原始图，画框只在最终输出阶段加上。
     func finish(composed: CGImage) {
         let composedImage = CaptureImage(
             cgImage: composed,
             scale: image.scale,
             size: image.size
         )
-        // 路径 D：编辑后的成品贴画框（如启用），与路径 A 直出路径行为对齐。
-        // 编辑器内部始终看原始图，画框只在最终输出阶段加上。
-        let framedImage = FrameRenderer.compose(image: composedImage, config: frameConfig)
         let config = captureConfig
+        let frameConfig = self.frameConfig
         let pipeline = self.pipeline
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 try await pipeline.finishOutput(
-                    image: framedImage,
+                    image: composedImage,
                     config: config,
+                    frameConfig: frameConfig,
                     playSound: false
                 )
                 self.close()
