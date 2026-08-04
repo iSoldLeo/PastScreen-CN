@@ -185,7 +185,9 @@ struct SettingsView: View {
 
     private var folderDisplayName: String {
         if capture.saveFolderPath.isEmpty {
-            return "选择文件夹…"
+            // Returns `String`, so callers use Text's non-localizing overload —
+            // the lookup has to happen here.
+            return NSLocalizedString("settings.storage.folder_placeholder", comment: "Storage row label when no folder is chosen yet")
         }
         let url = URL(fileURLWithPath: capture.saveFolderPath)
         return url.lastPathComponent.isEmpty ? capture.saveFolderPath : url.lastPathComponent

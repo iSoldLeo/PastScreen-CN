@@ -401,7 +401,9 @@ private struct FakeEditor: View {
             // footer
             HStack {
                 Spacer()
-                Text("完成")
+                // Mirrors the real editor's finish button (EditorView uses the
+                // same key), so the demo and the product read identically.
+                Text("common.done")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)

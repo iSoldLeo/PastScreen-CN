@@ -164,8 +164,10 @@ nonisolated public enum WindowCaptureError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .mouseLocationUnavailable: return "无法获取鼠标位置"
-        case .noWindowAtPoint: return "鼠标下方未找到可截取的窗口"
+        case .mouseLocationUnavailable:
+            return NSLocalizedString("error.mouse_location_unavailable", comment: "Pointer position could not be read")
+        case .noWindowAtPoint:
+            return NSLocalizedString("error.no_window_at_point", comment: "Hit-test found no capturable window")
         }
     }
 }
@@ -530,15 +532,20 @@ public actor DisplayCaptureService {
         } catch let streamError as SCStreamError {
             let description: String = switch streamError.code {
             case .userDeclined:
-                NSLocalizedString("屏幕录制权限被拒绝。请前往\"系统设置 → 隐私与安全性 → 屏幕录制\"开启。", comment: "")
+                // Reuses the permission copy shown by the onboarding / settings
+                // paths instead of a second near-duplicate string.
+                NSLocalizedString("error.permissions_required.message", comment: "Screen Recording denied by the user")
             case .systemStoppedStream:
-                NSLocalizedString("截图被系统中断", comment: "")
+                NSLocalizedString("error.capture_interrupted", comment: "System stopped the capture stream")
             default:
                 streamError.localizedDescription
             }
             throw CaptureError(description)
         } catch {
-            throw CaptureError("全屏截图失败:\(error.localizedDescription)")
+            throw CaptureError(String(
+                format: NSLocalizedString("error.fullscreen_capture_failed", comment: "Non-SCStreamError capture failure; %@ is the underlying description"),
+                error.localizedDescription
+            ))
         }
     }
 
@@ -870,14 +877,14 @@ public actor CapturePipeline {
             )
         } catch {
             throw CaptureError(
-                NSLocalizedString("无法访问窗口列表，请检查屏幕录制权限。", comment: ""),
+                NSLocalizedString("error.window_list_unavailable", comment: "SCShareableContent lookup failed"),
                 underlyingDescription: error.localizedDescription
             )
         }
 
         guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
             throw CaptureError(
-                NSLocalizedString("目标窗口已关闭或不在屏幕上。", comment: "")
+                NSLocalizedString("error.window_gone", comment: "Target window disappeared before on-demand capture")
             )
         }
 
@@ -1542,12 +1549,25 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
         }
     }
 
+    /// `DynamicIslandManager.show` takes a plain `String`, so the message must be
+    /// resolved here rather than passed as a `LocalizedStringKey`. A bare literal
+    /// would not be extracted into the string catalog at all — and these two are
+    /// the highest-frequency strings in the app (every capture shows one), so an
+    /// unlocalized literal ships Chinese to every other locale.
     private func handleEvent(_ event: CaptureEvent) {
         switch event {
         case .savedToFile:
-            DynamicIslandManager.shared.show(message: "已保存", duration: 3.0, style: .success)
+            DynamicIslandManager.shared.show(
+                message: NSLocalizedString("capture.saved", comment: "Menu bar pill shown after writing the file"),
+                duration: 3.0,
+                style: .success
+            )
         case .copiedToClipboard:
-            DynamicIslandManager.shared.show(message: "已复制", duration: 1.5, style: .success)
+            DynamicIslandManager.shared.show(
+                message: NSLocalizedString("capture.copied", comment: "Menu bar pill shown after writing the clipboard"),
+                duration: 1.5,
+                style: .success
+            )
         }
     }
 

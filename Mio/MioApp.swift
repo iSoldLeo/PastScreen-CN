@@ -48,8 +48,10 @@ struct MioApp: App {
                         } label: {
                             Image(systemName: "questionmark")
                         }
-                        .help("帮助")
-                        .accessibilityLabel("帮助")
+                        // Same key the AppKit onboarding toolbar uses
+                        // (OnboardingPresenter), so there is one "Help" string.
+                        .help("onboarding.help")
+                        .accessibilityLabel("onboarding.help")
                     }
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
