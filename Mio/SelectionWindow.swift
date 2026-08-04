@@ -228,11 +228,27 @@ class SelectionOverlayView: NSView {
         return false
     }
 
+    /// 只有 `highlightRect` 真的变化才重绘。
+    ///
+    /// 指针在**同一个窗口内部**移动时 hit-test 返回同一个窗口，`highlightRect`
+    /// 算出来完全一样，重绘的是逐像素相同的一帧。而 `draw(_:)` 在有 hole rect
+    /// 时要画两遍全屏冻结图 + 一次全屏 dim 填充（5K 屏约 3000 万次像素写入），
+    /// 鼠标移动事件在现代设备上能到 100+Hz —— 无条件 `needsDisplay = true`
+    /// 是纯浪费，直接压 PRODUCT.md §5 的 60% CPU 硬约束。
+    ///
+    /// 等价性论证：`draw(_:)` 只读 `backgroundImage`（immutable let）、
+    /// `configuration`（immutable let）、`startPoint`、`endPoint`、`highlightRect`。
+    /// 本方法被 `!isDragging` 守卫，不碰 `startPoint` / `endPoint`；它写的
+    /// `hoverWindowHit` 与 `pendingWindowHit` 不被 `draw` 读取。所以本方法能够
+    /// 影响绘制结果的状态**只有** `highlightRect` —— 它没变就意味着帧内容没变。
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
-        hoverWindowHit = resolveWindowHit()
+        let previousHighlight = highlightRect
+        hoverWindowHit = resolveWindowHit()   // 副作用：写 highlightRect
         pendingWindowHit = hoverWindowHit
-        needsDisplay = true
+        if highlightRect != previousHighlight {
+            needsDisplay = true
+        }
     }
 
     override func mouseDown(with event: NSEvent) {

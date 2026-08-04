@@ -8,7 +8,8 @@
 //  - 撤销栈只存命令描述（DrawCommand），不存 CGImage 副本
 //  - 不维护 baseline cache，原图作为静态背景，所有命令每帧重画
 //  - 撤销 / 重做 = O(1) 数组操作
-//  - 马赛克粒度固定，进编辑器时一次性预生成 fullPixelated CGImage
+//  - 马赛克粒度固定；fullPixelated 惰性生成（切到马赛克工具时预热），
+//    不在开窗路径上做像素工作
 //
 
 import Foundation
@@ -128,9 +129,29 @@ enum DraftSnapshot {
 @Observable @MainActor
 final class EditorState {
     let original: CaptureImage
-    /// 进编辑器时一次性生成的整张图 pixellate 版本。马赛克命令用 path 作为
-    /// clip mask 把对应区域画到画布。生成成本集中在打开瞬间（4K ~30ms）。
-    let fullPixelated: CGImage
+
+    /// 整张图的 pixellate 版本，马赛克命令用 path 作为 clip mask 把对应区域画到
+    /// 画布。**惰性生成**：绝大多数编辑会话不用马赛克，进编辑器时无条件预生成
+    /// 等于白花 ~30ms（4K）。首次真正需要时才算，之后缓存复用。
+    ///
+    /// 为什么是「永远可得的计算属性」而不是「可选值 + 渲染时跳过」：
+    /// 马赛克是**打码**工具（PRODUCT.md §8「马赛克粒度固定所以打码不会泄漏」）。
+    /// 如果渲染层拿到 nil 就静默跳过，`FinalRenderer` 会输出一张**未打码**的图 ——
+    /// 用户以为遮住了，实际没有。这里宁可付 30ms 也不给出"静默降级"的可能。
+    /// 因此本属性没有失败路径：任何时候读都保证返回可用图像。
+    ///
+    /// 触发时机见 `tool` 的 `didSet`：切到马赛克工具时就预热，让第一笔拖动之前
+    /// 完成计算，而不是卡在拖动中间。
+    var fullPixelated: CGImage {
+        if let pixellatedCache { return pixellatedCache }
+        let generated = Self.makePixellated(original.cgImage)
+        pixellatedCache = generated
+        return generated
+    }
+
+    /// `@ObservationIgnored` 是必需的：本缓存会在 SwiftUI Canvas 求值过程中被写入
+    /// （渲染马赛克命令时），若被 `@Observable` 追踪就会在视图更新期间触发状态变更。
+    @ObservationIgnored private var pixellatedCache: CGImage?
 
     var commands: [DrawCommand] = []
     var redoQueue: [DrawCommand] = []
@@ -149,6 +170,13 @@ final class EditorState {
             if oldValue == .text && tool != .text {
                 endEditing()
             }
+            // 预热马赛克底图：选中工具是一次离散点击，有天然的等待容忍度；
+            // 等到第一笔拖动中间再算会卡在描边过程里。同步执行是刻意的 ——
+            // 保证第一笔一定顺滑。若日后要连这 30ms 也消掉，可以改成
+            // 异步预热 + 首笔前 await，但那要引入"底图还没好"的中间态。
+            if tool == .mosaic {
+                _ = fullPixelated
+            }
         }
     }
     var colorIndex: Int = 0
@@ -163,9 +191,9 @@ final class EditorState {
         usingSampled ? (sampledColor ?? .preset(colorIndex)) : .preset(colorIndex)
     }
 
+    /// 不在这里生成 `fullPixelated` —— 见该属性的注释。编辑器开窗路径上零像素工作。
     init(image: CaptureImage) {
         self.original = image
-        self.fullPixelated = Self.makePixellated(image.cgImage)
     }
 
     func commit(_ cmd: DrawCommand) {

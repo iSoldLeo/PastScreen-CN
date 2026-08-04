@@ -21,10 +21,17 @@ enum CommandRenderer {
 
     // MARK: - SwiftUI Canvas (drawing preview)
 
+    /// `fullPixelated` 是 `@autoclosure`，只在 `.mosaic` 分支里求值。
+    ///
+    /// 调用方（EditorView 的 Canvas 闭包、FinalRenderer）对每条命令都传
+    /// `state.fullPixelated`，而它现在是惰性生成的（EditorState 内注释）。若这里按
+    /// 值接收，每帧、每条命令都会触发一次求值 —— 首次求值就是 4K ~30ms 的整图
+    /// pixellate，惰性化的收益全部作废。用 autoclosure 把求值推迟到真正需要底图
+    /// 的那个 case，调用点写法完全不用改。
     static func draw(
         _ cmd: DrawCommand,
         in ctx: inout GraphicsContext,
-        fullPixelated: CGImage,
+        fullPixelated: @autoclosure () -> CGImage,
         canvasSize: CGSize
     ) {
         switch cmd {
@@ -66,17 +73,18 @@ enum CommandRenderer {
             drawMosaicSwiftUI(
                 path: path,
                 thickness: thickness,
-                fullPixelated: fullPixelated,
+                fullPixelated: fullPixelated(),   // 惰性求值只在此分支发生
                 canvasSize: canvasSize,
                 in: &ctx
             )
         }
     }
 
+    /// `fullPixelated` 同为 `@autoclosure`，理由见上一个 `draw`。
     static func draw(
         _ draft: DraftSnapshot,
         in ctx: inout GraphicsContext,
-        fullPixelated: CGImage,
+        fullPixelated: @autoclosure () -> CGImage,
         canvasSize: CGSize
     ) {
         switch draft {
@@ -114,7 +122,7 @@ enum CommandRenderer {
             drawMosaicSwiftUI(
                 path: mutablePath,
                 thickness: thickness,
-                fullPixelated: fullPixelated,
+                fullPixelated: fullPixelated(),   // 惰性求值只在此分支发生
                 canvasSize: canvasSize,
                 in: &ctx
             )
@@ -123,10 +131,11 @@ enum CommandRenderer {
 
     // MARK: - CGContext (final compose)
 
+    /// `fullPixelated` 同为 `@autoclosure`，理由见 GraphicsContext 版本的 `draw`。
     static func draw(
         _ cmd: DrawCommand,
         in ctx: CGContext,
-        fullPixelated: CGImage,
+        fullPixelated: @autoclosure () -> CGImage,
         canvasSize: CGSize
     ) {
         ctx.saveGState()
@@ -166,7 +175,7 @@ enum CommandRenderer {
             drawMosaicCG(
                 path: path,
                 thickness: thickness,
-                fullPixelated: fullPixelated,
+                fullPixelated: fullPixelated(),   // 惰性求值只在此分支发生
                 canvasSize: canvasSize,
                 in: ctx
             )
