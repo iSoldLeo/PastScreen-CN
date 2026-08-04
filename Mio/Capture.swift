@@ -74,17 +74,21 @@ nonisolated public struct CaptureConfiguration: Sendable {
     public let hasValidSaveFolder: Bool
     public let playSoundOnCapture: Bool
     public let saveToFile: Bool
+    /// 写盘时是否落到 `<saveFolderPath>/YYYY/MM/`。
+    public let organizeByMonth: Bool
 
     public init(
         saveFolderPath: String,
         hasValidSaveFolder: Bool,
         playSoundOnCapture: Bool,
-        saveToFile: Bool
+        saveToFile: Bool,
+        organizeByMonth: Bool
     ) {
         self.saveFolderPath = saveFolderPath
         self.hasValidSaveFolder = hasValidSaveFolder
         self.playSoundOnCapture = playSoundOnCapture
         self.saveToFile = saveToFile
+        self.organizeByMonth = organizeByMonth
     }
 }
 
@@ -645,6 +649,10 @@ public actor FileOutputService {
 
     /// Save image to disk as PNG.
     /// Writes atomically via a temporary file to avoid partial writes on crash.
+    ///
+    /// 目标目录：`config.organizeByMonth == true` 时是 `<saveFolderPath>/YYYY/MM/`，
+    /// 否则是 `<saveFolderPath>/`。子目录由下方的 `createDirectory(
+    /// withIntermediateDirectories: true)` 一次建到位，无需额外分支。
     public func write(
         image: CaptureImage,
         config: CaptureConfiguration
@@ -660,11 +668,22 @@ public actor FileOutputService {
             throw CaptureError("Failed to encode image as PNG")
         }
 
+        // 序列号保持**全局单调**，不按月重置。这样即使用户日后把整棵目录树拍平，
+        // 文件名也不会撞车；代价是每个月的第一张不是 Screen-1（可接受）。
+        // 下方的 `while fileExists` 只在目标月目录内查重——因为计数器全局单调，
+        // 跨目录同名不可能发生。
         var seq = loadSequenceIfNeeded()
         var filename = "Screen-\(seq).png"
 
         let fileManager = FileManager.default
-        let folderURL = URL(fileURLWithPath: folderPath, isDirectory: true)
+        let rootURL = URL(fileURLWithPath: folderPath, isDirectory: true)
+        let folderURL: URL = {
+            guard config.organizeByMonth else { return rootURL }
+            let (year, month) = Self.monthlyPathComponents(for: Date())
+            return rootURL
+                .appendingPathComponent(year, isDirectory: true)
+                .appendingPathComponent(month, isDirectory: true)
+        }()
         var saveURL = folderURL.appendingPathComponent(filename)
 
         while fileManager.fileExists(atPath: saveURL.path) {
@@ -693,6 +712,34 @@ public actor FileOutputService {
                 underlyingDescription: error.localizedDescription
             )
         }
+    }
+
+    // MARK: Monthly foldering
+
+    /// `<root>/YYYY/MM` 的两级目录名。
+    ///
+    /// **刻意不用 `DateFormatter`**，一次避开三个坑：
+    ///
+    /// 1. **非公历地区**。用户系统日历是和历 / 佛历 / 民国纪年时，`DateFormatter`
+    ///    的 `yyyy` 会输出「8」（令和8年）、「2569」、「115」。文件夹名必须稳定
+    ///    且可排序，所以这里显式指定 `Calendar(identifier: .gregorian)`，不跟随
+    ///    用户日历。
+    /// 2. **`YYYY` vs `yyyy`**。`YYYY` 是 ISO week-of-year 纪年，跨年那几天会给出
+    ///    邻年（2025-12-29 会变成 2026）。直接取 `DateComponents.year` 不存在这个
+    ///    歧义。
+    /// 3. **本地化数字**。部分 locale 下 `DateFormatter` 会输出阿拉伯-印度数字
+    ///    （٢٠٢٦）。`String(format:)` 不接受 locale，恒定输出 ASCII 数字。
+    ///
+    /// 时区用系统当前时区：用户说「这个月的截图」指的是他本地时间的月份，不是 UTC。
+    nonisolated static func monthlyPathComponents(for date: Date) -> (year: String, month: String) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        // 对任何 Date，公历 year/month 恒有值；兜底仅为消除可选性，实际取不到。
+        return (
+            String(format: "%04d", parts.year ?? 0),
+            String(format: "%02d", parts.month ?? 1)
+        )
     }
 
     // MARK: Private
@@ -1527,7 +1574,8 @@ public final class CaptureCoordinator: SelectionWindowDelegate, ScreenChooserWin
             saveFolderPath: capture.saveFolderPath,
             hasValidSaveFolder: capture.hasValidSaveFolder,
             playSoundOnCapture: capture.playSoundOnCapture,
-            saveToFile: capture.saveToFile
+            saveToFile: capture.saveToFile,
+            organizeByMonth: capture.organizeByMonth
         )
     }
 

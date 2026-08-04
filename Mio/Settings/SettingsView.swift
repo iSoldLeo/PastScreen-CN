@@ -102,6 +102,12 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+
+                // 只在真的会写盘时才有意义——saveToFile 关掉时截图只进剪贴板，
+                // 归档开关无处施力，disable 掉比留着可点更诚实。
+                Toggle("settings.storage.organize_by_month", isOn: $capture.organizeByMonth)
+                    .disabled(!capture.saveToFile)
+                    .help("settings.storage.organize_by_month.help")
             } header: {
                 Text("settings.section.storage")
             } footer: {

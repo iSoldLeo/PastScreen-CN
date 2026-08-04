@@ -63,6 +63,19 @@ final class CaptureSettings: ObservableObject {
         }
     }
 
+    /// 按年月归档：写盘时落到 `<saveFolder>/YYYY/MM/` 而不是根目录。
+    ///
+    /// 默认 `false`，沿用画框（PRODUCT.md §9.5）的先例——影响输出行为的新功能
+    /// 一律 opt-in，已发布版本的用户不会发现文件突然换了位置。
+    ///
+    /// 关掉之后新截图回到根目录；已经归档进子目录的旧文件不动（不做回迁，
+    /// 移动用户文件超出截图工具的职责范围）。
+    @Published var organizeByMonth: Bool {
+        didSet {
+            UserDefaults.standard.set(organizeByMonth, forKey: SettingsKeys.organizeByMonth)
+        }
+    }
+
     // MARK: - 画框输出（v6 新增，spec capture-frame-spec.md v2.1）
 
     /// 是否给窗口截图（路径 A 直出 / 路径 D 编辑器 finish）套画框。默认 false。
@@ -103,6 +116,7 @@ final class CaptureSettings: ObservableObject {
 
         self.playSoundOnCapture = UserDefaults.standard.object(forKey: SettingsKeys.playSoundOnCapture) as? Bool ?? true
         self.saveToFile = UserDefaults.standard.object(forKey: SettingsKeys.saveToFile) as? Bool ?? true
+        self.organizeByMonth = UserDefaults.standard.object(forKey: SettingsKeys.organizeByMonth) as? Bool ?? false
 
         self.captureFrameEnabled = UserDefaults.standard.object(forKey: SettingsKeys.captureFrameEnabled) as? Bool ?? false
         self.captureFrameCustomText = UserDefaults.standard.string(forKey: SettingsKeys.captureFrameCustomText) ?? ""

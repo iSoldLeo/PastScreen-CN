@@ -32,6 +32,8 @@ nonisolated enum SettingsKeys {
     static let saveFolderPath = "saveFolderPath"
     static let playSoundOnCapture = "playSoundOnCapture"
     static let saveToFile = "saveToFile"
+    /// 按年月归档：写盘时落到 `<saveFolder>/YYYY/MM/` 而不是根目录。
+    static let organizeByMonth = "organizeByMonth"
 
     /// CaptureSettings — 画框输出（capture-frame-spec.md v2.1）
     static let captureFrameEnabled = "captureFrameEnabled"
