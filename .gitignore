@@ -136,5 +136,16 @@ research/
 # Per-developer IDE configuration
 .vscode/
 
-# Independent dev tools (kept locally, not part of release artifacts)
-scripts/
+# Independent dev tools (kept locally, not part of release artifacts).
+#
+# `scripts/*` rather than `scripts/`: git cannot re-include a file whose parent
+# directory is excluded, so a directory-level ignore would make the negation
+# below a no-op. Ignoring the *contents* keeps git descending into the folder so
+# the exception can take effect.
+#
+# Everything here stays local EXCEPT the typecheck harness, which is a shared
+# build contract: it is the only way to reproduce the isolation diagnostics that
+# `-default-isolation MainActor` makes visible. To share another script, add its
+# own negation line — do not loosen the pattern.
+scripts/*
+!scripts/typecheck.sh
