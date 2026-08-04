@@ -427,7 +427,11 @@ private struct FakeEditor: View {
 }
 
 /// 一个简单的箭头 path（用在 F7 的编辑器里）。
-private struct ArrowShape: Shape {
+///
+/// `nonisolated`：纯三角函数计算，无线程归属。见 `CaptureDimShape` 同款注释
+/// ——默认 MainActor 隔离与 `Shape` 的 nonisolated 要求冲突，Swift 6.4 起是
+/// error 而非 warning。
+private nonisolated struct ArrowShape: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
         let start = CGPoint(x: rect.minX, y: rect.maxY)

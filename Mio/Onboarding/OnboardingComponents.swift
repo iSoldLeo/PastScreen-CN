@@ -279,7 +279,13 @@ struct CaptureDimOverlay: View {
     }
 }
 
-private struct CaptureDimShape: Shape {
+/// `nonisolated`：纯几何计算，无线程归属。项目开了
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`，不标注就会被推断为
+/// `@MainActor`，而 `Shape` / `Animatable` 的要求（`path(in:)`、
+/// `animatableData`）是 nonisolated 且继承 `SendableMetatype`，两个承诺
+/// 冲突 → Swift 6.4 报 `#ConformanceIsolation` error。标在类型上一次覆盖
+/// 全部要求（`Shape: Animatable`，此处有两个 witness）。
+private nonisolated struct CaptureDimShape: Shape {
     var cutout: CGRect
     var hasCutout: CGFloat
     var cornerRadius: CGFloat
