@@ -5,7 +5,7 @@
 <p>
   <a href="https://github.com/iSoldLeo/Mio/releases/latest"><b>下载&nbsp;Mio</b></a> &nbsp;·&nbsp; <a href="README.md">English</a> &nbsp;·&nbsp; <a href="LICENSE/GPL-3.0%20license">License</a>
 </p>
-<p><sub>需要 macOS 26+ · Apple Silicon</sub></p>
+<p><sub>需要 macOS 15+ · Apple Silicon</sub></p>
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>离线运行</b> &nbsp;·&nbsp; <b>约 5&nbsp;MB</b> &nbsp;·&nbsp; <b>中&nbsp;/&nbsp;EN&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 

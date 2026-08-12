@@ -27,12 +27,12 @@ struct MioApp: App {
                 .environmentObject(AppSettings.shared.capture)
         }
 
-        // Onboarding 窗口：使用 macOS 26 原生 SwiftUI Window chrome。
+        // Onboarding 窗口：使用当前系统原生 SwiftUI Window chrome。
         //
         // 不再走 .windowStyle(.plain)：plain 会创建无系统 chrome 的窗口，
         // 需要自绘圆角/阴影/拖拽/焦点，反而绕开 Tahoe 原生窗口外观。
         // 这里保留默认窗口样式，只移除标题文字和 toolbar 背板，让内容延展
-        // 到顶部；圆角、阴影、focus、拖拽与 Liquid Glass 背景全部交给系统。
+        // 到顶部；圆角、阴影、focus、拖拽与系统背景全部交给系统。
         Window("Mio", id: "onboarding") {
             OnboardingView()
                 .environmentObject(AppSettings.shared.hotkey)

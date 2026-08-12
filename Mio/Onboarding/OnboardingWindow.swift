@@ -20,8 +20,8 @@
 //      scene + dismissWindow 是最稳路径（旧版 NSWindowController 子类
 //      化在某些 macOS 版本下窗口不可见，已弃用）。
 //    - 固定尺寸 720×560：3 页内容用同一块画布，避免翻页时 reflow。
-//    - 保留 macOS 26 原生 Window chrome：窗口圆角、阴影、背景材质、焦点
-//      和拖拽行为由系统负责；本视图只定义内容布局。
+//    - 保留当前系统原生 Window chrome：窗口圆角、阴影、背景材质、焦点
+//      和拖拽行为由系统负责；macOS 26 自然呈现新版外观，本视图只定义布局。
 //    - 展示路径：view 出现即写入本版本戳；用户点 X 关闭也不重复打扰。
 //    - 关闭路径：底栏最后一页的"开始使用"会调用 dismissWindow(id:)。
 //
@@ -148,8 +148,9 @@ struct ProgressDots: View {
 
 // MARK: - Footer
 
-/// Onboarding 底部按钮行。视觉用 macOS 26 液态玻璃 `.glass` / `.glassProminent`
-/// 按钮样式——项目部署下限是 26.0（Config/Base.xcconfig），无版本分支。
+/// Onboarding 底部按钮行。macOS 26 使用液态玻璃 `.glass` /
+/// `.glassProminent`；macOS 15–25 使用系统 `.bordered` /
+/// `.borderedProminent`，保留相同的按钮形状与布局。
 ///
 /// "跳过"按钮仅在带有"跳过=显式拒绝"语义的页面显示（如画框页：
 /// 跳过 = 不启用画框）。点击下一步 = 默认接受当前页的引导动作，
@@ -201,7 +202,7 @@ struct OnboardingFooter: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 32, height: 32)
             }
-            .buttonStyle(.glass)
+            .onboardingSecondaryButtonStyle()
             .buttonBorderShape(.circle)
             .controlSize(.regular)
             .clipShape(Circle())
@@ -243,7 +244,7 @@ struct OnboardingFooter: View {
                     .font(.body.weight(.semibold))
                     .frame(minWidth: 96, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
+            .onboardingPrimaryButtonStyle()
             .buttonBorderShape(.capsule)
             .controlSize(.regular)
             .keyboardShortcut(.defaultAction)

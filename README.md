@@ -5,7 +5,7 @@
 <p>
   <a href="https://github.com/iSoldLeo/Mio/releases/latest"><b>Download&nbsp;for&nbsp;macOS</b></a> &nbsp;·&nbsp; <a href="README-zh.md">简体中文</a> &nbsp;·&nbsp; <a href="LICENSE/GPL-3.0%20license">License</a>
 </p>
-<p><sub>Requires macOS 26+ · Apple Silicon</sub></p>
+<p><sub>Requires macOS 15+ · Apple Silicon</sub></p>
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>Offline</b> &nbsp;·&nbsp; <b>~5&nbsp;MB</b> &nbsp;·&nbsp; <b>EN&nbsp;/&nbsp;中&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 

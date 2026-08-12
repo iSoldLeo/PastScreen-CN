@@ -12,8 +12,8 @@
 //    - 默认显示当前 hotkey 值（如 ⌥⌘S）。"老用户已自定义"和"新用户走默认"
 //      在 HotKeySettings.init 那一层就已合一——这里只读 Binding，不再做
 //      "探测系统其它 app 用过什么键"的工作（macOS 没有该 API）。
-//    - 视觉做成 .glass 胶囊大按钮，与底栏"返回 / 下一步"一致；尺寸大于
-//      普通文字，让 onboarding 阶段就清晰传达"快捷键是这个 app 的入口"。
+//    - macOS 26 使用 .glass 胶囊大按钮；macOS 15–25 回退到原生 bordered
+//      样式。两种系统下都与底栏"返回 / 下一步"保持一致。
 //    - 录入态不抢焦点：只挂 local monitor，把按下的组合写入 binding；
 //      用户随时点"取消"或按 ESC 返回。
 //
@@ -60,7 +60,7 @@ struct OnboardingHotkeyButton: View {
                 }
                 .frame(minHeight: 32)
             }
-            .buttonStyle(.glass)
+            .onboardingSecondaryButtonStyle()
             .buttonBorderShape(.capsule)
             .controlSize(.regular)
             .accessibilityLabel(Text(isRecording
