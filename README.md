@@ -76,7 +76,8 @@ Mio runs entirely on your Mac. Screenshots go to the clipboard and, if you opt i
 Developer · [iSoldLeo](https://github.com/iSoldLeo) · [MeowLynxSea](https://github.com/MeowLynxSea) &nbsp;·&nbsp;
 Source · [github.com/iSoldLeo/Mio](https://github.com/iSoldLeo/Mio) &nbsp;·&nbsp;
 Issues · [Report a bug](https://github.com/iSoldLeo/Mio/issues) &nbsp;·&nbsp;
-License · [GPL-3.0](LICENSE/GPL-3.0%20license)
+License · [GPL-3.0](LICENSE/GPL-3.0%20license) &nbsp;·&nbsp;
+Thanks · [Linux.do community](https://linux.do/)
 
 <details>
 <summary>Build from source</summary>

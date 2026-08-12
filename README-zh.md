@@ -76,7 +76,8 @@ Mio 完全在你的 Mac 上运行。截图进剪贴板，如果你开启了「�
 开发者 · [iSoldLeo](https://github.com/iSoldLeo) · [MeowLynxSea](https://github.com/MeowLynxSea) &nbsp;·&nbsp;
 源码 · [github.com/iSoldLeo/Mio](https://github.com/iSoldLeo/Mio) &nbsp;·&nbsp;
 反馈 · [报告问题](https://github.com/iSoldLeo/Mio/issues) &nbsp;·&nbsp;
-许可证 · [GPL-3.0](LICENSE/GPL-3.0%20license)
+许可证 · [GPL-3.0](LICENSE/GPL-3.0%20license) &nbsp;·&nbsp;
+感谢 · [Linux.do 社区](https://linux.do/)
 
 <details>
 <summary>从源码构建</summary>
