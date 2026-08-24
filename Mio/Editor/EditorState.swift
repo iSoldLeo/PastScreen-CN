@@ -8,14 +8,11 @@
 //  - 撤销栈只存命令描述（DrawCommand），不存 CGImage 副本
 //  - 不维护 baseline cache，原图作为静态背景，所有命令每帧重画
 //  - 撤销 / 重做 = O(1) 数组操作
-//  - 马赛克粒度固定；fullPixelated 惰性生成（切到马赛克工具时预热），
-//    不在开窗路径上做像素工作
+//  - 马赛克粒度固定；06 actor 异步生成 pixelated source，ready 前不创建命令
 //
 
 import Foundation
 import SwiftUI
-import CoreImage
-import CoreImage.CIFilterBuiltins
 
 // MARK: - Tools
 
@@ -61,8 +58,9 @@ let editorPresetColors: [(name: String, color: Color)] = [
 ]
 
 /// Sendable 颜色引用：要么是 7 色预设的 index，要么是「最近取色」的 RGBA 拷贝。
-/// 不直接存 SwiftUI Color（非 Sendable）。
-enum ColorRef: Equatable, Sendable {
+/// 不直接存 SwiftUI Color（非 Sendable）。nonisolated：纯值，MainActor UI 与
+/// off-MainActor compositor（`EditorCompositeSnapshot`/`EditorCompositeRenderer`）共用。
+nonisolated enum ColorRef: Equatable, Sendable {
     case preset(Int)
     case sampled(red: Double, green: Double, blue: Double, alpha: Double)
 }
@@ -70,7 +68,9 @@ enum ColorRef: Equatable, Sendable {
 // MARK: - Thickness
 
 /// 3 档粗细对应的实际线宽（point）。形态在 Toolbar 内根据工具切换。
-enum Thickness {
+/// 3 档粗细对应的实际线宽（point）。形态在 Toolbar 内根据工具切换。
+/// 纯标量映射，nonisolated：MainActor 预览与 off-MainActor compositor 共用。
+nonisolated enum Thickness {
     /// 矩形 / 椭圆 / 箭头：线条粗细
     static func strokeWidth(_ index: Int) -> CGFloat { [2, 4, 7][index] }
     /// 画笔:笔触粗细（首尾圆头）
@@ -124,37 +124,86 @@ enum DraftSnapshot {
     case mosaic(mutablePath: CGMutablePath, thickness: Int)
 }
 
+enum MosaicPreparationPhase {
+    case idle
+    case preparing
+    case ready(CaptureImage)
+    case failed(stableCode: String)
+
+    var canStart: Bool {
+        switch self {
+        case .idle, .failed: true
+        case .preparing, .ready: false
+        }
+    }
+}
+
+enum EditorDeliveryPhase: Equatable {
+    case editing
+    case delivering
+    case recovery
+    case retrying
+
+    var isEditable: Bool {
+        if case .editing = self { return true }
+        return false
+    }
+
+    var isBusy: Bool {
+        switch self {
+        case .delivering, .retrying: true
+        case .editing, .recovery: false
+        }
+    }
+
+    var showsRetry: Bool {
+        if case .recovery = self { return true }
+        return false
+    }
+}
+
+/// 统一 undo/redo 历史项（M09-04）：一次用户操作对应一条，覆盖栅格插入与
+/// 文字 create/edit/move。只存在于 `@MainActor EditorState` 内，不跨 actor，
+/// 无需 Sendable（携带非 Sendable 的 `DrawCommand`/`TextAnnotation` 值）。
+enum EditorEdit {
+    case rasterInsert(DrawCommand)
+    case textCreate(TextAnnotation)
+    case textEdit(id: UUID, before: String, after: String)
+    case textMove(id: UUID, from: CGPoint, to: CGPoint)
+}
+
 // MARK: - EditorState
 
 @Observable @MainActor
 final class EditorState {
     let original: CaptureImage
+    var mosaicPhase: MosaicPreparationPhase = .idle
+    private(set) var deliveryPhase: EditorDeliveryPhase = .editing
 
-    /// 整张图的 pixellate 版本，马赛克命令用 path 作为 clip mask 把对应区域画到
-    /// 画布。**惰性生成**：绝大多数编辑会话不用马赛克，进编辑器时无条件预生成
-    /// 等于白花 ~30ms（4K）。首次真正需要时才算，之后缓存复用。
-    ///
-    /// 为什么是「永远可得的计算属性」而不是「可选值 + 渲染时跳过」：
-    /// 马赛克是**打码**工具（PRODUCT.md §8「马赛克粒度固定所以打码不会泄漏」）。
-    /// 如果渲染层拿到 nil 就静默跳过，`FinalRenderer` 会输出一张**未打码**的图 ——
-    /// 用户以为遮住了，实际没有。这里宁可付 30ms 也不给出"静默降级"的可能。
-    /// 因此本属性没有失败路径：任何时候读都保证返回可用图像。
-    ///
-    /// 触发时机见 `tool` 的 `didSet`：切到马赛克工具时就预热，让第一笔拖动之前
-    /// 完成计算，而不是卡在拖动中间。
-    var fullPixelated: CGImage {
-        if let pixellatedCache { return pixellatedCache }
-        let generated = Self.makePixellated(original.cgImage)
-        pixellatedCache = generated
-        return generated
+    var isEditable: Bool { deliveryPhase.isEditable }
+
+    var pixelatedSource: CGImage? {
+        guard case .ready(let image) = mosaicPhase else { return nil }
+        return image.cgImage
     }
 
-    /// `@ObservationIgnored` 是必需的：本缓存会在 SwiftUI Canvas 求值过程中被写入
-    /// （渲染马赛克命令时），若被 `@Observable` 追踪就会在视图更新期间触发状态变更。
-    @ObservationIgnored private var pixellatedCache: CGImage?
+    var isMosaicReady: Bool { pixelatedSource != nil }
+
+    var hasMosaicCommands: Bool {
+        commands.contains { command in
+            if case .mosaic = command { return true }
+            return false
+        }
+    }
 
     var commands: [DrawCommand] = []
-    var redoQueue: [DrawCommand] = []
+    /// 统一 undo/redo 历史（M09-04）：覆盖栅格插入与文字 create/edit/move。
+    /// `commands`/`textAnnotations` 仍是渲染真相，history 只描述可逆变换。
+    private var undoStack: [EditorEdit] = []
+    private var redoStack: [EditorEdit] = []
+    /// 当前文字编辑事务上下文：进入编辑时捕获，`endEditing` 时据此提交一条 history。
+    private var editingIsCreate = false
+    private var editingBeforeText: String?
     var textAnnotations: [TextAnnotation] = []
     /// 当前正在编辑的文字 ID（编辑态时显示带边框 TextField）。nil = 无编辑中文字。
     var editingTextID: UUID?
@@ -170,13 +219,6 @@ final class EditorState {
             if oldValue == .text && tool != .text {
                 endEditing()
             }
-            // 预热马赛克底图：选中工具是一次离散点击，有天然的等待容忍度；
-            // 等到第一笔拖动中间再算会卡在描边过程里。同步执行是刻意的 ——
-            // 保证第一笔一定顺滑。若日后要连这 30ms 也消掉，可以改成
-            // 异步预热 + 首笔前 await，但那要引入"底图还没好"的中间态。
-            if tool == .mosaic {
-                _ = fullPixelated
-            }
         }
     }
     var colorIndex: Int = 0
@@ -184,39 +226,83 @@ final class EditorState {
     var usingSampled: Bool = false
     var thicknessIndex: Int = 1
 
-    var canUndo: Bool { !commands.isEmpty }
-    var canRedo: Bool { !redoQueue.isEmpty }
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
 
     var activeColor: ColorRef {
         usingSampled ? (sampledColor ?? .preset(colorIndex)) : .preset(colorIndex)
     }
 
-    /// 不在这里生成 `fullPixelated` —— 见该属性的注释。编辑器开窗路径上零像素工作。
     init(image: CaptureImage) {
         self.original = image
     }
 
     func commit(_ cmd: DrawCommand) {
+        guard isEditable else { return }
         commands.append(cmd)
-        redoQueue.removeAll()  // 编辑后 redo 失效（标准撤销栈语义）
+        pushUndo(.rasterInsert(cmd))
     }
 
     func undo() {
-        guard let last = commands.popLast() else { return }
-        redoQueue.append(last)
+        guard isEditable, let edit = undoStack.popLast() else { return }
+        revert(edit)
+        redoStack.append(edit)
     }
 
     func redo() {
-        guard let cmd = redoQueue.popLast() else { return }
-        commands.append(cmd)
+        guard isEditable, let edit = redoStack.popLast() else { return }
+        apply(edit)
+        undoStack.append(edit)
+    }
+
+    /// 每次真正的 commit 统一清 redo tail（标准撤销栈语义）。
+    private func pushUndo(_ edit: EditorEdit) {
+        undoStack.append(edit)
+        redoStack.removeAll()
+    }
+
+    private func apply(_ edit: EditorEdit) {
+        switch edit {
+        case .rasterInsert(let cmd): commands.append(cmd)
+        case .textCreate(let annotation): textAnnotations.append(annotation)
+        case .textEdit(let id, _, let after): setText(id: id, to: after)
+        case .textMove(let id, _, let to): setOrigin(id: id, to: to)
+        }
+    }
+
+    private func revert(_ edit: EditorEdit) {
+        switch edit {
+        case .rasterInsert(let cmd): removeCommand(id: cmd.id)
+        case .textCreate(let annotation): removeText(id: annotation.id)
+        case .textEdit(let id, let before, _): setText(id: id, to: before)
+        case .textMove(let id, let from, _): setOrigin(id: id, to: from)
+        }
+    }
+
+    private func removeCommand(id: UUID) {
+        commands.removeAll { $0.id == id }
+    }
+
+    private func removeText(id: UUID) {
+        textAnnotations.removeAll { $0.id == id }
+    }
+
+    private func setText(id: UUID, to text: String) {
+        guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
+        textAnnotations[idx].text = text
+    }
+
+    private func setOrigin(id: UUID, to point: CGPoint) {
+        guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
+        textAnnotations[idx].origin = point
     }
 
     // MARK: - Text annotation operations
 
     /// 在画布点 P 处创建一条新文字，并立即进入编辑态。
     /// 若已有编辑中的文字，先 endEditing（自动清理空文字）。
-    @discardableResult
-    func startNewText(at point: CGPoint) -> UUID {
+    func startNewText(at point: CGPoint) {
+        guard isEditable else { return }
         endEditing()
         let id = UUID()
         textAnnotations.append(TextAnnotation(
@@ -227,52 +313,84 @@ final class EditorState {
             fontSize: Thickness.textFontSize(thicknessIndex)
         ))
         editingTextID = id
-        return id
+        editingIsCreate = true
+        editingBeforeText = nil
     }
 
     func updateText(id: UUID, text: String) {
+        guard isEditable else { return }
         guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
         textAnnotations[idx].text = text
     }
 
     func moveText(id: UUID, to point: CGPoint) {
+        guard isEditable else { return }
         guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
         textAnnotations[idx].origin = point
     }
 
+    /// 一次拖动 begin→end 提交一条 `.textMove`（M09-04）。拖动途中的连续
+    /// `moveText` 只更新渲染位置、不入 history；无位移不提交。
+    func commitTextMove(id: UUID, from: CGPoint, to: CGPoint) {
+        guard isEditable, from != to else { return }
+        pushUndo(.textMove(id: id, from: from, to: to))
+    }
+
     func enterEditing(id: UUID) {
+        guard isEditable else { return }
         // 切换编辑态前先 end 之前的（若有），保证同时只有一条编辑中
         endEditing()
         editingTextID = id
+        editingIsCreate = false
+        editingBeforeText = textAnnotations.first(where: { $0.id == id })?.text ?? ""
     }
 
-    /// 结束当前编辑：若文字内容为空则丢弃整条标注（用户单击但未输入）。
+    /// 结束当前编辑并提交一条 history 事务（M09-04）：新建为空→丢弃且无 entry；
+    /// 新建非空→一条 `.textCreate`；已有文字内容变化→一条 `.textEdit(before, after)`。
     func endEditing() {
         guard let id = editingTextID else { return }
         editingTextID = nil
-        if let idx = textAnnotations.firstIndex(where: { $0.id == id }),
-           textAnnotations[idx].text.isEmpty {
-            textAnnotations.remove(at: idx)
+        let isCreate = editingIsCreate
+        let before = editingBeforeText
+        editingIsCreate = false
+        editingBeforeText = nil
+        guard let idx = textAnnotations.firstIndex(where: { $0.id == id }) else { return }
+        let current = textAnnotations[idx].text
+        if isCreate {
+            if current.isEmpty {
+                textAnnotations.remove(at: idx)
+            } else {
+                pushUndo(.textCreate(textAnnotations[idx]))
+            }
+        } else if let before, before != current {
+            pushUndo(.textEdit(id: id, before: before, after: current))
         }
     }
 
-    // MARK: - Pixellate baseline
+    // MARK: - Delivery state
 
-    private static let pixellateScale: Double = 16
-
-    private static func makePixellated(_ source: CGImage) -> CGImage {
-        let ciImage = CIImage(cgImage: source)
-        let filter = CIFilter.pixellate()
-        filter.inputImage = ciImage
-        filter.scale = Float(pixellateScale)
-        filter.center = CGPoint(x: source.width / 2, y: source.height / 2)
-        let context = CIContext(options: nil)
-        guard let output = filter.outputImage,
-              let cg = context.createCGImage(output, from: ciImage.extent) else {
-            return source  // 回退：fallback 用原图（视觉退化但不崩）
-        }
-        return cg
+    func beginDelivery() -> Bool {
+        guard deliveryPhase == .editing else { return false }
+        endEditing()
+        drafting = nil
+        deliveryPhase = .delivering
+        return true
     }
+
+    func enterRecovery() {
+        deliveryPhase = .recovery
+    }
+
+    func beginRetry() -> Bool {
+        guard deliveryPhase == .recovery else { return false }
+        deliveryPhase = .retrying
+        return true
+    }
+
+    func returnToEditing() {
+        deliveryPhase = .editing
+    }
+
 }
 
 // MARK: - TextAnnotation (CH-E5)

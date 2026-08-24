@@ -130,7 +130,11 @@ struct TextAnnotationView: View {
                 // .task 触发时 NSTextField 可能还没完成 first responder attach。
                 // 50ms 是「NSTextField attach 完毕」+「用户感知不到延迟」的甜点。
                 if state.editingTextID == annotation.id {
-                    try? await Task.sleep(for: .milliseconds(50))
+                    do {
+                        try await Task.sleep(for: .milliseconds(50))
+                    } catch {
+                        return  // view-owned task cancelled (id changed / view gone)
+                    }
                     if state.editingTextID == annotation.id {
                         isFocused = true
                     }
@@ -180,6 +184,10 @@ struct TextAnnotationView: View {
                 state.moveText(id: annotation.id, to: CGPoint(x: start.x + dx, y: start.y + dy))
             }
             .onEnded { _ in
+                if let start = dragOriginAtStart,
+                   let current = state.textAnnotations.first(where: { $0.id == annotation.id })?.origin {
+                    state.commitTextMove(id: annotation.id, from: start, to: current)
+                }
                 dragOriginAtStart = nil
                 isDragging = false
                 NSCursor.openHand.set()

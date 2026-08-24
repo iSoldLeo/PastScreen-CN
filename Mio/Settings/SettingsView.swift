@@ -8,37 +8,73 @@
 //  / LabeledContent / Button) and system semantic colors. Light/dark mode
 //  adaptation is automatic via system tint.
 //
-//  Two independent hotkeys (window capture / full-screen) are configured
-//  here. Each hotkey row exposes a clear-shortcut button that puts the
-//  hotkey into `HotKey.unset` state — replaces the legacy single-toggle
-//  "enable global hotkey" approach with per-shortcut control.
+//  Shortcut rows consume module 02's shared recorder and never own event
+//  monitors, persistence, or Carbon registrations themselves.
 //
 
 import SwiftUI
 import AppKit
-import Combine
 
 // MARK: - Settings root
 
 struct SettingsView: View {
-    @EnvironmentObject var general: GeneralSettings
-    @EnvironmentObject var hotkey: HotKeySettings
+    @EnvironmentObject var launchAtLogin: LaunchAtLoginController
     @EnvironmentObject var capture: CaptureSettings
+    @EnvironmentObject var saveFolderAccess: SaveFolderAccess
+
+    @ObservedObject private var shortcutStore: ShortcutStore
+    @ObservedObject private var shortcutService: GlobalShortcutService
+    private let shortcutFormatter: ShortcutLabelFormatter
+    private let presentOnboarding: @MainActor () -> Void
+    @State private var folderSelectionID: SaveFolderSelectionID?
+
+    init(
+        shortcutStore: ShortcutStore,
+        shortcutService: GlobalShortcutService,
+        shortcutFormatter: ShortcutLabelFormatter,
+        presentOnboarding: @escaping @MainActor () -> Void
+    ) {
+        _shortcutStore = ObservedObject(wrappedValue: shortcutStore)
+        _shortcutService = ObservedObject(wrappedValue: shortcutService)
+        self.shortcutFormatter = shortcutFormatter
+        self.presentOnboarding = presentOnboarding
+    }
+
+    /// Login Item toggle binding: reads the controller's derived on-state,
+    /// writes go through the single-flight async `setEnabled`.
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchAtLogin.isOn },
+            set: { newValue in Task { await launchAtLogin.setEnabled(newValue) } }
+        )
+    }
 
     var body: some View {
         Form {
             // MARK: 通用
             Section {
                 LabeledContent("settings.hotkey.window_capture") {
-                    HotKeyRecorderView(hotkey: $hotkey.windowCaptureHotkey)
+                    recorder(for: .windowCapture)
                 }
                 LabeledContent("settings.hotkey.advanced_window_capture") {
-                    HotKeyRecorderView(hotkey: $hotkey.advancedWindowCaptureHotkey)
+                    recorder(for: .advancedWindowCapture)
                 }
                 LabeledContent("settings.hotkey.full_screen") {
-                    HotKeyRecorderView(hotkey: $hotkey.fullScreenHotkey)
+                    recorder(for: .fullScreenCapture)
                 }
-                Toggle("settings.launch_at_login", isOn: $general.launchAtLogin)
+                Toggle("settings.launch_at_login", isOn: launchAtLoginBinding)
+                    .disabled(launchAtLogin.isChanging)
+                if launchAtLogin.showsApprovalAction {
+                    Button("settings.launch_at_login.open_settings") {
+                        _ = launchAtLogin.openSystemSettings()
+                    }
+                    .buttonStyle(.link)
+                }
+                if launchAtLogin.isFailed {
+                    Text("settings.launch_at_login.change_failed")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 Toggle("settings.play_sound_on_capture", isOn: $capture.playSoundOnCapture)
             } header: {
                 Text("settings.section.general")
@@ -53,7 +89,7 @@ struct SettingsView: View {
                 LabeledContent("settings.frame.signature") {
                     TextField(
                         "",
-                        text: $capture.captureFrameCustomText,
+                        text: captureFrameSignatureBinding,
                         prompt: capture.captureFrameCustomText.isEmpty
                             ? Text("settings.frame.signature.placeholder")
                             : nil
@@ -62,12 +98,6 @@ struct SettingsView: View {
                     .multilineTextAlignment(.trailing)
                     .foregroundStyle(.tint)
                     .disabled(!capture.captureFrameEnabled)
-                    .onChange(of: capture.captureFrameCustomText) { _, newValue in
-                        // 40 字符上限（spec §3.5）。超出立即截断。
-                        if newValue.count > 40 {
-                            capture.captureFrameCustomText = String(newValue.prefix(40))
-                        }
-                    }
                 }
 
                 Picker(selection: $capture.captureFrameTheme) {
@@ -102,6 +132,14 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .disabled(folderSelectionDisabled)
+
+                if let notice = folderSelectionNotice {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 // 只在真的会写盘时才有意义——saveToFile 关掉时截图只进剪贴板，
                 // 归档开关无处施力，disable 掉比留着可点更诚实。
@@ -177,130 +215,77 @@ struct SettingsView: View {
     private func selectSaveFolder() {
         // Bring app to front so NSOpenPanel attaches as expected.
         NSApp.activate(ignoringOtherApps: true)
-        if let newPath = capture.selectFolder() {
-            capture.saveFolderPath = newPath
+        if let operationID = saveFolderAccess.chooseFolder(source: .settings) {
+            folderSelectionID = operationID
         }
     }
 
     private func showOnboarding() {
         NSApp.activate(ignoringOtherApps: true)
-        OnboardingPresenter.shared.show()
+        presentOnboarding()
+    }
+
+    private func recorder(for action: ShortcutAction) -> some View {
+        ShortcutRecorderView(
+            action: action,
+            host: .settings,
+            style: .settings,
+            store: shortcutStore,
+            service: shortcutService,
+            formatter: shortcutFormatter
+        )
     }
 
     // MARK: Derived
 
     private var folderDisplayName: String {
-        if capture.saveFolderPath.isEmpty {
-            // Returns `String`, so callers use Text's non-localizing overload —
-            // the lookup has to happen here.
-            return NSLocalizedString("settings.storage.folder_placeholder", comment: "Storage row label when no folder is chosen yet")
+        switch saveFolderAccess.state {
+        case let .ready(displayName):
+            displayName
+        case .restoring:
+            NSLocalizedString("settings.storage.folder_restoring", comment: "Restoring save folder access")
+        case .selecting:
+            NSLocalizedString("settings.storage.folder_selecting", comment: "Selecting a save folder")
+        case .needsSelection:
+            NSLocalizedString("settings.storage.folder_reselect", comment: "Save folder must be selected again")
+        case .notSelected:
+            NSLocalizedString("settings.storage.folder_placeholder", comment: "Storage row label when no folder is chosen yet")
+        case .stopped:
+            NSLocalizedString("settings.storage.folder_unavailable", comment: "Save folder service is unavailable")
         }
-        let url = URL(fileURLWithPath: capture.saveFolderPath)
-        return url.lastPathComponent.isEmpty ? capture.saveFolderPath : url.lastPathComponent
+    }
+
+    private var folderSelectionDisabled: Bool {
+        switch saveFolderAccess.state {
+        case .selecting, .stopped:
+            true
+        case .notSelected, .restoring, .ready, .needsSelection:
+            false
+        }
+    }
+
+    private var folderSelectionNotice: LocalizedStringKey? {
+        guard
+            let completion = saveFolderAccess.selectionCompletion,
+            completion.id == folderSelectionID,
+            completion.source == .settings,
+            case let .failed(_, retainedPrevious) = completion.result
+        else {
+            return nil
+        }
+        return retainedPrevious
+            ? "settings.storage.selection_failed_retained"
+            : "settings.storage.selection_failed"
+    }
+
+    private var captureFrameSignatureBinding: Binding<String> {
+        Binding(
+            get: { capture.captureFrameCustomText },
+            set: { capture.setCaptureFrameCustomText($0) }
+        )
     }
 
     private var versionString: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-    }
-}
-
-// MARK: - Hotkey recorder
-
-struct HotKeyRecorderView: View {
-    @Binding var hotkey: HotKey
-    @State private var isRecording = false
-    @State private var localMonitor: Any?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if isRecording {
-                Text("settings.hotkey.press_prompt")
-                    .foregroundStyle(.secondary)
-            } else if hotkey.isUnset {
-                Text("settings.hotkey.unset")
-                    .foregroundStyle(.secondary)
-            } else {
-                Text(hotkey.symbolDisplayString)
-                    .font(.body.monospaced())
-            }
-
-            Button(isRecording ? LocalizedStringKey("common.cancel") : LocalizedStringKey("common.change")) {
-                if isRecording {
-                    stopRecording()
-                } else {
-                    startRecording()
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            // Clear button — hidden (zero opacity, layout preserved) when
-            // already unset or actively recording. `.opacity(0)` instead
-            // of `if`-omission keeps the recorder row height stable
-            // across the three states (recording / unset / set).
-            Button {
-                hotkey = .unset
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .opacity(hotkey.isUnset || isRecording ? 0 : 1)
-            .disabled(hotkey.isUnset || isRecording)
-            .help("settings.hotkey.clear")
-        }
-        .onDisappear {
-            stopRecording()
-        }
-    }
-
-    private func startRecording() {
-        guard localMonitor == nil else { return }
-
-        isRecording = true
-        HotKeyManager.shared.setRecordingHotKey(true)
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // SAFETY: addLocalMonitorForEvents always delivers on the main thread.
-            MainActor.assumeIsolated {
-                let modifiers = HotKey.normalizedModifiers(event.modifierFlags)
-                let characters = event.charactersIgnoringModifiers?.lowercased()
-                hotkey = HotKey(keyCode: event.keyCode, modifiers: modifiers.rawValue, characters: characters)
-                stopRecording()
-            }
-            return nil
-        }
-    }
-
-    private func stopRecording() {
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
-        }
-        isRecording = false
-        HotKeyManager.shared.setRecordingHotKey(false)
-    }
-}
-
-extension HotKey {
-    var symbolDisplayString: String {
-        var parts: [String] = []
-        if modifierFlags.contains(.control) { parts.append("⌃") }
-        if modifierFlags.contains(.option) { parts.append("⌥") }
-        if modifierFlags.contains(.shift) { parts.append("⇧") }
-        if modifierFlags.contains(.command) { parts.append("⌘") }
-        parts.append(displayKey)
-        return parts.joined()
-    }
-}
-
-// MARK: - Preview
-
-struct SettingsView_Previews: PreviewProvider {
-    static var previews: some View {
-        SettingsView()
-            .environmentObject(AppSettings.shared.general)
-            .environmentObject(AppSettings.shared.hotkey)
-            .environmentObject(AppSettings.shared.capture)
     }
 }

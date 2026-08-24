@@ -2,19 +2,15 @@
 //  CaptureSettings.swift
 //  Mio
 //
-//  Capture-pipeline-scoped settings: where to save, whether to play the
-//  camera shutter sound. Owns the security-scoped bookmark store because
-//  the bookmark is bound to `saveFolderPath` semantically.
+//  Module 10's only owner for ordinary capture preferences. Folder
+//  authorization is intentionally owned by SaveFolderAccess instead.
 //
 
-import Foundation
-import SwiftUI
 import Combine
+import Foundation
+import OSLog
 
-/// 画框输出主题（capture-frame-spec.md v2.1 §4.3）。
-///
-/// `.auto` 在渲染时（CaptureCoordinator）解析为 `.light` 或 `.dark`——
-/// 读 NSAppearance 是 main-actor 操作，不能在 nonisolated FrameRenderer 里做。
+/// 画框输出主题。`.auto` 保持语义值，直到真正构造最终渲染请求时才解析。
 nonisolated enum CaptureFrameTheme: String, Codable, CaseIterable, Sendable, Identifiable {
     case auto
     case alwaysLight
@@ -31,122 +27,135 @@ nonisolated enum CaptureFrameTheme: String, Codable, CaseIterable, Sendable, Ide
     }
 }
 
+nonisolated struct CaptureFramePreference: Sendable, Equatable {
+    let isEnabled: Bool
+    let signature: String
+    let theme: CaptureFrameTheme
+}
+
+/// Frozen once when a capture command is accepted. Folder authorization is
+/// deliberately absent: every file operation resolves the current bookmark.
+nonisolated struct CapturePreferencesSnapshot: Sendable, Equatable {
+    let playSoundOnCapture: Bool
+    let saveToFile: Bool
+    let organizeByMonth: Bool
+    let frame: CaptureFramePreference
+}
+
 @MainActor
 final class CaptureSettings: ObservableObject {
-
-    /// Owns the security-scoped bookmark for the save folder and the
-    /// NSOpenPanel modal. CaptureSettings persists the folder *path*; the
-    /// store persists the *access grant*.
-    private let bookmarkStore = SaveFolderBookmarkStore()
-
-    @Published var saveFolderPath: String {
-        didSet {
-            UserDefaults.standard.set(saveFolderPath, forKey: SettingsKeys.saveFolderPath)
-            ensureFolderExists()
-        }
+    private enum Keys {
+        static let playSoundOnCapture = "playSoundOnCapture"
+        static let saveToFile = "saveToFile"
+        static let organizeByMonth = "organizeByMonth"
+        static let captureFrameEnabled = "captureFrameEnabled"
+        static let captureFrameCustomText = "captureFrameCustomText"
+        static let captureFrameTheme = "captureFrameTheme"
     }
+
+    private static let signatureLimit = 40
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.iSoldLeo.Mio",
+        category: "Settings.Capture"
+    )
+    private let defaults: UserDefaults
 
     @Published var playSoundOnCapture: Bool {
         didSet {
-            UserDefaults.standard.set(playSoundOnCapture, forKey: SettingsKeys.playSoundOnCapture)
+            persistIfChanged(
+                playSoundOnCapture,
+                oldValue: oldValue,
+                key: Keys.playSoundOnCapture,
+                field: "play_sound"
+            )
         }
     }
 
-    /// When false, captures are copied to the clipboard only and never
-    /// written to disk — useful for "throwaway" screenshots aimed at AI
-    /// chat / messaging where the file would be deleted right after.
-    /// Defaults to `true` so existing users see no behavioural change
-    /// after this setting is reintroduced.
     @Published var saveToFile: Bool {
-        didSet {
-            UserDefaults.standard.set(saveToFile, forKey: SettingsKeys.saveToFile)
-        }
+        didSet { persistIfChanged(saveToFile, oldValue: oldValue, key: Keys.saveToFile, field: "save_to_file") }
     }
 
-    /// 按年月归档：写盘时落到 `<saveFolder>/YYYY/MM/` 而不是根目录。
-    ///
-    /// 默认 `false`，沿用画框（PRODUCT.md §9.5）的先例——影响输出行为的新功能
-    /// 一律 opt-in，已发布版本的用户不会发现文件突然换了位置。
-    ///
-    /// 关掉之后新截图回到根目录；已经归档进子目录的旧文件不动（不做回迁，
-    /// 移动用户文件超出截图工具的职责范围）。
     @Published var organizeByMonth: Bool {
-        didSet {
-            UserDefaults.standard.set(organizeByMonth, forKey: SettingsKeys.organizeByMonth)
-        }
+        didSet { persistIfChanged(organizeByMonth, oldValue: oldValue, key: Keys.organizeByMonth, field: "organize_by_month") }
     }
 
-    // MARK: - 画框输出（v6 新增，spec capture-frame-spec.md v2.1）
-
-    /// 是否给窗口截图（路径 A 直出 / 路径 D 编辑器 finish）套画框。默认 false。
-    /// onboarding 完成后引导首次开启。
     @Published var captureFrameEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(captureFrameEnabled, forKey: SettingsKeys.captureFrameEnabled)
-        }
+        didSet { persistIfChanged(captureFrameEnabled, oldValue: oldValue, key: Keys.captureFrameEnabled, field: "frame_enabled") }
     }
 
-    /// 用户自定义签名（footer 右下显示）。空字符串则不显示。最多 40 字符，
-    /// 超出由 FrameRenderer 自动截断 + 省略号。
-    @Published var captureFrameCustomText: String {
-        didSet {
-            UserDefaults.standard.set(captureFrameCustomText, forKey: SettingsKeys.captureFrameCustomText)
-        }
-    }
+    @Published private(set) var captureFrameCustomText: String
 
-    /// 画框主题。.auto = 跟随系统外观（渲染时绑定，与接收方设备无关）。
     @Published var captureFrameTheme: CaptureFrameTheme {
         didSet {
-            UserDefaults.standard.set(captureFrameTheme.rawValue, forKey: SettingsKeys.captureFrameTheme)
+            guard captureFrameTheme != oldValue else { return }
+            defaults.set(captureFrameTheme.rawValue, forKey: Keys.captureFrameTheme)
+            logChange(field: "frame_theme")
         }
     }
 
-    var hasValidBookmark: Bool { bookmarkStore.hasValidBookmark }
+    init(defaults: UserDefaults) {
+        let startedAt = ContinuousClock().now
+        self.defaults = defaults
+        self.playSoundOnCapture = defaults.object(forKey: Keys.playSoundOnCapture) as? Bool ?? true
+        self.saveToFile = defaults.object(forKey: Keys.saveToFile) as? Bool ?? true
+        self.organizeByMonth = defaults.object(forKey: Keys.organizeByMonth) as? Bool ?? false
+        self.captureFrameEnabled = defaults.object(forKey: Keys.captureFrameEnabled) as? Bool ?? false
 
-    /// True when both a folder path and a valid security-scoped bookmark are
-    /// available (App Store compliance — Apple guideline 2.4.5(i)).
-    var hasValidSaveFolder: Bool {
-        !saveFolderPath.isEmpty && hasValidBookmark
+        let storedSignature = defaults.string(forKey: Keys.captureFrameCustomText) ?? ""
+        self.captureFrameCustomText = Self.canonicalSignature(storedSignature)
+
+        let storedTheme = defaults.string(forKey: Keys.captureFrameTheme)
+        self.captureFrameTheme = storedTheme.flatMap(CaptureFrameTheme.init(rawValue:)) ?? .auto
+        // Load-time canonicalization is intentionally in-memory only. Unknown
+        // historical raw values and overlong text are not overwritten until a
+        // real user mutation occurs.
+        let correctedTheme = storedTheme.map { CaptureFrameTheme(rawValue: $0) == nil } ?? false
+        let correctedFieldCount = (storedSignature.count > Self.signatureLimit ? 1 : 0)
+            + (correctedTheme ? 1 : 0)
+        Self.logger.info(
+            "event=settings.capture.loaded corrected_field_count=\(correctedFieldCount, privacy: .public) duration_ms=\(Self.durationMilliseconds(since: startedAt), privacy: .public)"
+        )
     }
 
-    init() {
-        // No default path - user MUST select a folder via NSOpenPanel
-        // This complies with Apple guideline 2.4.5(i) - user-accessible storage
-        self.saveFolderPath = UserDefaults.standard.string(forKey: SettingsKeys.saveFolderPath) ?? ""
-
-        self.playSoundOnCapture = UserDefaults.standard.object(forKey: SettingsKeys.playSoundOnCapture) as? Bool ?? true
-        self.saveToFile = UserDefaults.standard.object(forKey: SettingsKeys.saveToFile) as? Bool ?? true
-        self.organizeByMonth = UserDefaults.standard.object(forKey: SettingsKeys.organizeByMonth) as? Bool ?? false
-
-        self.captureFrameEnabled = UserDefaults.standard.object(forKey: SettingsKeys.captureFrameEnabled) as? Bool ?? false
-        self.captureFrameCustomText = UserDefaults.standard.string(forKey: SettingsKeys.captureFrameCustomText) ?? ""
-        let storedTheme = UserDefaults.standard.string(forKey: SettingsKeys.captureFrameTheme)
-            ?? CaptureFrameTheme.auto.rawValue
-        self.captureFrameTheme = CaptureFrameTheme(rawValue: storedTheme) ?? .auto
-
-        // Restore the security-scoped bookmark off the main actor, then
-        // re-create the configured folder once access is armed. The
-        // detached task lives inside `bookmarkStore.restoreFolderAccess()`;
-        // we await its result here on the main actor to chain
-        // `ensureFolderExists`.
-        //
-        // Known limitation: this task is fire-and-forget — the first
-        // capture can still race with bookmark resolution if it triggers
-        // before this completes. File output silently fails in that
-        // window. Functional fix is out of scope for the settings layer.
-        Task { [bookmarkStore] in
-            await bookmarkStore.restoreFolderAccess()
-            self.ensureFolderExists()
-        }
+    func snapshot() -> CapturePreferencesSnapshot {
+        CapturePreferencesSnapshot(
+            playSoundOnCapture: playSoundOnCapture,
+            saveToFile: saveToFile,
+            organizeByMonth: organizeByMonth,
+            frame: CaptureFramePreference(
+                isEnabled: captureFrameEnabled,
+                signature: Self.canonicalSignature(captureFrameCustomText),
+                theme: captureFrameTheme
+            )
+        )
     }
 
-    /// Opens NSOpenPanel; returns the chosen path with a trailing slash
-    /// (caller is expected to assign to `saveFolderPath`).
-    func selectFolder() -> String? {
-        bookmarkStore.selectFolder()
+    func setCaptureFrameCustomText(_ value: String) {
+        let canonical = Self.canonicalSignature(value)
+        guard canonical != captureFrameCustomText else { return }
+        captureFrameCustomText = canonical
+        defaults.set(canonical, forKey: Keys.captureFrameCustomText)
+        logChange(field: "frame_signature")
     }
 
-    private func ensureFolderExists() {
-        bookmarkStore.ensureFolderExists(at: saveFolderPath)
+    private func persistIfChanged(_ value: Bool, oldValue: Bool, key: String, field: StaticString) {
+        guard value != oldValue else { return }
+        defaults.set(value, forKey: key)
+        logChange(field: field)
+    }
+
+    private static func canonicalSignature(_ value: String) -> String {
+        String(value.prefix(signatureLimit))
+    }
+
+    private func logChange(field: StaticString) {
+        Self.logger.info(
+            "event=settings.capture.changed field=\(field, privacy: .public) result=persisted"
+        )
+    }
+
+    private static func durationMilliseconds(since start: ContinuousClock.Instant) -> Int64 {
+        let components = start.duration(to: ContinuousClock().now).components
+        return components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
     }
 }

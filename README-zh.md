@@ -5,7 +5,7 @@
 <p>
   <a href="https://github.com/iSoldLeo/Mio/releases/latest"><b>下载&nbsp;Mio</b></a> &nbsp;·&nbsp; <a href="README.md">English</a> &nbsp;·&nbsp; <a href="LICENSE/GPL-3.0%20license">License</a>
 </p>
-<p><sub>需要 macOS 15+ · Apple Silicon</sub></p>
+<p><sub>需要 macOS 15+ · Apple Silicon · 液态玻璃需 macOS 26+</sub></p>
 <p><sub><b>Swift 6.3</b> &nbsp;·&nbsp; <b>SwiftUI · ScreenCaptureKit</b> &nbsp;·&nbsp; <b>离线运行</b> &nbsp;·&nbsp; <b>约 5&nbsp;MB</b> &nbsp;·&nbsp; <b>中&nbsp;/&nbsp;EN&nbsp;/&nbsp;日&nbsp;/&nbsp;FR&nbsp;/&nbsp;DE</b></sub></p>
 </div>
 
@@ -76,8 +76,7 @@ Mio 完全在你的 Mac 上运行。截图进剪贴板，如果你开启了「�
 开发者 · [iSoldLeo](https://github.com/iSoldLeo) · [MeowLynxSea](https://github.com/MeowLynxSea) &nbsp;·&nbsp;
 源码 · [github.com/iSoldLeo/Mio](https://github.com/iSoldLeo/Mio) &nbsp;·&nbsp;
 反馈 · [报告问题](https://github.com/iSoldLeo/Mio/issues) &nbsp;·&nbsp;
-许可证 · [GPL-3.0](LICENSE/GPL-3.0%20license) &nbsp;·&nbsp;
-感谢 · [Linux.do 社区](https://linux.do/)
+许可证 · [GPL-3.0](LICENSE/GPL-3.0%20license)
 
 <details>
 <summary>从源码构建</summary>

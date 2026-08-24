@@ -17,25 +17,36 @@ struct EditorView: View {
     @State private var state: EditorState
 
     let onCancel: () -> Void
-    let onFinish: (CGImage) -> Void
+    let onFinish: () -> Void
+    let onRetryDelivery: () -> Void
+    let onRequestMosaic: () -> Void
+    let onRequestColorSampling: () -> Void
 
     init(
-        image: CaptureImage,
+        state: EditorState,
         onCancel: @escaping () -> Void,
-        onFinish: @escaping (CGImage) -> Void
+        onFinish: @escaping () -> Void,
+        onRetryDelivery: @escaping () -> Void,
+        onRequestMosaic: @escaping () -> Void,
+        onRequestColorSampling: @escaping () -> Void
     ) {
-        self._state = State(initialValue: EditorState(image: image))
+        self._state = State(initialValue: state)
         self.onCancel = onCancel
         self.onFinish = onFinish
+        self.onRetryDelivery = onRetryDelivery
+        self.onRequestMosaic = onRequestMosaic
+        self.onRequestColorSampling = onRequestColorSampling
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            EditorToolbar(state: state)
+            EditorToolbar(state: state, onRequestColorSampling: onRequestColorSampling)
+                .disabled(!state.isEditable)
             canvasArea
                 // 禁掉画布区的隐式动画（commands 增减、drafting 更新时不做溶解过渡），
                 // 但保留工具栏区域的动画能力（工具切换 / 颜色组 slide）。
                 .transaction { $0.animation = nil }
+                .allowsHitTesting(state.isEditable)
             footerBar
         }
         // SwiftUI fitting size 兜底 760×760：让 TextField 进/退编辑时的内部
@@ -73,6 +84,10 @@ struct EditorView: View {
                         imageRectOrigin: imageRect.origin
                     )
                 }
+
+                if state.tool == .mosaic {
+                    mosaicStatusOverlay
+                }
             }
             .contentShape(Rectangle())
             .gesture(toolGesture(canvasSize: proxy.size))
@@ -98,6 +113,10 @@ struct EditorView: View {
             // 这里通过 onChange 主动重 set。如果鼠标不在画布，set 也无害——
             // SwiftUI / AppKit 下次 hover 任何 cursor rect 时会自动覆盖。
             .onChange(of: state.tool) { _, _ in
+                guard state.isEditable else { return }
+                if state.tool == .mosaic {
+                    onRequestMosaic()
+                }
                 EditorCursor.cursor(
                     for: state.tool,
                     thickness: state.thicknessIndex,
@@ -105,6 +124,7 @@ struct EditorView: View {
                 ).set()
             }
             .onChange(of: state.thicknessIndex) { _, _ in
+                guard state.isEditable else { return }
                 guard state.tool == .mosaic else { return }
                 EditorCursor.cursor(
                     for: state.tool,
@@ -120,7 +140,7 @@ struct EditorView: View {
     }
 
     /// 注释层 Canvas — 命令时间序 + drafting。
-    /// 命令存的是「源图 point 空间」坐标（与 FinalRenderer 一致）。Canvas 通过
+    /// 命令存的是「源图 point 空间」坐标（与最终合成一致）。Canvas 通过
     /// translate + scale 把源图坐标系映射到 imageRect 显示区域。
     private func annotationCanvas(in canvasSize: CGSize) -> some View {
         let imageRect = imageDisplayRect(in: canvasSize)
@@ -140,7 +160,7 @@ struct EditorView: View {
                 CommandRenderer.draw(
                     cmd,
                     in: &ctx,
-                    fullPixelated: state.fullPixelated,
+                    pixelatedSource: state.pixelatedSource,
                     canvasSize: imgSize
                 )
             }
@@ -148,7 +168,7 @@ struct EditorView: View {
                 CommandRenderer.draw(
                     drafting,
                     in: &ctx,
-                    fullPixelated: state.fullPixelated,
+                    pixelatedSource: state.pixelatedSource,
                     canvasSize: imgSize
                 )
             }
@@ -161,13 +181,29 @@ struct EditorView: View {
             Spacer()
             Button("common.cancel", role: .cancel, action: onCancel)
                 .keyboardShortcut(.cancelAction)
-            Button("common.done") {
-                if let final = FinalRenderer.render(state: state) {
-                    onFinish(final)
+            if state.deliveryPhase.showsRetry {
+                Button("editor.delivery.retry", action: onRetryDelivery)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button {
+                    guard state.isEditable else { return }
+                    onFinish()
+                } label: {
+                    if state.deliveryPhase.isBusy {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("common.done")
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(
+                    !state.isEditable
+                    || (state.hasMosaicCommands && !state.isMosaicReady)
+                )
             }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -186,7 +222,9 @@ struct EditorView: View {
         let imageRect = imageDisplayRect(in: canvasSize)
         return DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
+                guard state.isEditable else { return }
                 guard state.tool != .text else { return }  // text 工具不走 drafting
+                guard state.tool != .mosaic || state.isMosaicReady else { return }
                 let start = imagePoint(value.startLocation, in: imageRect)
                 let current = imagePoint(value.location, in: imageRect)
                 state.drafting = makeDraft(
@@ -196,6 +234,14 @@ struct EditorView: View {
                 )
             }
             .onEnded { value in
+                guard state.isEditable else {
+                    state.drafting = nil
+                    return
+                }
+                guard state.tool != .mosaic || state.isMosaicReady else {
+                    state.drafting = nil
+                    return
+                }
                 let start = imagePoint(value.startLocation, in: imageRect)
                 let end = imagePoint(value.location, in: imageRect)
                 if state.tool == .text {
@@ -209,10 +255,35 @@ struct EditorView: View {
             }
     }
 
+    @ViewBuilder
+    private var mosaicStatusOverlay: some View {
+        switch state.mosaicPhase {
+        case .idle:
+            EmptyView()
+        case .preparing:
+            Label("editor.mosaic.preparing", systemImage: "hourglass")
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: Capsule())
+                .accessibilityAddTraits(.updatesFrequently)
+        case .ready:
+            EmptyView()
+        case .failed:
+            VStack(spacing: 8) {
+                Label("editor.mosaic.failed", systemImage: "exclamationmark.triangle")
+                Button("editor.mosaic.retry", action: onRequestMosaic)
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding(14)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
     /// .text 工具 mouseUp 处理：若已经在编辑某条文字 → 视为「点外面」结束编辑；
     /// 否则在落点创建新文字 + 进编辑（落点已被 TextAnnotationView 截获时此回调
     /// 不会被父级触发，所以「不在已有文字框内」自动满足）。
     private func handleTextToolClick(at point: CGPoint) {
+        guard state.isEditable else { return }
         if state.editingTextID != nil {
             // TextField 失焦会自动触发 endEditing；这里兜底（用户从 .text 工具
             // 切到别的工具时 editing 会通过别的路径退出）
@@ -226,7 +297,7 @@ struct EditorView: View {
     /// 把 GeometryReader 坐标转换到「源图 point 空间」：
     /// 1. 减去 imageRect.origin 得到 imageRect 局部坐标（display 空间）
     /// 2. 除以 imageRect 与源图的比例（display → source point）
-    /// 命令统一存源图 point 空间，与 FinalRenderer 合成时使用的坐标系一致。
+    /// 命令统一存源图 point 空间，与 EditorCompositeRenderer 合成时使用的坐标系一致。
     private func imagePoint(_ point: CGPoint, in imageRect: CGRect) -> CGPoint {
         let imgSize = state.original.size
         guard imageRect.width > 0, imgSize.width > 0 else { return .zero }

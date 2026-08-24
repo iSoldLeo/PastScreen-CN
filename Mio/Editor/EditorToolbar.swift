@@ -15,6 +15,7 @@ import AppKit
 
 struct EditorToolbar: View {
     @Bindable var state: EditorState
+    let onRequestColorSampling: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -32,7 +33,7 @@ struct EditorToolbar: View {
             // 颜色 + 取色组：马赛克时整组滑左隐藏。
             // 用 .mask 限定可见区域到分隔线右侧—粗细按钮所在区域不会被颜色组
             // 滑动时穿过。.transition(.move(edge: .leading)) 让进出从左缘开始。
-            ColorGroup(state: state)
+            ColorGroup(state: state, onRequestColorSampling: onRequestColorSampling)
 
             Spacer(minLength: 16)
 
@@ -84,15 +85,6 @@ struct EditorToolbar: View {
         // 工具切换时给颜色组做 slide 动画
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state.tool == .mosaic)
     }
-
-    private func sampledSwiftUIColor(_ ref: ColorRef?) -> Color? {
-        switch ref {
-        case .sampled(let r, let g, let b, let a):
-            return Color(red: r, green: g, blue: b, opacity: a)
-        case .preset, nil:
-            return nil
-        }
-    }
 }
 
 // MARK: - 颜色 + 取色组
@@ -102,6 +94,7 @@ struct EditorToolbar: View {
 /// 越过分隔线侵入粗细按钮区域。
 private struct ColorGroup: View {
     @Bindable var state: EditorState
+    let onRequestColorSampling: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -124,12 +117,7 @@ private struct ColorGroup: View {
 
                 HStack(spacing: 4) {
                     EyedropperButton {
-                        Task {
-                            if let picked = await EyedropperService.pickColor() {
-                                state.sampledColor = picked
-                                state.usingSampled = true
-                            }
-                        }
+                        onRequestColorSampling()
                     }
                     SampledColorDot(
                         color: sampledSwiftUIColor(state.sampledColor),

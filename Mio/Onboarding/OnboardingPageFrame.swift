@@ -12,11 +12,11 @@
 //    · 下一步 = 接受引导 → captureFrameEnabled = true
 //    · 跳过   = 显式拒绝 → captureFrameEnabled = false
 //
-//  视觉路径（关键决策）：**直接调真 FrameRenderer.compose**,
+//  视觉路径（关键决策）：复用正式 ImageProcessor actor，
 //  不再用 SwiftUI 近似复刻。
 //    1. ImageRenderer 把一张内嵌"假窗口截图"渲染成带 alpha 圆角的 CGImage
 //       (一次性,@MainActor)
-//    2. 包成 CaptureImage,调 FrameRenderer.compose 得到带画框的 CGImage
+//    2. 包成 CaptureImage，提交 frame request 得到带画框的 CGImage
 //       (squircle / halo / footer 全部走真渲染管线)
 //    3. signature 改变 → 120ms debounce → 重合成 → Image(nsImage:) 显示
 //    4. 跟随系统外观切 light/dark
@@ -26,9 +26,8 @@
 //  spec §3.7 暗示视觉规约即契约,onboarding 引导和真实输出之间的
 //  视觉一致性是产品诚意。
 //
-//  性能:单次合成 10–30ms。封装在 nonisolated 静态函数里,await 时
-//  隐式 hop 出 MainActor 不阻塞 UI;不用 Task.detached(架构文档 §5.5
-//  明确该 API 仅用于必须切断 MainActor 继承的场景)。
+//  重位图工作通过 actor hop 离开 MainActor；page 持有 debounce/render 两个
+//  task handle 与 generation，换页或新请求都会取消旧工作。
 //
 
 import SwiftUI
@@ -37,6 +36,7 @@ import AppKit
 // MARK: - Page
 
 struct OnboardingPageFrame: View {
+    let imageProcessor: ImageProcessor
     @EnvironmentObject var capture: CaptureSettings
     @Environment(\.colorScheme) private var colorScheme
 
@@ -46,6 +46,9 @@ struct OnboardingPageFrame: View {
     @State private var composedImage: NSImage?
     /// signature 变化的 debounce task；新输入到来时取消旧 task。
     @State private var debounceTask: Task<Void, Never>?
+    /// Exactly one render operation belongs to this page instance.
+    @State private var renderTask: Task<Void, Never>?
+    @State private var renderGeneration: UInt64 = 0
     /// 上一次源图渲染时使用的 colorScheme。系统外观切换时需要重渲染源图。
     @State private var sourceColorScheme: ColorScheme?
 
@@ -56,7 +59,10 @@ struct OnboardingPageFrame: View {
         ) {
             FramePreviewStage(image: composedImage)
         } action: {
-            FrameSignatureField(text: $capture.captureFrameCustomText)
+            FrameSignatureField(text: Binding(
+                get: { capture.captureFrameCustomText },
+                set: { capture.setCaptureFrameCustomText($0) }
+            ))
         }
         .task {
             await initialRender()
@@ -77,6 +83,9 @@ struct OnboardingPageFrame: View {
         }
         .onDisappear {
             debounceTask?.cancel()
+            renderGeneration &+= 1
+            renderTask?.cancel()
+            renderTask = nil
         }
     }
 
@@ -96,21 +105,41 @@ struct OnboardingPageFrame: View {
     @MainActor
     private func recompose() {
         guard let source = sourceImage else { return }
-        let captureImage = CaptureImage(
-            cgImage: source,
-            scale: 2,
-            size: FakeWindowSampleSize.point
+        guard let captureImage = try? CaptureImage(validating: source, scale: 2) else {
+            composedImage = nil
+            return
+        }
+
+        renderGeneration &+= 1
+        let generation = renderGeneration
+        let correlationID = UUID()
+        let configuration = ResolvedFrameConfiguration(
+            theme: resolvedTheme(),
+            signature: capture.captureFrameCustomText
         )
-        let config = FrameRenderer.Configuration(
-            enabled: true,
-            customText: capture.captureFrameCustomText,
-            resolvedTheme: resolvedTheme()
-        )
-        Task {
-            // FrameRenderer.compose 是 nonisolated 纯函数,await 触发隐式 hop
-            // 出 MainActor,在 cooperative thread pool 跑,~10–30ms 不阻塞 UI。
-            let composed = await Self.performCompose(image: captureImage, config: config)
-            self.composedImage = composed
+        let processor = imageProcessor
+        renderTask?.cancel()
+        renderTask = Task(
+            name: "mio.onboarding.frame.\(correlationID.uuidString)",
+            priority: .userInitiated
+        ) { @MainActor in
+            do {
+                let result = try await processor.prepareImage(
+                    ImagePreparationRequest(
+                        correlationID: correlationID,
+                        source: captureImage,
+                        crop: nil,
+                        frame: .apply(configuration)
+                    )
+                )
+                guard !Task.isCancelled, renderGeneration == generation else { return }
+                composedImage = NSImage(cgImage: result.cgImage, size: result.size)
+                renderTask = nil
+            } catch {
+                guard renderGeneration == generation else { return }
+                composedImage = nil
+                renderTask = nil
+            }
         }
     }
 
@@ -128,25 +157,12 @@ struct OnboardingPageFrame: View {
     /// `.auto` 主题在 onboarding 里跟随当前系统外观——与 spec §4.3
     /// "渲染时绑定 NSAppearance" 的语义一致;这里用 SwiftUI colorScheme
     /// 作为 NSApp.effectiveAppearance 的代理。
-    private func resolvedTheme() -> FrameRenderer.Configuration.ResolvedTheme {
+    private func resolvedTheme() -> ResolvedFrameTheme {
         switch capture.captureFrameTheme {
         case .alwaysLight: return .light
         case .alwaysDark:  return .dark
         case .auto:        return colorScheme == .dark ? .dark : .light
         }
-    }
-
-    /// nonisolated 包装层,让 caller `await` 时隐式 hop 出 MainActor。
-    /// 入参 / 出参全 Sendable。
-    private nonisolated static func performCompose(
-        image: CaptureImage,
-        config: FrameRenderer.Configuration
-    ) async -> NSImage {
-        let composed = FrameRenderer.compose(image: image, config: config)
-        // NSImage 跨线程构造可行（构造期内不可见、不被读）。回到 main 后
-        // 赋给 @State 安全。
-        let nsImage = NSImage(cgImage: composed.cgImage, size: composed.size)
-        return nsImage
     }
 
     /// 用 ImageRenderer 把 SwiftUI 假窗口渲染成 @2x 带 alpha 圆角的 CGImage。
@@ -272,7 +288,7 @@ private struct FakeWindowSample: View {
 
 // MARK: - Preview stage
 
-/// 画框预览动画区。展示 FrameRenderer.compose 的真实输出。
+/// 画框预览动画区。展示正式 ImageProcessor 的真实输出。
 private struct FramePreviewStage: View {
     let image: NSImage?
 
@@ -309,8 +325,6 @@ private struct FramePreviewStage: View {
 private struct FrameSignatureField: View {
     @Binding var text: String
 
-    private static let maxLength = 40
-
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "signature")
@@ -321,11 +335,6 @@ private struct FrameSignatureField: View {
                 .textFieldStyle(.plain)
                 .font(.system(.body, design: .default))
                 .frame(minWidth: 220)
-                .onChange(of: text) { _, newValue in
-                    if newValue.count > Self.maxLength {
-                        text = String(newValue.prefix(Self.maxLength))
-                    }
-                }
 
             Button {
                 text = ""
@@ -348,12 +357,4 @@ private struct FrameSignatureField: View {
         }
         .frame(maxWidth: 360)
     }
-}
-
-// MARK: - Preview
-
-#Preview {
-    OnboardingPageFrame()
-        .environmentObject(AppSettings.shared.capture)
-        .frame(width: 720, height: 480)
 }

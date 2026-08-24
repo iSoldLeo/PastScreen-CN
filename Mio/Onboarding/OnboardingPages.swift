@@ -9,8 +9,9 @@
 //  动画用 SwiftUI .animation(.smooth, value: phase) 完成。整体 ~6 秒
 //  循环（参考你的设计稿）。
 //
-//  动画在 onAppear 启动，view 从 ZStack 切到 opacity=0 时通过 task 自然
-//  cancel——不需要手动停。
+//  动画由每页的 `.task` 启动；页面通过条件渲染装卸（翻页/关闭时整页移除），
+//  `.task` 随视图移除或 hosting tree teardown 自动取消——取消后立即停止，
+//  不再写后续 phase（见各 runLoop 的 do/catch）。
 //
 //  调试动画时序：把 phase 临时设成 @State + Stepper，逐 step 跳。
 //
@@ -20,7 +21,9 @@ import SwiftUI
 // MARK: - Page 1: F5 area + window capture
 
 struct OnboardingPageF5: View {
-    @EnvironmentObject var hotkeySettings: HotKeySettings
+    @EnvironmentObject var shortcutStore: ShortcutStore
+    @EnvironmentObject var shortcutService: GlobalShortcutService
+    let shortcutFormatter: ShortcutLabelFormatter
     @State private var phase: Int = 0
     // phase:
     //   0  桌面空闲
@@ -43,7 +46,14 @@ struct OnboardingPageF5: View {
         ) {
             stage
         } action: {
-            OnboardingHotkeyButton(hotkey: $hotkeySettings.windowCaptureHotkey)
+            ShortcutRecorderView(
+                action: .windowCapture,
+                host: .onboarding,
+                style: .onboarding,
+                store: shortcutStore,
+                service: shortcutService,
+                formatter: shortcutFormatter
+            )
         }
         .task {
             await runLoop()
@@ -197,32 +207,36 @@ struct OnboardingPageF5: View {
 
     private func runLoop() async {
         while !Task.isCancelled {
-            phase = 0
-            try? await Task.sleep(for: .milliseconds(800))
-            phase = 1
-            try? await Task.sleep(for: .milliseconds(900))
-            phase = 2
-            // 光标移动到拖拽起点需要 1.5s。这里必须长于光标动画，
-            // 否则还没落到起点，选区就已经开始被拉大了。
-            try? await Task.sleep(for: .milliseconds(1700))
-            phase = 3
-            try? await Task.sleep(for: .milliseconds(1700))
-            phase = 4
-            try? await Task.sleep(for: .milliseconds(1040))
-            phase = 5
-            try? await Task.sleep(for: .milliseconds(1900))
-            phase = 6
-            try? await Task.sleep(for: .milliseconds(840))
-            phase = 7
-            try? await Task.sleep(for: .milliseconds(1240))
-            phase = 8
-            try? await Task.sleep(for: .milliseconds(1240))
-            phase = 9
-            try? await Task.sleep(for: .milliseconds(360))
-            phase = 10
-            try? await Task.sleep(for: .milliseconds(1040))
-            phase = 11
-            try? await Task.sleep(for: .milliseconds(2600))
+            do {
+                phase = 0
+                try await Task.sleep(for: .milliseconds(800))
+                phase = 1
+                try await Task.sleep(for: .milliseconds(900))
+                phase = 2
+                // 光标移动到拖拽起点需要 1.5s。这里必须长于光标动画，
+                // 否则还没落到起点，选区就已经开始被拉大了。
+                try await Task.sleep(for: .milliseconds(1700))
+                phase = 3
+                try await Task.sleep(for: .milliseconds(1700))
+                phase = 4
+                try await Task.sleep(for: .milliseconds(1040))
+                phase = 5
+                try await Task.sleep(for: .milliseconds(1900))
+                phase = 6
+                try await Task.sleep(for: .milliseconds(840))
+                phase = 7
+                try await Task.sleep(for: .milliseconds(1240))
+                phase = 8
+                try await Task.sleep(for: .milliseconds(1240))
+                phase = 9
+                try await Task.sleep(for: .milliseconds(360))
+                phase = 10
+                try await Task.sleep(for: .milliseconds(1040))
+                phase = 11
+                try await Task.sleep(for: .milliseconds(2600))
+            } catch {
+                return   // 取消：立即停止，不再写后续 phase
+            }
         }
     }
 }
@@ -230,7 +244,9 @@ struct OnboardingPageF5: View {
 // MARK: - Page 2: F7 advanced (with editor)
 
 struct OnboardingPageF7: View {
-    @EnvironmentObject var hotkeySettings: HotKeySettings
+    @EnvironmentObject var shortcutStore: ShortcutStore
+    @EnvironmentObject var shortcutService: GlobalShortcutService
+    let shortcutFormatter: ShortcutLabelFormatter
     @State private var phase: Int = 0
     // phase:
     //   0 桌面
@@ -248,7 +264,14 @@ struct OnboardingPageF7: View {
         ) {
             stage
         } action: {
-            OnboardingHotkeyButton(hotkey: $hotkeySettings.advancedWindowCaptureHotkey)
+            ShortcutRecorderView(
+                action: .advancedWindowCapture,
+                host: .onboarding,
+                style: .onboarding,
+                store: shortcutStore,
+                service: shortcutService,
+                formatter: shortcutFormatter
+            )
         }
         .task { await runLoop() }
     }
@@ -291,20 +314,24 @@ struct OnboardingPageF7: View {
 
     private func runLoop() async {
         while !Task.isCancelled {
-            phase = 0
-            try? await Task.sleep(for: .milliseconds(500))
-            phase = 1
-            try? await Task.sleep(for: .milliseconds(900))
-            phase = 2
-            try? await Task.sleep(for: .milliseconds(700))
-            phase = 3
-            try? await Task.sleep(for: .milliseconds(800))
-            phase = 4
-            try? await Task.sleep(for: .milliseconds(900))
-            phase = 5
-            try? await Task.sleep(for: .milliseconds(1300))
-            phase = 6
-            try? await Task.sleep(for: .milliseconds(900))
+            do {
+                phase = 0
+                try await Task.sleep(for: .milliseconds(500))
+                phase = 1
+                try await Task.sleep(for: .milliseconds(900))
+                phase = 2
+                try await Task.sleep(for: .milliseconds(700))
+                phase = 3
+                try await Task.sleep(for: .milliseconds(800))
+                phase = 4
+                try await Task.sleep(for: .milliseconds(900))
+                phase = 5
+                try await Task.sleep(for: .milliseconds(1300))
+                phase = 6
+                try await Task.sleep(for: .milliseconds(900))
+            } catch {
+                return   // 取消：立即停止，不再写后续 phase
+            }
         }
     }
 }
@@ -461,7 +488,9 @@ private nonisolated struct ArrowShape: Shape {
 // MARK: - Page 3: F6 fullscreen
 
 struct OnboardingPageF6: View {
-    @EnvironmentObject var hotkeySettings: HotKeySettings
+    @EnvironmentObject var shortcutStore: ShortcutStore
+    @EnvironmentObject var shortcutService: GlobalShortcutService
+    let shortcutFormatter: ShortcutLabelFormatter
     @State private var phase: Int = 0
     // phase:
     //   0 桌面
@@ -476,7 +505,14 @@ struct OnboardingPageF6: View {
         ) {
             stage
         } action: {
-            OnboardingHotkeyButton(hotkey: $hotkeySettings.fullScreenHotkey)
+            ShortcutRecorderView(
+                action: .fullScreenCapture,
+                host: .onboarding,
+                style: .onboarding,
+                store: shortcutStore,
+                service: shortcutService,
+                formatter: shortcutFormatter
+            )
         }
         .task { await runLoop() }
     }
@@ -502,32 +538,18 @@ struct OnboardingPageF6: View {
 
     private func runLoop() async {
         while !Task.isCancelled {
-            phase = 0
-            try? await Task.sleep(for: .milliseconds(700))
-            phase = 1
-            try? await Task.sleep(for: .milliseconds(280))
-            phase = 2
-            try? await Task.sleep(for: .milliseconds(2000))
-            phase = 3
-            try? await Task.sleep(for: .milliseconds(700))
+            do {
+                phase = 0
+                try await Task.sleep(for: .milliseconds(700))
+                phase = 1
+                try await Task.sleep(for: .milliseconds(280))
+                phase = 2
+                try await Task.sleep(for: .milliseconds(2000))
+                phase = 3
+                try await Task.sleep(for: .milliseconds(700))
+            } catch {
+                return   // 取消：立即停止，不再写后续 phase
+            }
         }
     }
-}
-
-// MARK: - Previews
-
-#Preview("F5") {
-    OnboardingPageF5()
-        .environmentObject(AppSettings.shared.hotkey)
-        .frame(width: 720, height: 480)
-}
-#Preview("F7") {
-    OnboardingPageF7()
-        .environmentObject(AppSettings.shared.hotkey)
-        .frame(width: 720, height: 480)
-}
-#Preview("F6") {
-    OnboardingPageF6()
-        .environmentObject(AppSettings.shared.hotkey)
-        .frame(width: 720, height: 480)
 }

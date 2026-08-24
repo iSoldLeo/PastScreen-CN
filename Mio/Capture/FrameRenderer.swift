@@ -2,302 +2,213 @@
 //  FrameRenderer.swift
 //  Mio
 //
-//  画框输出合成 — 把窗口截图嵌入"作品署名"画框 PNG。
-//
-//  本文件是 docs/capture-frame-spec.md v2.1 的代码实现。**改这里 = 改产品契约**：
-//  必须先升 spec 版本号，再改源码、再改 sandbox（scripts/frame_preview/main.swift）。
-//
-//  路径：
-//    路径 A 窗口点击直出 → CaptureCoordinator.handleSelectedWindow → compose
-//    路径 A 区域拖框直出 → CaptureCoordinator.handleSelectedRect → compose
-//    路径 D 编辑器 finish → EditorWindowController.finish → compose
-//
-//  不覆盖：路径 B 全屏截图、路径 A 窗口 fallback（壁纸 crop）。
-//
-//  核心设计：
-//    - 纯函数（nonisolated enum + static 方法）
-//    - 输入 / 输出都是 Sendable CaptureImage
-//    - 性能：~10–30ms 合成（普通窗口尺寸），不影响热路径（用户点选 → 输出）
-//    - 圆角检测：alpha 通道扫描，禁止硬编码假设值
-//    - 圆角形态：phamfoo/figma-squircle (MIT) 移植，smoothing = 0.6
-//
-//  Squircle 算法移植自 phamfoo/figma-squircle (npm 1.1.0, MIT)。
-//  https://github.com/phamfoo/figma-squircle
-//  本身又是 MartinRGB 的 JS 实现，最终源 Figma blog "Desperately Seeking Squircles"。
+//  Pure CoreGraphics/CoreText implementation of capture-frame-spec v2.2
+//  (visual constants unchanged from v2.1).
+//  AppKit resource lookup is performed once by FrameResourceLoader before this
+//  renderer is called. Squircle geometry is ported from figma-squircle v1.1.0
+//  (MIT), revision 45622dc2e9b23d69a44be673d15d1152c50df8d8.
 //
 
 import Foundation
-import AppKit
 import CoreGraphics
 import CoreText
 
-// MARK: - Public API
-
-nonisolated public enum FrameRenderer {
-
-    /// 主入口。`config.enabled == false` 时原样返回，零开销。
-    ///
-    /// 调用方：CaptureCoordinator (路径 A 直出) 与 EditorWindowController (路径 D)。
-    /// 调用方在 @MainActor 上下文调用此方法，但本函数内部完全 nonisolated；
-    /// 跨 actor 边界传 CaptureImage 已经是 Sendable，无需额外处理。
-    public static func compose(
+nonisolated enum FrameRenderer {
+    static func compose(
         image: CaptureImage,
-        config: Configuration
-    ) -> CaptureImage {
-        guard config.enabled else { return image }
-
-        let style = config.resolvedTheme.style
-        let detectedInnerRadius = detectInnerCornerRadius(
+        configuration: ResolvedFrameConfiguration,
+        resources: FrameResources
+    ) throws -> CaptureImage {
+        let style = configuration.theme.style
+        let detectedInnerRadius = try detectInnerCornerRadius(
             image.cgImage,
             outputScale: image.scale
         )
-
-        guard let composed = composeImage(
+        let composed = try composeImage(
             sourceImage: image.cgImage,
             sourcePointSize: image.size,
             outputScale: image.scale,
             style: style,
-            customText: config.customText,
+            customText: configuration.signature,
+            resources: resources,
             detectedInnerRadius: detectedInnerRadius
-        ) else {
-            // 合成失败 → 原样返回。极少数发生，例如 CGContext 创建失败。
-            return image
-        }
-
-        // 输出尺寸：源图 point 尺寸 + padding；scale 与原图一致
-        let outputPointSize = CGSize(
-            width: style.padLeft + image.size.width + style.padRight,
-            height: style.padTop + image.size.height + style.padBottom
         )
-        return CaptureImage(
-            cgImage: composed,
-            scale: image.scale,
-            size: outputPointSize
-        )
-    }
-
-    // MARK: - Configuration
-
-    public struct Configuration: Sendable {
-        public let enabled: Bool
-        /// 已 clamp 到 40 字符以内（spec §3.5 字符上限）。空字符串则 footer 右下不画文字。
-        public let customText: String
-        /// 主题 .auto 已经在调用方（CaptureCoordinator）解析为 .light / .dark。
-        /// FrameRenderer 不读 NSAppearance，与 main-actor 隔离解耦。
-        public let resolvedTheme: ResolvedTheme
-
-        public enum ResolvedTheme: Sendable {
-            case light
-            case dark
-        }
-
-        public init(enabled: Bool, customText: String, resolvedTheme: ResolvedTheme) {
-            self.enabled = enabled
-            self.customText = String(customText.prefix(40))
-            self.resolvedTheme = resolvedTheme
+        do {
+            return try CaptureImage(validating: composed, scale: image.scale)
+        } catch let error as CaptureImage.ValidationError {
+            throw ImageProcessingError.invalidSource(error)
         }
     }
 }
 
-// MARK: - Style (visual constants — locked by docs/capture-frame-spec.md v2.1)
+// MARK: - Spec-locked scalar style
 
-/// 一套画框视觉数值。**所有数值都是 spec v2.1 锁定值**，改这里 = 改产品契约。
-///
-/// SAFETY: `@unchecked Sendable`：所有存储字段为 `let`；其中 `NSFont` 与
-/// `CGColor` 跨线程读取由 Apple 文档保证安全（CoreText/CoreGraphics 全是
-/// 不可变 CF/Cocoa 类型）。本结构体只在编译期常量初始化中使用，不暴露
-/// 可变 API；运行期等价于"两份永久不变的样式表"。
-nonisolated private struct FrameStyle: @unchecked Sendable {
-    // 留白
+nonisolated private struct FrameRGBA: Sendable, Equatable {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+    let alpha: CGFloat
+
+    init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat = 1) {
+        precondition([red, green, blue, alpha].allSatisfy { $0.isFinite && (0...1).contains($0) })
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    func withAlpha(_ alpha: CGFloat) -> FrameRGBA {
+        FrameRGBA(red: red, green: green, blue: blue, alpha: alpha)
+    }
+
+    var cgColor: CGColor {
+        CGColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+}
+
+nonisolated private struct FrameFontSpec: Sendable, Equatable {
+    enum Weight: Sendable, Equatable {
+        case regular
+        case medium
+
+        /// CoreText's normalized weight-trait values use the same scale as
+        /// AppKit's system-font weights. Keeping the value explicit preserves
+        /// the locked visual weight instead of using a remappable UI role.
+        var traitValue: CGFloat {
+            switch self {
+            case .regular: 0
+            case .medium: 0.23
+            }
+        }
+    }
+
+    let weight: Weight
+    let pointSize: CGFloat
+
+    init(weight: Weight, pointSize: CGFloat) {
+        precondition(pointSize.isFinite && pointSize > 0)
+        self.weight = weight
+        self.pointSize = pointSize
+    }
+}
+
+/// All stored fields are immutable scalar values. No AppKit object and no
+/// unchecked Sendable conformance crosses into the renderer.
+nonisolated private struct FrameStyle: Sendable {
     let padTop: CGFloat
     let padLeft: CGFloat
     let padRight: CGFloat
     let padBottom: CGFloat
-
-    // 卡片几何
-    let cornerOffset: CGFloat            // outer = inner + offset
+    let cornerOffset: CGFloat
     let cornerSmoothing: CGFloat
-    let cardBackground: CGColor
-    let cardInnerStrokeColor: CGColor
+    let cardBackground: FrameRGBA
+    let cardInnerStrokeColor: FrameRGBA
     let cardInnerStrokeAlpha: CGFloat
-    let cardOuterStrokeColor: CGColor
+    let cardOuterStrokeColor: FrameRGBA
     let cardOuterStrokeAlpha: CGFloat
     let cardOuterStrokeWidth: CGFloat
-
-    // 卡片光晕（暗色版用，浅色版 alpha=0）
-    let cardGlowColor: CGColor
+    let cardGlowColor: FrameRGBA
     let cardGlowAlpha: CGFloat
     let cardGlowBlur: CGFloat
-
-    // 截图柔阴影（浅色版用，暗色版 alpha=0）
     let screenshotShadowAlpha: CGFloat
     let screenshotShadowBlur: CGFloat
     let screenshotShadowOffsetY: CGFloat
-
-    // 截图 alpha 边界 halo（暗色版用，浅色版 alpha=0）
     let screenshotEdgeHaloAlpha: CGFloat
     let screenshotEdgeHaloBlur: CGFloat
-    let screenshotEdgeHaloColor: CGColor
-
-    // Footer
+    let screenshotEdgeHaloColor: FrameRGBA
     let logoSize: CGFloat
     let logoCornerRadius: CGFloat
     let footerLogoTextSpacing: CGFloat
-    let footerTitle: String
-    let footerTitleFont: NSFont
-    let footerTitleColor: CGColor
-    let footerCustomTextFont: NSFont
-    let footerCustomTextColor: CGColor
+    let footerTitleFont: FrameFontSpec
+    let footerTitleColor: FrameRGBA
+    let footerCustomTextFont: FrameFontSpec
+    let footerCustomTextColor: FrameRGBA
     let footerInnerPadX: CGFloat
 }
 
-// MARK: - Spec-locked styles
-
-extension FrameRenderer.Configuration.ResolvedTheme {
-    fileprivate nonisolated var style: FrameStyle {
-        switch self {
-        case .light: return FrameStyle.lightV1
-        case .dark:  return FrameStyle.darkV2_1
-        }
+nonisolated private extension ResolvedFrameTheme {
+    var style: FrameStyle {
+        let dark = self == .dark
+        return FrameStyle(
+            padTop: 28, padLeft: 28, padRight: 28, padBottom: 64,
+            cornerOffset: 12,
+            cornerSmoothing: 0.6,
+            cardBackground: hex(dark ? "#1C1C1E" : "#FAFAFA"),
+            cardInnerStrokeColor: hex(dark ? "#FFFFFF" : "#000000"),
+            cardInnerStrokeAlpha: dark ? 0 : 0.04,
+            cardOuterStrokeColor: hex(dark ? "#FFFFFF" : "#000000"),
+            cardOuterStrokeAlpha: dark ? 0.13 : 0.08,
+            cardOuterStrokeWidth: dark ? 1.5 : 1,
+            cardGlowColor: hex(dark ? "#FFFFFF" : "#000000"),
+            cardGlowAlpha: dark ? 0.15 : 0,
+            cardGlowBlur: dark ? 6 : 0,
+            screenshotShadowAlpha: dark ? 0 : 0.28,
+            screenshotShadowBlur: dark ? 0 : 28,
+            screenshotShadowOffsetY: dark ? 0 : 8,
+            screenshotEdgeHaloAlpha: dark ? 0.675 : 0,
+            screenshotEdgeHaloBlur: dark ? 15 : 0,
+            screenshotEdgeHaloColor: hex("#FFFFFF"),
+            logoSize: 30,
+            logoCornerRadius: 30 * 0.2237,
+            footerLogoTextSpacing: 11,
+            footerTitleFont: FrameFontSpec(weight: .medium, pointSize: 17),
+            footerTitleColor: hex(dark ? "#FFFFFF" : "#000000").withAlpha(0.88),
+            footerCustomTextFont: FrameFontSpec(weight: .regular, pointSize: 12),
+            footerCustomTextColor: hex(dark ? "#FFFFFF" : "#000000")
+                .withAlpha(dark ? 0.50 : 0.45),
+            footerInnerPadX: 8
+        )
     }
 }
 
-nonisolated extension FrameStyle {
-
-    /// 浅色 v1（capture-frame-spec.md §3.1–§3.7）
-    static let lightV1 = FrameStyle(
-        padTop: 28, padLeft: 28, padRight: 28, padBottom: 64,
-        cornerOffset: 12,
-        cornerSmoothing: 0.6,
-        cardBackground: hex("#FAFAFA"),
-        cardInnerStrokeColor: hex("#000000"),
-        cardInnerStrokeAlpha: 0.04,
-        cardOuterStrokeColor: hex("#000000"),
-        cardOuterStrokeAlpha: 0.08,
-        cardOuterStrokeWidth: 1,
-        cardGlowColor: hex("#000000"),
-        cardGlowAlpha: 0,
-        cardGlowBlur: 0,
-        screenshotShadowAlpha: 0.28,
-        screenshotShadowBlur: 28,
-        screenshotShadowOffsetY: 8,
-        screenshotEdgeHaloAlpha: 0,
-        screenshotEdgeHaloBlur: 0,
-        screenshotEdgeHaloColor: hex("#FFFFFF"),
-        logoSize: 30,
-        logoCornerRadius: 30 * 0.2237,
-        footerLogoTextSpacing: 11,
-        footerTitle: "Mio",
-        footerTitleFont: NSFont.systemFont(ofSize: 17, weight: .medium),
-        footerTitleColor: hex("#000000").withMioAlpha(0.88),
-        footerCustomTextFont: NSFont.systemFont(ofSize: 12, weight: .regular),
-        footerCustomTextColor: hex("#000000").withMioAlpha(0.45),
-        footerInnerPadX: 8
-    )
-
-    /// 暗色 v2.1（capture-frame-spec.md §3.8）
-    static let darkV2_1 = FrameStyle(
-        padTop: 28, padLeft: 28, padRight: 28, padBottom: 64,
-        cornerOffset: 12,
-        cornerSmoothing: 0.6,
-        cardBackground: hex("#1C1C1E"),
-        cardInnerStrokeColor: hex("#FFFFFF"),
-        cardInnerStrokeAlpha: 0,                 // 暗色版不画
-        cardOuterStrokeColor: hex("#FFFFFF"),
-        cardOuterStrokeAlpha: 0.13,              // 1.5pt #FFF 13% 隔离线
-        cardOuterStrokeWidth: 1.5,
-        cardGlowColor: hex("#FFFFFF"),
-        cardGlowAlpha: 0.15,                     // Glow2
-        cardGlowBlur: 6,
-        screenshotShadowAlpha: 0,                // 暗色版不画截图柔阴影
-        screenshotShadowBlur: 0,
-        screenshotShadowOffsetY: 0,
-        screenshotEdgeHaloAlpha: 0.675,          // Halo15x
-        screenshotEdgeHaloBlur: 15,
-        screenshotEdgeHaloColor: hex("#FFFFFF"),
-        logoSize: 30,
-        logoCornerRadius: 30 * 0.2237,
-        footerLogoTextSpacing: 11,
-        footerTitle: "Mio",
-        footerTitleFont: NSFont.systemFont(ofSize: 17, weight: .medium),
-        footerTitleColor: hex("#FFFFFF").withMioAlpha(0.88),
-        footerCustomTextFont: NSFont.systemFont(ofSize: 12, weight: .regular),
-        footerCustomTextColor: hex("#FFFFFF").withMioAlpha(0.50),
-        footerInnerPadX: 8
+nonisolated private func hex(_ string: String) -> FrameRGBA {
+    var value = string
+    if value.hasPrefix("#") { value.removeFirst() }
+    precondition(value.count == 6 && UInt32(value, radix: 16) != nil)
+    let rgb = UInt32(value, radix: 16)!
+    return FrameRGBA(
+        red: CGFloat((rgb >> 16) & 0xFF) / 255,
+        green: CGFloat((rgb >> 8) & 0xFF) / 255,
+        blue: CGFloat(rgb & 0xFF) / 255
     )
 }
 
-// MARK: - Color helpers
+// MARK: - Inner corner detection
 
-nonisolated private func hex(_ hex: String) -> CGColor {
-    var s = hex.trimmingCharacters(in: .whitespaces)
-    if s.hasPrefix("#") { s.removeFirst() }
-    guard s.count == 6, let v = UInt32(s, radix: 16) else {
-        return CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+/// Rasterizes only the top-left alpha column used by the radius probe. This
+/// reduces temporary storage from O(width * height) to O(min(width, height)).
+nonisolated private func detectInnerCornerRadius(
+    _ image: CGImage,
+    outputScale: CGFloat
+) throws -> CGFloat {
+    let scanLimit = min(image.height / 2, image.width / 2, 320)
+    guard scanLimit > 0 else { return 0 }
+    guard let strip = image.cropping(to: CGRect(x: 0, y: 0, width: 1, height: scanLimit)) else {
+        throw ImageProcessingError.renderFailed(stage: .alphaProbe)
     }
-    let r = CGFloat((v >> 16) & 0xFF) / 255.0
-    let g = CGFloat((v >> 8)  & 0xFF) / 255.0
-    let b = CGFloat( v        & 0xFF) / 255.0
-    return CGColor(red: r, green: g, blue: b, alpha: 1)
-}
 
-extension CGColor {
-    /// 加 alpha 后的副本。命名 `withMioAlpha` 避免与 SDK 内部 SPI 冲突。
-    fileprivate nonisolated func withMioAlpha(_ a: CGFloat) -> CGColor {
-        return self.copy(alpha: a) ?? self
-    }
-}
-
-// MARK: - Inner corner detection (alpha scan)
-
-/// 从 alpha 通道反推窗口截图的圆角半径（point）。
-///
-/// 假定输入图是紧贴窗口边界的 RGBA（SCK 用 `desktopIndependentWindow` +
-/// `backgroundColor = .clear` + `ignoreShadowsSingleWindow = true` 拿到的那种）。
-/// 沿截图左上角 `x=0` 列从 `y=0` 向下扫描，第一个 alpha > 50% 的像素 y 值 =
-/// 像素空间圆角半径。除以 outputScale 得 point。
-///
-/// 鲁棒性：
-///   - 直角窗口（无圆角） → 返回 0
-///   - 完全实心矩形（如全屏图、无 alpha） → 返回 0
-///   - 抗锯齿渐变 → 取 alpha=128 处，即圆弧的几何中心
-///
-/// 不允许用任何"假设值"（macOS 15 ≈ 10pt / macOS 26 ≈ 16pt 等）替代检测——
-/// 应用自绘窗口圆角差异巨大，硬编码必错。
-nonisolated private func detectInnerCornerRadius(_ image: CGImage, outputScale: CGFloat) -> CGFloat {
-    let w = image.width
-    let h = image.height
-    let bytesPerRow = w * 4
-    let cs = CGColorSpaceCreateDeviceRGB()
-    var pixels = [UInt8](repeating: 0, count: w * h * 4)
-
-    // 显式 RGBA 内存布局（避免字节序歧义）
-    let bitmapInfo: UInt32 =
-        CGImageAlphaInfo.premultipliedLast.rawValue
+    let bytesPerRow = 4
+    var pixels = [UInt8](repeating: 0, count: scanLimit * bytesPerRow)
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
         | CGBitmapInfo.byteOrder32Big.rawValue
-
-    guard let ctx = CGContext(
+    guard let context = CGContext(
         data: &pixels,
-        width: w, height: h,
+        width: 1,
+        height: scanLimit,
         bitsPerComponent: 8,
         bytesPerRow: bytesPerRow,
-        space: cs,
+        space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: bitmapInfo
-    ) else { return 0 }
+    ) else {
+        throw ImageProcessingError.allocationFailed(stage: .alphaProbe)
+    }
 
-    // 翻转 y 轴让 buffer 第 0 行 = 视觉顶行
-    ctx.translateBy(x: 0, y: CGFloat(h))
-    ctx.scaleBy(x: 1, y: -1)
-    ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+    context.translateBy(x: 0, y: CGFloat(scanLimit))
+    context.scaleBy(x: 1, y: -1)
+    context.draw(strip, in: CGRect(x: 0, y: 0, width: 1, height: scanLimit))
 
-    let alphaThreshold: UInt8 = 128
-    let scanLimit = min(h / 2, w / 2, 320)
-
-    for y in 0..<scanLimit {
-        let alphaIdx = y * bytesPerRow + 3
-        if pixels[alphaIdx] > alphaThreshold {
-            return CGFloat(y) / outputScale
-        }
+    for row in 0..<scanLimit where pixels[row * bytesPerRow + 3] > 128 {
+        return CGFloat(row) / outputScale
     }
     return 0
 }
@@ -305,7 +216,7 @@ nonisolated private func detectInnerCornerRadius(_ image: CGImage, outputScale: 
 // MARK: - Continuous (squircle) rounded rectangle path
 //
 // 移植自 phamfoo/figma-squircle (npm 1.1.0, MIT)。
-// https://github.com/phamfoo/figma-squircle/blob/main/src/draw.ts
+// https://github.com/phamfoo/figma-squircle/blob/45622dc2e9b23d69a44be673d15d1152c50df8d8/src/draw.ts
 //
 // 核心思想：每个角 = bezier → 真圆弧 → bezier 三段：
 //   1. 第一段三次贝塞尔：从直线段（曲率 0）渐增到圆弧入口（曲率 = 1/r）
@@ -513,97 +424,69 @@ nonisolated private func addArcSegment(
 
 // MARK: - Compose
 
-/// 主合成函数。返回带画框的 CGImage。
-///
-/// 渲染步骤（Y-up 坐标系）：
-///   1. card 背景（continuous squircle）
-///   2. card 外描边（隔离线）
-///   3. 截图柔阴影（浅色版）
-///   4. 截图自身 alpha 边界 halo（暗色版）
-///   5. 截图本体
-///   6. 卡片内描边
-///   7. footer（logo + "Mio" + 自定义文字）
-///   8. 裁掉外溢 margin（让阴影 / halo 不被 bitmap 边界硬切）
-///
-/// 渲染时多分配 64pt 外溢空间，给 blur ≤ 28pt 的阴影 / halo 留渗出范围；
-/// 完成后裁回原尺寸。这样输出 PNG 大小 = 卡片真实尺寸（28 + W + 28, 28 + H + 64）。
 nonisolated private func composeImage(
     sourceImage: CGImage,
     sourcePointSize: CGSize,
     outputScale: CGFloat,
     style: FrameStyle,
     customText: String,
+    resources: FrameResources,
     detectedInnerRadius: CGFloat
-) -> CGImage? {
-    let canvasPointWidth  = style.padLeft + sourcePointSize.width  + style.padRight
-    let canvasPointHeight = style.padTop  + sourcePointSize.height + style.padBottom
-
-    // 给 shadow / halo / glow 留外溢空间。最大 blur ≈ 28pt + outerStrokeWidth/2 + 安全裕量
+) throws -> CGImage {
+    let canvasPointWidth = style.padLeft + sourcePointSize.width + style.padRight
+    let canvasPointHeight = style.padTop + sourcePointSize.height + style.padBottom
     let outerMargin: CGFloat = 64
-    let renderPointWidth  = canvasPointWidth  + outerMargin * 2
+    let renderPointWidth = canvasPointWidth + outerMargin * 2
     let renderPointHeight = canvasPointHeight + outerMargin * 2
-    let pixelWidth  = Int(renderPointWidth  * outputScale)
-    let pixelHeight = Int(renderPointHeight * outputScale)
+    let pixelWidth = try checkedPixelDimension(renderPointWidth * outputScale)
+    let pixelHeight = try checkedPixelDimension(renderPointHeight * outputScale)
 
-    // 解析外圆角
-    let minSidePadding = min(style.padTop, style.padLeft, style.padRight)
-    _ = minSidePadding   // 保留供未来 .concentricToPadding 策略；当前用 cornerOffset
-    let cardCornerRadius = max(0, detectedInnerRadius + style.cornerOffset)
-
-    let cs = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
-    guard let ctx = CGContext(
+    let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    guard let context = CGContext(
         data: nil,
         width: pixelWidth,
         height: pixelHeight,
         bitsPerComponent: 8,
         bytesPerRow: 0,
-        space: cs,
+        space: colorSpace,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     ) else {
-        return nil
+        throw ImageProcessingError.allocationFailed(stage: .frameCanvas)
     }
-    ctx.scaleBy(x: outputScale, y: outputScale)
-    // 平移让原 (0,0) 对应 outerMargin，footer 排版坐标无须改
-    ctx.translateBy(x: outerMargin, y: outerMargin)
+
+    context.scaleBy(x: outputScale, y: outputScale)
+    context.translateBy(x: outerMargin, y: outerMargin)
 
     let cardRect = CGRect(x: 0, y: 0, width: canvasPointWidth, height: canvasPointHeight)
+    let cardCornerRadius = max(0, detectedInnerRadius + style.cornerOffset)
     let cardPath = continuousRoundedRectPath(
         in: cardRect,
         cornerRadius: cardCornerRadius,
         cornerSmoothing: style.cornerSmoothing
     )
 
-    // 1. 卡片背景（如有 glow，借 setShadow 同时画出"卡片光晕"）
+    context.saveGState()
     if style.cardGlowAlpha > 0 {
-        ctx.saveGState()
-        ctx.setShadow(
+        context.setShadow(
             offset: .zero,
             blur: style.cardGlowBlur,
-            color: style.cardGlowColor.withMioAlpha(style.cardGlowAlpha)
+            color: style.cardGlowColor.withAlpha(style.cardGlowAlpha).cgColor
         )
-        ctx.addPath(cardPath)
-        ctx.setFillColor(style.cardBackground)
-        ctx.fillPath()
-        ctx.restoreGState()
-    } else {
-        ctx.saveGState()
-        ctx.addPath(cardPath)
-        ctx.setFillColor(style.cardBackground)
-        ctx.fillPath()
-        ctx.restoreGState()
     }
+    context.addPath(cardPath)
+    context.setFillColor(style.cardBackground.cgColor)
+    context.fillPath()
+    context.restoreGState()
 
-    // 2. 卡片外描边（隔离线）
     if style.cardOuterStrokeAlpha > 0 && style.cardOuterStrokeWidth > 0 {
-        ctx.saveGState()
-        ctx.addPath(cardPath)
-        ctx.setStrokeColor(style.cardOuterStrokeColor.withMioAlpha(style.cardOuterStrokeAlpha))
-        ctx.setLineWidth(style.cardOuterStrokeWidth)
-        ctx.strokePath()
-        ctx.restoreGState()
+        context.saveGState()
+        context.addPath(cardPath)
+        context.setStrokeColor(style.cardOuterStrokeColor.withAlpha(style.cardOuterStrokeAlpha).cgColor)
+        context.setLineWidth(style.cardOuterStrokeWidth)
+        context.strokePath()
+        context.restoreGState()
     }
 
-    // 截图位置（Y-up）
     let imageRect = CGRect(
         x: style.padLeft,
         y: style.padBottom,
@@ -611,170 +494,208 @@ nonisolated private func composeImage(
         height: sourcePointSize.height
     )
 
-    // 3. 截图柔阴影（浅色版）
     if style.screenshotShadowAlpha > 0 {
-        ctx.saveGState()
-        ctx.setShadow(
+        context.saveGState()
+        context.setShadow(
             offset: CGSize(width: 0, height: -style.screenshotShadowOffsetY),
             blur: style.screenshotShadowBlur,
-            color: hex("#000000").withMioAlpha(style.screenshotShadowAlpha)
+            color: hex("#000000").withAlpha(style.screenshotShadowAlpha).cgColor
         )
-        ctx.draw(sourceImage, in: imageRect)
-        ctx.restoreGState()
+        context.draw(sourceImage, in: imageRect)
+        context.restoreGState()
     }
 
-    // 4. 截图 alpha 边界 halo（暗色版）
     if style.screenshotEdgeHaloAlpha > 0 {
-        ctx.saveGState()
-        ctx.setShadow(
+        context.saveGState()
+        context.setShadow(
             offset: .zero,
             blur: style.screenshotEdgeHaloBlur,
-            color: style.screenshotEdgeHaloColor.withMioAlpha(style.screenshotEdgeHaloAlpha)
+            color: style.screenshotEdgeHaloColor.withAlpha(style.screenshotEdgeHaloAlpha).cgColor
         )
-        ctx.draw(sourceImage, in: imageRect)
-        ctx.restoreGState()
+        context.draw(sourceImage, in: imageRect)
+        context.restoreGState()
     }
 
-    // 5. 截图本体
-    ctx.saveGState()
-    ctx.draw(sourceImage, in: imageRect)
-    ctx.restoreGState()
+    context.draw(sourceImage, in: imageRect)
 
-    // 6. 卡片内描边
     if style.cardInnerStrokeAlpha > 0 {
-        ctx.saveGState()
+        context.saveGState()
         let inset: CGFloat = 0.5
-        let strokeRect = cardRect.insetBy(dx: inset, dy: inset)
-        let strokePath = continuousRoundedRectPath(
-            in: strokeRect,
+        context.addPath(continuousRoundedRectPath(
+            in: cardRect.insetBy(dx: inset, dy: inset),
             cornerRadius: max(0, cardCornerRadius - inset),
             cornerSmoothing: style.cornerSmoothing
-        )
-        ctx.addPath(strokePath)
-        ctx.setStrokeColor(style.cardInnerStrokeColor.withMioAlpha(style.cardInnerStrokeAlpha))
-        ctx.setLineWidth(1)
-        ctx.strokePath()
-        ctx.restoreGState()
+        ))
+        context.setStrokeColor(style.cardInnerStrokeColor.withAlpha(style.cardInnerStrokeAlpha).cgColor)
+        context.setLineWidth(1)
+        context.strokePath()
+        context.restoreGState()
     }
 
-    // 7. Footer
-    drawFooter(in: ctx, canvasWidth: canvasPointWidth, style: style, customText: customText)
-
-    // 8. 裁回 canvas 尺寸
-    guard let fullImage = ctx.makeImage() else { return nil }
-    let cropPixelRect = CGRect(
-        x: outerMargin * outputScale,
-        y: outerMargin * outputScale,
-        width: canvasPointWidth * outputScale,
-        height: canvasPointHeight * outputScale
+    try drawFooter(
+        in: context,
+        canvasWidth: canvasPointWidth,
+        style: style,
+        customText: customText,
+        logo: resources.logo
     )
-    return fullImage.cropping(to: cropPixelRect)
+
+    guard let fullImage = context.makeImage() else {
+        throw ImageProcessingError.renderFailed(stage: .frameCanvas)
+    }
+
+    let outputPixelWidth = try checkedPixelDimension(canvasPointWidth * outputScale)
+    let outputPixelHeight = try checkedPixelDimension(canvasPointHeight * outputScale)
+    let cropRect = CGRect(
+        x: try checkedPixelDimension(outerMargin * outputScale),
+        y: try checkedPixelDimension(outerMargin * outputScale),
+        width: outputPixelWidth,
+        height: outputPixelHeight
+    )
+    guard let cropped = fullImage.cropping(to: cropRect) else {
+        throw ImageProcessingError.renderFailed(stage: .finalCopy)
+    }
+
+    return try exactSizeCopy(
+        cropped,
+        width: outputPixelWidth,
+        height: outputPixelHeight,
+        colorSpace: colorSpace
+    )
+}
+
+nonisolated private func checkedPixelDimension(_ value: CGFloat) throws -> Int {
+    let rounded = value.rounded(.toNearestOrAwayFromZero)
+    guard rounded.isFinite,
+          rounded > 0,
+          let dimension = Int(exactly: rounded)
+    else {
+        throw ImageProcessingError.allocationFailed(stage: .frameCanvas)
+    }
+    return dimension
+}
+
+nonisolated private func exactSizeCopy(
+    _ image: CGImage,
+    width: Int,
+    height: Int,
+    colorSpace: CGColorSpace
+) throws -> CGImage {
+    guard let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        throw ImageProcessingError.allocationFailed(stage: .finalCopy)
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    guard let copied = context.makeImage() else {
+        throw ImageProcessingError.renderFailed(stage: .finalCopy)
+    }
+    return copied
 }
 
 nonisolated private func drawFooter(
-    in ctx: CGContext,
+    in context: CGContext,
     canvasWidth: CGFloat,
     style: FrameStyle,
-    customText: String
-) {
-    let footerCenterY = style.padBottom / 2.0
-
-    // 左侧：logo + "Mio"
-    var leftCursor = style.padLeft + style.footerInnerPadX
-
-    if let logoImage = MioLogoImage.cached() {
-        let logoRect = CGRect(
-            x: leftCursor,
-            y: footerCenterY - style.logoSize / 2,
-            width: style.logoSize,
-            height: style.logoSize
-        )
-        ctx.saveGState()
-        let mask = continuousRoundedRectPath(
-            in: logoRect,
-            cornerRadius: style.logoCornerRadius,
-            cornerSmoothing: style.cornerSmoothing
-        )
-        ctx.addPath(mask)
-        ctx.clip()
-        ctx.draw(logoImage, in: logoRect)
-        ctx.restoreGState()
-        leftCursor = logoRect.maxX + style.footerLogoTextSpacing
-    }
-
-    // "Mio" 文字（CoreText）
-    let titleAttr = NSAttributedString(
-        string: style.footerTitle,
-        attributes: [
-            .font: style.footerTitleFont,
-            .foregroundColor: NSColor(cgColor: style.footerTitleColor) ?? NSColor.black
-        ]
+    customText: String,
+    logo: CGImage
+) throws {
+    let centerY = style.padBottom / 2
+    let logoRect = CGRect(
+        x: style.padLeft + style.footerInnerPadX,
+        y: centerY - style.logoSize / 2,
+        width: style.logoSize,
+        height: style.logoSize
     )
-    let titleLine = CTLineCreateWithAttributedString(titleAttr)
-    let titleY = footerCenterY - style.footerTitleFont.capHeight / 2
-    ctx.textPosition = CGPoint(x: leftCursor, y: titleY)
-    CTLineDraw(titleLine, ctx)
+    context.saveGState()
+    context.addPath(continuousRoundedRectPath(
+        in: logoRect,
+        cornerRadius: style.logoCornerRadius,
+        cornerSmoothing: style.cornerSmoothing
+    ))
+    context.clip()
+    context.draw(logo, in: logoRect)
+    context.restoreGState()
 
-    // 右侧：自定义文字
+    let titleFont = try makeFont(style.footerTitleFont)
+    let titleLine = makeLine(
+        "Mio",
+        font: titleFont,
+        color: style.footerTitleColor.cgColor
+    )
+    let titleX = logoRect.maxX + style.footerLogoTextSpacing
+    let titleY = centerY - CTFontGetCapHeight(titleFont) / 2
+    context.textPosition = CGPoint(x: titleX, y: titleY)
+    CTLineDraw(titleLine, context)
+
     let trimmed = customText.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
-    // customText 已在 Configuration.init 内 prefix(40) clamp；这里 belt-and-suspenders
-    let clamped = trimmed.count > 40
-        ? String(trimmed.prefix(40)) + "…"
-        : trimmed
 
-    let customAttr = NSAttributedString(
-        string: clamped,
-        attributes: [
-            .font: style.footerCustomTextFont,
-            .foregroundColor: NSColor(cgColor: style.footerCustomTextColor) ?? NSColor.gray
-        ]
+    let titleWidth = CGFloat(CTLineGetTypographicBounds(titleLine, nil, nil, nil))
+    let signatureLeft = titleX + titleWidth + style.footerLogoTextSpacing
+    let signatureRight = canvasWidth - style.padRight - style.footerInnerPadX
+    let availableWidth = signatureRight - signatureLeft
+    guard availableWidth > 0 else { return }
+
+    let signatureFont = try makeFont(style.footerCustomTextFont)
+    let fullLine = makeLine(
+        trimmed,
+        font: signatureFont,
+        color: style.footerCustomTextColor.cgColor
     )
-    let customLine = CTLineCreateWithAttributedString(customAttr)
-    let customWidth = CTLineGetTypographicBounds(customLine, nil, nil, nil)
-    let customX = canvasWidth - style.padRight - style.footerInnerPadX - CGFloat(customWidth)
-    let customY = footerCenterY - style.footerCustomTextFont.capHeight / 2
-    ctx.textPosition = CGPoint(x: customX, y: customY)
-    CTLineDraw(customLine, ctx)
+    let token = makeLine(
+        "…",
+        font: signatureFont,
+        color: style.footerCustomTextColor.cgColor
+    )
+    let line: CTLine
+    if CGFloat(CTLineGetTypographicBounds(fullLine, nil, nil, nil)) <= availableWidth {
+        line = fullLine
+    } else if let truncated = CTLineCreateTruncatedLine(fullLine, Double(availableWidth), .end, token) {
+        line = truncated
+    } else {
+        throw ImageProcessingError.renderFailed(stage: .frameCanvas)
+    }
+
+    let lineWidth = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    context.textPosition = CGPoint(
+        x: signatureRight - lineWidth,
+        y: centerY - CTFontGetCapHeight(signatureFont) / 2
+    )
+    CTLineDraw(line, context)
 }
 
-// MARK: - Logo cache
-
-/// 从 asset catalog 加载 Mio logo。第一次使用时缓存为 CGImage，之后零开销。
-///
-/// SAFETY: nonisolated(unsafe) 是 write-once-then-read 模式：
-///   1. 缓存只在第一次调用时写入
-///   2. 写入后不再修改（仅读取）
-///   3. CGImage 是不可变 CF 类型，跨线程读安全
-/// `cached()` 加锁保护初始化阶段；之后的快路径只读 cgImageCache。
-nonisolated private final class MioLogoImage {
-    nonisolated(unsafe) static var cgImageCache: CGImage?
-    static let initLock = NSLock()
-
-    static func cached() -> CGImage? {
-        // 快路径：已初始化
-        if let img = cgImageCache { return img }
-
-        initLock.lock()
-        defer { initLock.unlock() }
-
-        // 双重检查
-        if let img = cgImageCache { return img }
-
-        // 完整 app logo（branding/mio-logo-1024.png 拷贝到 Assets.xcassets 内的
-        // FrameLogo imageset）。1024×1024 RGB（无 alpha），通过 squircle mask 切出
-        // macOS app icon 形状。
-        //
-        // 找不到 → 返回 nil → drawFooter 跳过 logo，只显示 "Mio" 文字。
-        // 不 fallback 到 MenuBarIcon 之类——单色菜单栏图标在画框里看错位，遮盖
-        // "asset 配置错误"问题反而更糟。
-        guard let nsImage = NSImage(named: "FrameLogo") else { return nil }
-
-        var rect = CGRect(origin: .zero, size: nsImage.size)
-        guard let cgImage = nsImage.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
-            return nil
-        }
-        cgImageCache = cgImage
-        return cgImage
+nonisolated private func makeFont(_ spec: FrameFontSpec) throws -> CTFont {
+    guard let systemFont = CTFontCreateUIFontForLanguage(.system, spec.pointSize, nil) else {
+        throw ImageProcessingError.renderFailed(stage: .frameCanvas)
     }
+    let descriptor = CTFontDescriptorCreateWithAttributes([
+        kCTFontTraitsAttribute: [
+            kCTFontWeightTrait: spec.weight.traitValue,
+        ],
+    ] as CFDictionary)
+    return CTFontCreateCopyWithAttributes(
+        systemFont,
+        spec.pointSize,
+        nil,
+        descriptor
+    )
+}
+
+nonisolated private func makeLine(
+    _ text: String,
+    font: CTFont,
+    color: CGColor
+) -> CTLine {
+    let attributes: [NSAttributedString.Key: Any] = [
+        NSAttributedString.Key(kCTFontAttributeName as String): font,
+        NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
+    ]
+    return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
 }

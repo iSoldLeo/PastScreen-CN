@@ -67,6 +67,27 @@ MEMBER_IMPORT_VISIBILITY="$(xcconfig_value SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_
 # swiftc wants `-swift-version 6`, the xcconfig says `6.0`.
 SWIFT_MODE="${SWIFT_VERSION%.0}"
 
+# Macro plugins (SwiftUIMacros for @State/#Preview, ObservationMacros for
+# @Observable, …) ship only inside a full Xcode.app toolchain — NOT the Command
+# Line Tools. If xcode-select points at CommandLineTools, swiftc cannot find
+# SwiftUIMacros and every SwiftUI view fails to typecheck. Discover an Xcode.app
+# and pin DEVELOPER_DIR so xcrun resolves swiftc + SDK + plugin-server from it.
+if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+  current_dev="$(xcode-select -p 2>/dev/null || true)"
+  if [[ "$current_dev" != *.app/Contents/Developer ]]; then
+    for candidate in \
+      /Applications/Xcode.app /Applications/Xcode-beta.app \
+      /Applications/Xcode*.app \
+      /Volumes/*/Applications/Xcode.app /Volumes/*/Applications/Xcode-beta.app \
+      /Volumes/*/Applications/Xcode*.app; do
+      if [[ -d "$candidate/Contents/Developer" ]]; then
+        export DEVELOPER_DIR="$candidate/Contents/Developer"
+        break
+      fi
+    done
+  fi
+fi
+
 SDK_PATH="$(xcrun --show-sdk-path --sdk macosx)" || { printf 'could not locate the macOS SDK\n' >&2; exit 2; }
 TARGET_TRIPLE="$(uname -m)-apple-macos${DEPLOYMENT_TARGET}"
 
@@ -76,6 +97,13 @@ FLAGS=(
   -strict-concurrency=complete
   -target "$TARGET_TRIPLE"
   -sdk "$SDK_PATH"
+  # swiftc runs each macro plugin under a nested sandbox-exec. In an already
+  # sandboxed/restricted shell (CI, agent) `sandbox_apply` fails and the plugin
+  # server returns a "malformed response", which surfaces as a bogus
+  # "external macro implementation … could not be found". Disabling the plugin
+  # sandbox lets first-party Apple macros (SwiftUI/Observation) load. Safe here:
+  # the project uses no third-party macros.
+  -disable-sandbox
 )
 
 # The whole point of the script. Absent this, isolation errors are invisible.
@@ -106,7 +134,7 @@ if (( QUIET == 0 )); then
     "$SWIFT_MODE" "$TARGET_TRIPLE" "${DEFAULT_ISOLATION:-default}"
 fi
 
-OUTPUT="$(swiftc "${FLAGS[@]}" "${SOURCES[@]}" 2>&1 || true)"
+OUTPUT="$(xcrun swiftc "${FLAGS[@]}" "${SOURCES[@]}" 2>&1 || true)"
 DIAGNOSTICS="$(printf '%s\n' "$OUTPUT" | grep -E '(error|warning):' | sort -u || true)"
 
 if [[ -n "$DIAGNOSTICS" ]]; then

@@ -2,12 +2,12 @@
 //  OnboardingPageStorage.swift
 //  Mio
 //
-//  Onboarding 第 5 页：截图存到哪。
+//  Onboarding 第 6 页：截图存到哪。
 //
 //  叙事策略（与 P4 不同）：这一页给用户**明确选择**,没有隐式默认。
 //  两张并列卡:仅剪贴板 / 也保存到文件夹。原因:
 //
-//    1. 合规 gate(Apple 2.4.5(i)):新用户 saveFolderPath = ""
+//    1. 合规 gate(Apple 2.4.5(i)):新用户没有有效 bookmark authorization，
 //       默认 saveToFile = true → 不主动选会"想保存但写不了文件"
 //       silent fail。
 //    2. 这是工具型应用的核心交互预设——比"启用画框"重得多。HIG
@@ -34,19 +34,102 @@ import AppKit
 
 struct OnboardingPageStorage: View {
     @EnvironmentObject var capture: CaptureSettings
+    @EnvironmentObject var saveFolderAccess: SaveFolderAccess
+    @Binding var latestSelectionID: SaveFolderSelectionID?
+    @Binding var pendingSelectionID: SaveFolderSelectionID?
 
     var body: some View {
         OnboardingPageShell(
             title: "onboarding.storage.title",
             subtitle: "onboarding.storage.subtitle"
         ) {
-            StorageChoicesStage()
+            StorageChoicesStage(
+                selectionPending: pendingSelectionID != nil,
+                onSelectClipboardOnly: selectClipboardOnly,
+                onSelectSaveToFolder: selectSaveToFolder
+            )
         } action: {
-            // action 槽:已选"保存到文件"时显示路径行;否则什么都不画
-            // 让 stage 居中。这样 stage 的卡片永远是视觉重心。
-            if capture.saveToFile && capture.hasValidSaveFolder {
-                CurrentFolderRow()
+            VStack(spacing: 8) {
+                if capture.saveToFile, case .ready = saveFolderAccess.state {
+                    CurrentFolderRow(
+                        selectionPending: pendingSelectionID != nil,
+                        onChangeFolder: beginFolderSelection
+                    )
+                } else if case .restoring = saveFolderAccess.state {
+                    FolderProgressRow(label: "settings.storage.folder_restoring")
+                } else if case .selecting = saveFolderAccess.state {
+                    FolderProgressRow(label: "settings.storage.folder_selecting")
+                }
+
+                if let retainedPrevious = matchingFailureRetainedPrevious {
+                    Text(LocalizedStringKey(
+                        retainedPrevious
+                            ? "settings.storage.selection_failed_retained"
+                            : "settings.storage.selection_failed"
+                    ))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 420)
+                }
             }
+        }
+        .onChange(of: saveFolderAccess.selectionCompletion) { _, completion in
+            consumeMatchingCompletion(completion)
+        }
+    }
+
+    private var matchingFailureRetainedPrevious: Bool? {
+        guard
+            let completion = saveFolderAccess.selectionCompletion,
+            completion.id == latestSelectionID,
+            completion.source == .onboarding,
+            case let .failed(_, retainedPrevious) = completion.result
+        else {
+            return nil
+        }
+        return retainedPrevious
+    }
+
+    private func selectClipboardOnly() {
+        latestSelectionID = nil
+        pendingSelectionID = nil
+        capture.saveToFile = false
+    }
+
+    private func selectSaveToFolder() {
+        if case .ready = saveFolderAccess.state {
+            latestSelectionID = nil
+            pendingSelectionID = nil
+            capture.saveToFile = true
+            return
+        }
+        beginFolderSelection()
+    }
+
+    /// Folder capability owns authorization. This page owns only the identity
+    /// of the caller intent so a late completion cannot overwrite a newer UI
+    /// decision or leak a notice into another host.
+    private func beginFolderSelection() {
+        guard pendingSelectionID == nil else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        guard let operationID = saveFolderAccess.chooseFolder(source: .onboarding) else { return }
+        latestSelectionID = operationID
+        pendingSelectionID = operationID
+        consumeMatchingCompletion(saveFolderAccess.selectionCompletion)
+    }
+
+    private func consumeMatchingCompletion(_ completion: SaveFolderSelectionCompletion?) {
+        guard
+            let completion,
+            completion.id == pendingSelectionID,
+            completion.source == .onboarding
+        else {
+            return
+        }
+        pendingSelectionID = nil
+        if case .selected = completion.result {
+            capture.saveToFile = true
         }
     }
 }
@@ -55,6 +138,15 @@ struct OnboardingPageStorage: View {
 
 private struct StorageChoicesStage: View {
     @EnvironmentObject var capture: CaptureSettings
+    @EnvironmentObject var saveFolderAccess: SaveFolderAccess
+    let selectionPending: Bool
+    let onSelectClipboardOnly: () -> Void
+    let onSelectSaveToFolder: () -> Void
+
+    private var folderIsReady: Bool {
+        if case .ready = saveFolderAccess.state { return true }
+        return false
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -65,38 +157,23 @@ private struct StorageChoicesStage: View {
                     title: "onboarding.storage.clipboard.title",
                     subtitle: "onboarding.storage.clipboard.subtitle",
                     isSelected: !capture.saveToFile,
-                    accent: .blue
-                ) {
-                    selectClipboardOnly()
-                }
+                    accent: .blue,
+                    action: onSelectClipboardOnly
+                )
 
                 // 卡片 2:保存到文件
                 StorageChoiceCard(
                     iconName: "folder.fill",
                     title: "onboarding.storage.file.title",
                     subtitle: "onboarding.storage.file.subtitle",
-                    isSelected: capture.saveToFile && capture.hasValidSaveFolder,
-                    accent: .orange
-                ) {
-                    selectSaveToFolder()
-                }
+                    isSelected: capture.saveToFile && folderIsReady,
+                    accent: .orange,
+                    isEnabled: !selectionPending,
+                    action: onSelectSaveToFolder
+                )
             }
             .padding(20)
             .frame(width: geo.size.width, height: geo.size.height)
-        }
-    }
-
-    private func selectClipboardOnly() {
-        capture.saveToFile = false
-    }
-
-    /// 弹 NSOpenPanel 让用户选文件夹。选了就同时打开 saveToFile + 写路径;
-    /// cancel 不切换状态(不强行让卡片 2 高亮然后留在无路径状态)。
-    private func selectSaveToFolder() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let path = capture.selectFolder() {
-            capture.saveFolderPath = path
-            capture.saveToFile = true
         }
     }
 }
@@ -109,6 +186,7 @@ private struct StorageChoiceCard: View {
     let subtitle: LocalizedStringKey
     let isSelected: Bool
     let accent: Color
+    var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -170,6 +248,8 @@ private struct StorageChoiceCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
         .animation(.smooth(duration: 0.22), value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -181,12 +261,13 @@ private struct StorageChoiceCard: View {
 /// 与 P1–P3 的快捷键按钮、P4 的签名输入框处于同一视觉位置——保持
 /// "副标题下方一行操作区"的位置感。
 private struct CurrentFolderRow: View {
-    @EnvironmentObject var capture: CaptureSettings
+    @EnvironmentObject var saveFolderAccess: SaveFolderAccess
+    let selectionPending: Bool
+    let onChangeFolder: () -> Void
 
     private var folderName: String {
-        let url = URL(fileURLWithPath: capture.saveFolderPath)
-        let name = url.lastPathComponent
-        return name.isEmpty ? capture.saveFolderPath : name
+        guard case let .ready(displayName) = saveFolderAccess.state else { return "" }
+        return displayName
     }
 
     var body: some View {
@@ -203,10 +284,11 @@ private struct CurrentFolderRow: View {
             Spacer(minLength: 8)
 
             Button("onboarding.storage.change") {
-                changeFolder()
+                onChangeFolder()
             }
             .buttonStyle(.borderless)
             .controlSize(.small)
+            .disabled(selectionPending)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 32)
@@ -216,19 +298,22 @@ private struct CurrentFolderRow: View {
         }
         .frame(maxWidth: 360)
     }
-
-    private func changeFolder() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let path = capture.selectFolder() {
-            capture.saveFolderPath = path
-        }
-    }
 }
 
-// MARK: - Preview
+private struct FolderProgressRow: View {
+    let label: LocalizedStringKey
 
-#Preview {
-    OnboardingPageStorage()
-        .environmentObject(AppSettings.shared.capture)
-        .frame(width: 720, height: 480)
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text(label)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 32)
+        .background(.regularMaterial, in: Capsule())
+        .frame(maxWidth: 360)
+    }
 }

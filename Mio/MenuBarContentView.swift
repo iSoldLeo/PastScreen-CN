@@ -1,10 +1,32 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
+@MainActor
 struct MenuBarContentView: View {
+    private enum ShortcutProjection {
+        case label(ShortcutPresentation)
+        case unavailable
+        case none
+    }
+
     @Environment(\.openSettings) private var openSettings
-    @ObservedObject private var hotkey = AppSettings.shared.hotkey
-    @ObservedObject var app: AppDelegate
+    @ObservedObject private var shortcutService: GlobalShortcutService
+
+    private let shortcutFormatter: ShortcutLabelFormatter
+    private let submitCapture: @MainActor (CaptureCommand, CommandSource) -> CaptureRoutingDisposition
+    private let quit: @MainActor () -> Void
+
+    init(
+        shortcutService: GlobalShortcutService,
+        shortcutFormatter: ShortcutLabelFormatter,
+        submitCapture: @escaping @MainActor (CaptureCommand, CommandSource) -> CaptureRoutingDisposition,
+        quit: @escaping @MainActor () -> Void
+    ) {
+        _shortcutService = ObservedObject(wrappedValue: shortcutService)
+        self.shortcutFormatter = shortcutFormatter
+        self.submitCapture = submitCapture
+        self.quit = quit
+    }
 
     var body: some View {
         captureSection
@@ -14,60 +36,78 @@ struct MenuBarContentView: View {
 
     private var captureSection: some View {
         Group {
-            Button(NSLocalizedString("menu.capture_area", comment: "")) {
-                app.takeScreenshot()
-            }
-            .applyHotkey(keyboardShortcut(for: hotkey.windowCaptureHotkey))
-
-            Button(NSLocalizedString("menu.capture_advanced", comment: "")) {
-                app.takeAdvancedScreenshot()
-            }
-            .applyHotkey(keyboardShortcut(for: hotkey.advancedWindowCaptureHotkey))
-
-            Button(NSLocalizedString("menu.capture_fullscreen", comment: "")) {
-                app.captureFullScreen()
-            }
-            .applyHotkey(keyboardShortcut(for: hotkey.fullScreenHotkey))
+            captureButton(
+                titleKey: "menu.capture_area",
+                command: .captureArea,
+                action: .windowCapture
+            )
+            captureButton(
+                titleKey: "menu.capture_advanced",
+                command: .captureAdvanced,
+                action: .advancedWindowCapture
+            )
+            captureButton(
+                titleKey: "menu.capture_fullscreen",
+                command: .captureFullScreen,
+                action: .fullScreenCapture
+            )
         }
     }
 
     private var utilitySection: some View {
         Group {
             Button(NSLocalizedString("menu.preferences", comment: "")) {
-                // Use SwiftUI's settings action to ensure the Settings scene opens reliably (macOS 14+)
                 NSApp.activate(ignoringOtherApps: true)
                 openSettings()
             }
             Button(NSLocalizedString("menu.quit", comment: "")) {
-                app.quit()
+                quit()
             }
         }
     }
 
-    private func keyboardShortcut(for hotkey: HotKey) -> KeyboardShortcut? {
-        guard
-            !hotkey.isUnset,
-            let chars = hotkey.characters,
-            let first = chars.first
-        else { return nil }
-
-        let modifiers = eventModifiers(from: hotkey.modifierFlags)
-        return KeyboardShortcut(KeyEquivalent(first), modifiers: modifiers)
+    private func captureButton(
+        titleKey: String,
+        command: CaptureCommand,
+        action: ShortcutAction
+    ) -> some View {
+        Button {
+            _ = submitCapture(command, .menu)
+        } label: {
+            HStack {
+                Text(LocalizedStringKey(titleKey))
+                Spacer()
+                actualShortcutLabel(for: action)
+            }
+        }
     }
 
-    private func eventModifiers(from flags: NSEvent.ModifierFlags) -> EventModifiers {
-        var modifiers: EventModifiers = []
-        if flags.contains(.command) { modifiers.insert(.command) }
-        if flags.contains(.option) { modifiers.insert(.option) }
-        if flags.contains(.shift) { modifiers.insert(.shift) }
-        if flags.contains(.control) { modifiers.insert(.control) }
-        return modifiers
+    @ViewBuilder
+    private func actualShortcutLabel(for action: ShortcutAction) -> some View {
+        switch shortcutProjection(for: action) {
+        case let .label(presentation):
+            Text(presentation.compactLabel)
+                .font(.body.monospaced())
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(Text(presentation.accessibilityLabel))
+                .help(presentation.accessibilityLabel)
+        case .unavailable:
+            Text("hotkey.status.unavailable")
+                .foregroundStyle(.secondary)
+        case .none:
+            EmptyView()
+        }
     }
-}
 
-private extension View {
-    func applyHotkey(_ shortcut: KeyboardShortcut?) -> some View {
-        guard let shortcut else { return AnyView(self) }
-        return AnyView(self.keyboardShortcut(shortcut))
+    private func shortcutProjection(for action: ShortcutAction) -> ShortcutProjection {
+        _ = shortcutService.presentationRevision
+        switch shortcutService.registrationStates[action] ?? .notStarted {
+        case let .registered(shortcut):
+            return .label(shortcutFormatter.presentation(for: shortcut))
+        case .failed:
+            return .unavailable
+        case .notStarted, .disabled:
+            return .none
+        }
     }
 }

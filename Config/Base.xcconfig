@@ -1,14 +1,17 @@
 // Shared Xcode 26 build settings for Mio.
 
-MACOSX_DEPLOYMENT_TARGET = 15.0
+// Deployment floor lowered to macOS 15.6 (matches the Mio target in
+// project.pbxproj). macOS 26-only APIs (e.g. Liquid Glass .glass /
+// .glassProminent) must be guarded with #available / @available.
+MACOSX_DEPLOYMENT_TARGET = 15.6
 SDKROOT = macosx
 SUPPORTED_PLATFORMS = macosx
 
 PRODUCT_NAME = Mio
 PRODUCT_BUNDLE_IDENTIFIER = com.iSoldLeo.Mio
 PRODUCT_MODULE_NAME = Mio
-MARKETING_VERSION = 2.0.2
-CURRENT_PROJECT_VERSION = 2.0.2
+MARKETING_VERSION = 2.0.1
+CURRENT_PROJECT_VERSION = 2.0.1
 
 DEVELOPMENT_TEAM = 29JVTLN6CG
 CODE_SIGN_STYLE = Automatic
